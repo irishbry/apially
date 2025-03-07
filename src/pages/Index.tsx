@@ -1,11 +1,58 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+import React from "react";
+import { Separator } from "@/components/ui/separator";
+import ApiKeyForm from "@/components/ApiKeyForm";
+import DropboxLinkForm from "@/components/DropboxLinkForm";
+import ControlPanel from "@/components/ControlPanel";
+import DataTable from "@/components/DataTable";
+import ApiInstructions from "@/components/ApiInstructions";
+import ApiUsageStats from "@/components/ApiUsageStats";
+import Header from "@/components/Header";
 
 const Index = () => {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-gray-600">Start building your amazing project here!</p>
+    <div className="min-h-screen bg-gradient-to-b from-background to-background/95">
+      {/* Subtle background decoration */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
+        <div className="absolute top-[20%] -left-40 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
+        <div className="absolute -bottom-40 right-[20%] w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
+      </div>
+      
+      <div className="container max-w-7xl relative">
+        <div className="py-10 space-y-8 animate-slide-up">
+          {/* Header */}
+          <Header />
+          
+          <Separator />
+          
+          {/* API Usage Stats */}
+          <section>
+            <ApiUsageStats />
+          </section>
+          
+          {/* Configuration */}
+          <section>
+            <h2 className="text-xl font-medium mb-4">Configuration</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <ApiKeyForm />
+              <DropboxLinkForm />
+            </div>
+          </section>
+          
+          {/* Control and Data View */}
+          <section className="space-y-6">
+            <h2 className="text-xl font-medium mb-4">Manage & Test</h2>
+            <ControlPanel />
+            <DataTable />
+          </section>
+          
+          {/* API Documentation */}
+          <section className="space-y-6 pb-10">
+            <h2 className="text-xl font-medium mb-4">Documentation</h2>
+            <ApiInstructions />
+          </section>
+        </div>
       </div>
     </div>
   );

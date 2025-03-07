@@ -1,0 +1,187 @@
+
+import { toast } from "@/components/ui/use-toast";
+
+// Type for incoming data
+export interface DataEntry {
+  id?: string;
+  timestamp?: string;
+  [key: string]: any;
+}
+
+// Main API service
+class ApiService {
+  private static instance: ApiService;
+  private apiKey: string = "";
+  private data: DataEntry[] = [];
+  private dropboxLink: string = "";
+  private subscribers: ((data: DataEntry[]) => void)[] = [];
+
+  private constructor() {
+    // Initialize with demo data
+    this.generateDemoData();
+    
+    // Simulate scheduled daily export
+    this.scheduleExport();
+  }
+
+  // Singleton pattern
+  public static getInstance(): ApiService {
+    if (!ApiService.instance) {
+      ApiService.instance = new ApiService();
+    }
+    return ApiService.instance;
+  }
+
+  // Generate some demo data
+  private generateDemoData() {
+    const demoData: DataEntry[] = [];
+    const now = new Date();
+    
+    for (let i = 0; i < 10; i++) {
+      const timestamp = new Date(now.getTime() - (i * 3600000));
+      demoData.push({
+        id: `demo-${i}`,
+        timestamp: timestamp.toISOString(),
+        sensorId: `sensor-${Math.floor(Math.random() * 5) + 1}`,
+        temperature: Math.round((Math.random() * 30 + 10) * 10) / 10,
+        humidity: Math.round(Math.random() * 100),
+        pressure: Math.round((Math.random() * 50 + 970) * 10) / 10,
+      });
+    }
+    
+    this.data = demoData;
+  }
+
+  // Set API key
+  public setApiKey(key: string): void {
+    this.apiKey = key;
+    localStorage.setItem('csv-api-key', key);
+    toast({
+      title: "API Key Updated",
+      description: "Your API key has been set successfully.",
+    });
+  }
+
+  // Get current API key
+  public getApiKey(): string {
+    if (!this.apiKey) {
+      const savedKey = localStorage.getItem('csv-api-key');
+      if (savedKey) this.apiKey = savedKey;
+    }
+    return this.apiKey;
+  }
+
+  // Set Dropbox link
+  public setDropboxLink(link: string): void {
+    this.dropboxLink = link;
+    localStorage.setItem('csv-dropbox-link', link);
+    toast({
+      title: "Dropbox Link Updated",
+      description: "Your Dropbox link has been set successfully.",
+    });
+  }
+
+  // Get current Dropbox link
+  public getDropboxLink(): string {
+    if (!this.dropboxLink) {
+      const savedLink = localStorage.getItem('csv-dropbox-link');
+      if (savedLink) this.dropboxLink = savedLink;
+    }
+    return this.dropboxLink;
+  }
+
+  // Receive data from API endpoint (simulated)
+  public receiveData(data: DataEntry, apiKey: string): boolean {
+    // Validate API key
+    if (apiKey !== this.apiKey) {
+      console.error("Invalid API key");
+      return false;
+    }
+
+    // Add timestamp if not present
+    if (!data.timestamp) {
+      data.timestamp = new Date().toISOString();
+    }
+    
+    // Add id if not present
+    if (!data.id) {
+      data.id = `entry-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    }
+
+    // Add to data store
+    this.data.unshift(data);
+    
+    // Notify subscribers
+    this.notifySubscribers();
+    
+    return true;
+  }
+
+  // Get all data
+  public getData(): DataEntry[] {
+    return this.data;
+  }
+
+  // Clear all data
+  public clearData(): void {
+    this.data = [];
+    this.notifySubscribers();
+    toast({
+      title: "Data Cleared",
+      description: "All stored data has been cleared.",
+    });
+  }
+
+  // Export data to CSV (simulated)
+  public exportToCsv(): void {
+    toast({
+      title: "CSV Export Initiated",
+      description: "Your data is being exported to CSV and will be available in your Dropbox shortly.",
+    });
+    
+    setTimeout(() => {
+      toast({
+        title: "CSV Export Complete",
+        description: "Your data has been successfully exported to CSV and is available in your Dropbox.",
+      });
+    }, 3000);
+  }
+
+  // Schedule daily export (simulated)
+  private scheduleExport(): void {
+    // In a real implementation, you would use a more reliable scheduling mechanism
+    // This is just for demo purposes
+    setInterval(() => {
+      console.log("Daily export triggered");
+      this.exportToCsv();
+    }, 86400000); // 24 hours
+  }
+
+  // Subscribe to data changes
+  public subscribe(callback: (data: DataEntry[]) => void): () => void {
+    this.subscribers.push(callback);
+    return () => {
+      this.subscribers = this.subscribers.filter(cb => cb !== callback);
+    };
+  }
+
+  // Notify subscribers of data changes
+  private notifySubscribers(): void {
+    this.subscribers.forEach(callback => callback(this.data));
+  }
+
+  // Get API usage information (for the dashboard)
+  public getApiUsageStats(): { 
+    totalRequests: number, 
+    uniqueSources: number, 
+    lastReceived: string 
+  } {
+    return {
+      totalRequests: this.data.length,
+      uniqueSources: new Set(this.data.map(d => d.sensorId)).size,
+      lastReceived: this.data[0]?.timestamp || 'No data received'
+    };
+  }
+}
+
+export default ApiService.getInstance();

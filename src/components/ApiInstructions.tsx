@@ -1,0 +1,181 @@
+
+import React, { useEffect, useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Code, Copy, FileJson } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import ApiService from "@/services/ApiService";
+
+const ApiInstructions: React.FC = () => {
+  const [apiKey, setApiKey] = useState('');
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const savedKey = ApiService.getApiKey();
+    if (savedKey) {
+      setApiKey(savedKey);
+    }
+  }, []);
+
+  const copyToClipboard = (text: string, message: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      toast({
+        title: "Copied!",
+        description: message,
+      });
+    });
+  };
+
+  const curlExample = `curl -X POST https://your-api-endpoint.com/data \\
+  -H "Content-Type: application/json" \\
+  -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" \\
+  -d '{
+    "sensorId": "sensor-1",
+    "temperature": 25.4,
+    "humidity": 68,
+    "pressure": 1013.2
+  }'`;
+
+  const jsExample = `// Using fetch API
+const url = 'https://your-api-endpoint.com/data';
+const apiKey = '${apiKey || 'YOUR_API_KEY'}';
+
+const data = {
+  sensorId: 'sensor-1',
+  temperature: 25.4,
+  humidity: 68,
+  pressure: 1013.2
+};
+
+fetch(url, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-API-Key': apiKey
+  },
+  body: JSON.stringify(data)
+})
+.then(response => response.json())
+.then(result => console.log('Success:', result))
+.catch(error => console.error('Error:', error));`;
+
+  const pythonExample = `import requests
+import json
+
+url = "https://your-api-endpoint.com/data"
+api_key = "${apiKey || 'YOUR_API_KEY'}"
+
+headers = {
+    'Content-Type': 'application/json',
+    'X-API-Key': api_key
+}
+
+data = {
+    "sensorId": "sensor-1",
+    "temperature": 25.4,
+    "humidity": 68,
+    "pressure": 1013.2
+}
+
+response = requests.post(url, headers=headers, data=json.dumps(data))
+print(response.json())`;
+
+  return (
+    <Card className="w-full shadow-sm hover:shadow-md transition-all duration-300">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-xl font-medium">
+          <FileJson className="h-5 w-5 text-primary" />
+          API Integration Guide
+        </CardTitle>
+        <CardDescription>
+          Instructions for integrating with your data consolidation API
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium">Endpoint and Authentication</h3>
+            <p className="text-sm text-muted-foreground">
+              Send your data to the following endpoint using your API key for authentication:
+            </p>
+            <div className="flex items-center justify-between bg-secondary p-3 rounded-md">
+              <code className="text-xs sm:text-sm">https://your-api-endpoint.com/data</code>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => copyToClipboard('https://your-api-endpoint.com/data', 'API endpoint copied!')}
+                className="h-8 px-2"
+              >
+                <Copy className="h-3 w-3" />
+              </Button>
+            </div>
+          </div>
+          
+          <div className="space-y-3">
+            <h3 className="text-sm font-medium">Request Format</h3>
+            <Tabs defaultValue="curl" className="w-full">
+              <TabsList className="grid grid-cols-3 mb-2">
+                <TabsTrigger value="curl">cURL</TabsTrigger>
+                <TabsTrigger value="js">JavaScript</TabsTrigger>
+                <TabsTrigger value="python">Python</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="curl" className="relative">
+                <div className="bg-secondary p-3 rounded-md overflow-x-auto">
+                  <pre className="text-xs sm:text-sm whitespace-pre-wrap">{curlExample}</pre>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="absolute top-2 right-2 h-8 w-8 p-0"
+                  onClick={() => copyToClipboard(curlExample, 'cURL example copied!')}
+                >
+                  <Copy className="h-3 w-3" />
+                </Button>
+              </TabsContent>
+              
+              <TabsContent value="js" className="relative">
+                <div className="bg-secondary p-3 rounded-md overflow-x-auto">
+                  <pre className="text-xs sm:text-sm whitespace-pre-wrap">{jsExample}</pre>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="absolute top-2 right-2 h-8 w-8 p-0"
+                  onClick={() => copyToClipboard(jsExample, 'JavaScript example copied!')}
+                >
+                  <Copy className="h-3 w-3" />
+                </Button>
+              </TabsContent>
+              
+              <TabsContent value="python" className="relative">
+                <div className="bg-secondary p-3 rounded-md overflow-x-auto">
+                  <pre className="text-xs sm:text-sm whitespace-pre-wrap">{pythonExample}</pre>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="absolute top-2 right-2 h-8 w-8 p-0"
+                  onClick={() => copyToClipboard(pythonExample, 'Python example copied!')}
+                >
+                  <Copy className="h-3 w-3" />
+                </Button>
+              </TabsContent>
+            </Tabs>
+          </div>
+          
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium">CSV Export Schedule</h3>
+            <p className="text-sm text-muted-foreground">
+              All data received throughout the day will be automatically consolidated into a CSV file and exported 
+              to your configured Dropbox location at midnight UTC. You can also trigger manual exports from the Control Panel.
+            </p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default ApiInstructions;
