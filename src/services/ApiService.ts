@@ -22,6 +22,7 @@ export interface Source {
   apiKey: string;
   createdAt: string;
   dataCount: number;
+  active: boolean;
   lastActive?: string;
 }
 
@@ -38,6 +39,7 @@ class ApiService {
     requiredFields: [],
     fieldTypes: {}
   };
+  private isAuthenticated: boolean = false;
 
   private constructor() {
     // Initialize with demo data
@@ -48,6 +50,9 @@ class ApiService {
     
     // Load saved API key
     this.loadApiKey();
+    
+    // Check if user is authenticated
+    this.checkAuthentication();
     
     // Simulate scheduled daily export
     this.scheduleExport();
@@ -95,6 +100,35 @@ class ApiService {
     });
   }
 
+  // Check if user is authenticated
+  private checkAuthentication(): void {
+    const authStatus = localStorage.getItem('csv-api-auth');
+    this.isAuthenticated = authStatus === 'true';
+  }
+
+  // Login function
+  public login(username: string, password: string): boolean {
+    // In a real app, this should validate against a secure backend
+    // For demo, we'll use a simple check
+    if (username === 'admin' && password === 'password') {
+      this.isAuthenticated = true;
+      localStorage.setItem('csv-api-auth', 'true');
+      return true;
+    }
+    return false;
+  }
+
+  // Logout function
+  public logout(): void {
+    this.isAuthenticated = false;
+    localStorage.removeItem('csv-api-auth');
+  }
+
+  // Check if user is authenticated
+  public isUserAuthenticated(): boolean {
+    return this.isAuthenticated;
+  }
+
   // Generate some demo data
   private generateDemoData() {
     const demoData: DataEntry[] = [];
@@ -130,6 +164,7 @@ class ApiService {
           apiKey: 'demo-key-factory',
           createdAt: new Date().toISOString(),
           dataCount: 4,
+          active: true,
           lastActive: new Date().toISOString()
         },
         {
@@ -138,6 +173,7 @@ class ApiService {
           apiKey: 'demo-key-warehouse',
           createdAt: new Date().toISOString(),
           dataCount: 3,
+          active: true,
           lastActive: new Date().toISOString()
         },
         {
@@ -146,6 +182,7 @@ class ApiService {
           apiKey: 'demo-key-office',
           createdAt: new Date().toISOString(),
           dataCount: 3,
+          active: true,
           lastActive: new Date().toISOString()
         }
       ];
@@ -173,6 +210,7 @@ class ApiService {
       name,
       apiKey,
       createdAt: new Date().toISOString(),
+      active: true,
       dataCount: 0
     };
     
@@ -189,6 +227,18 @@ class ApiService {
     if (sourceIndex === -1) return false;
     
     this.sources[sourceIndex].name = name;
+    this.saveSources();
+    this.notifySourceSubscribers();
+    
+    return true;
+  }
+
+  // Toggle source active state
+  public toggleSourceActive(id: string): boolean {
+    const sourceIndex = this.sources.findIndex(s => s.id === id);
+    if (sourceIndex === -1) return false;
+    
+    this.sources[sourceIndex].active = !this.sources[sourceIndex].active;
     this.saveSources();
     this.notifySourceSubscribers();
     
@@ -322,7 +372,12 @@ class ApiService {
 
   // Find source by API key
   private findSourceByApiKey(apiKey: string): Source | null {
-    return this.sources.find(s => s.apiKey === apiKey) || null;
+    const source = this.sources.find(s => s.apiKey === apiKey) || null;
+    // Also check if the source is active
+    if (source && !source.active) {
+      return null; // Treat inactive sources as if they don't exist
+    }
+    return source;
   }
 
   // Update source stats after receiving data
@@ -341,7 +396,7 @@ class ApiService {
     // Find source by API key
     const source = this.findSourceByApiKey(apiKey);
     if (!source) {
-      return { success: false, message: "Invalid API key" };
+      return { success: false, message: "Invalid API key or inactive source" };
     }
 
     // Validate data against schema
@@ -464,7 +519,7 @@ class ApiService {
   } {
     return {
       totalSources: this.sources.length,
-      activeSources: this.sources.filter(s => s.dataCount > 0).length,
+      activeSources: this.sources.filter(s => s.active && s.dataCount > 0).length,
       totalDataPoints: this.sources.reduce((sum, s) => sum + s.dataCount, 0)
     };
   }

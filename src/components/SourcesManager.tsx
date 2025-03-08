@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Edit, KeyRound, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Copy, Edit, KeyRound, Plus, Power, RefreshCw, Trash2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import ApiService, { Source } from "@/services/ApiService";
 
@@ -75,6 +75,16 @@ const SourcesManager: React.FC = () => {
       title: "Source Updated",
       description: `Source name has been updated successfully.`,
     });
+  };
+
+  const toggleSourceActive = (id: string, name: string, currentState: boolean) => {
+    const success = ApiService.toggleSourceActive(id);
+    if (success) {
+      toast({
+        title: currentState ? "Source Deactivated" : "Source Activated",
+        description: `Source "${name}" has been ${currentState ? "deactivated" : "activated"} successfully.`,
+      });
+    }
   };
 
   const regenerateApiKey = (id: string, name: string) => {
@@ -161,6 +171,7 @@ const SourcesManager: React.FC = () => {
               <TableRow>
                 <TableHead>Source Name</TableHead>
                 <TableHead>API Key</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Data Points</TableHead>
                 <TableHead>Last Active</TableHead>
                 <TableHead>Created</TableHead>
@@ -188,6 +199,14 @@ const SourcesManager: React.FC = () => {
                       </div>
                     </TableCell>
                     <TableCell>
+                      <Badge 
+                        variant={source.active ? "default" : "outline"} 
+                        className={source.active ? "bg-green-500" : "text-muted-foreground"}
+                      >
+                        {source.active ? "Active" : "Inactive"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
                       {source.dataCount > 0 ? (
                         <Badge variant="outline">{source.dataCount}</Badge>
                       ) : (
@@ -200,6 +219,14 @@ const SourcesManager: React.FC = () => {
                     <TableCell>{formatDate(source.createdAt)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => toggleSourceActive(source.id, source.name, source.active)}
+                          title={source.active ? "Deactivate source" : "Activate source"}
+                        >
+                          <Power className={`h-4 w-4 ${source.active ? 'text-green-500' : 'text-gray-400'}`} />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -230,7 +257,7 @@ const SourcesManager: React.FC = () => {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center">
+                  <TableCell colSpan={7} className="h-24 text-center">
                     No sources available
                   </TableCell>
                 </TableRow>

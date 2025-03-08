@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Separator } from "@/components/ui/separator";
 import ApiKeyForm from "@/components/ApiKeyForm";
 import DropboxLinkForm from "@/components/DropboxLinkForm";
@@ -11,9 +11,44 @@ import Header from "@/components/Header";
 import SchemaEditor from "@/components/SchemaEditor";
 import DeploymentGuide from "@/components/DeploymentGuide";
 import SourcesManager from "@/components/SourcesManager";
+import LoginForm from "@/components/LoginForm";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { LogOut } from "lucide-react";
+import ApiService from "@/services/ApiService";
+import { useToast } from "@/components/ui/use-toast";
 
 const Index = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    // Check authentication status when component mounts
+    setIsAuthenticated(ApiService.isUserAuthenticated());
+  }, []);
+
+  const handleLogout = () => {
+    ApiService.logout();
+    setIsAuthenticated(false);
+    toast({
+      title: "Logged Out",
+      description: "You have been logged out successfully.",
+    });
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-background to-background/95 flex items-center justify-center p-4">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-40 -right-40 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
+          <div className="absolute top-[20%] -left-40 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
+          <div className="absolute -bottom-40 right-[20%] w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
+        </div>
+        <LoginForm />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-background/95">
       {/* Subtle background decoration */}
@@ -25,8 +60,14 @@ const Index = () => {
       
       <div className="container max-w-7xl relative">
         <div className="py-10 space-y-8 animate-slide-up">
-          {/* Header */}
-          <Header />
+          {/* Header with Logout Button */}
+          <div className="flex justify-between items-center">
+            <Header />
+            <Button variant="outline" onClick={handleLogout} className="hover-lift">
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </Button>
+          </div>
           
           <Separator />
           
