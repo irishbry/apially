@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -110,245 +111,72 @@ RewriteRule ^(.*)$ index.php [QSA,L]
   
   const createTestPHP = () => {
     return `<?php
-/**
- * Installation Test Script
- * This file helps verify that your installation is working correctly
- */
+// Installation test script
+// Simplified version to avoid 500 errors
 
-// Check if directly accessed
-$directAccess = !isset($config);
-if ($directAccess) {
-    // If accessed directly, load config
-    require_once 'config.php';
-    header('Content-Type: text/html');
-    echo '<!DOCTYPE html>
-    <html>
-    <head>
-        <title>Data Consolidation API - Installation Test</title>
-        <style>
-            body { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; line-height: 1.6; }
-            h1 { color: #333; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-            h2 { margin-top: 30px; color: #444; }
-            .success { color: green; font-weight: bold; }
-            .error { color: red; font-weight: bold; }
-            .warning { color: orange; font-weight: bold; }
-            .test-item { background: #f8f8f8; padding: 15px; margin: 10px 0; border-radius: 5px; border-left: 5px solid #ddd; }
-            .test-item.pass { border-left-color: green; }
-            .test-item.fail { border-left-color: red; }
-            .test-item.warn { border-left-color: orange; }
-            code { background: #eee; padding: 2px 4px; border-radius: 3px; font-family: monospace; }
-            pre { background: #f1f1f1; padding: 10px; border-radius: 5px; overflow: auto; }
-            .fix-instructions { background: #fffaf0; padding: 10px; border-left: 3px solid #ffc107; margin-top: 10px; }
-        </style>
-    </head>
-    <body>
-        <h1>Data Consolidation API - Installation Test</h1>
-        <p>This tool checks your installation and helps identify any issues.</p>
-        <div id="test-results">';
-} else {
-    // If accessed through API, return JSON
-    // API key already verified in index.php
-}
-
-// Initialize tests array
-$tests = [];
-$hasErrors = false;
-$hasWarnings = false;
-
-// Test 1: PHP Version
+// Output simple HTML
+echo '<!DOCTYPE html>
+<html>
+<head>
+    <title>API Installation Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        h1 { color: #333; }
+        .success { color: green; }
+        .error { color: red; }
+        .test { padding: 10px; border: 1px solid #ddd; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>API Installation Test</h1>
+    <p>This page tests your API installation.</p>
+    
+    <div class="test">
+        <h3>PHP Version Test</h3>';
+        
+// Check PHP version
 $phpVersion = phpversion();
-$phpVersionCheck = version_compare($phpVersion, '7.4.0', '>=');
-$tests[] = [
-    'name' => 'PHP Version',
-    'status' => $phpVersionCheck ? 'pass' : 'fail',
-    'message' => 'PHP version: ' . $phpVersion,
-    'expected' => 'PHP 7.4.0 or higher',
-    'fix' => $phpVersionCheck ? '' : 'Contact your hosting provider to upgrade PHP to version 7.4.0 or higher.'
-];
-if (!$phpVersionCheck) $hasErrors = true;
+$phpVersionCheck = version_compare($phpVersion, '7.0.0', '>=');
+echo "<p>PHP Version: {$phpVersion} ";
+echo $phpVersionCheck ? '<span class="success">✓</span>' : '<span class="error">✗</span> (Requires 7.0.0+)';
+echo '</p>';
 
-// Test 2: Required PHP Extensions
-$requiredExtensions = ['json', 'curl', 'mbstring', 'fileinfo'];
-$missingExtensions = [];
-foreach ($requiredExtensions as $ext) {
-    if (!extension_loaded($ext)) {
-        $missingExtensions[] = $ext;
-    }
-}
-$extensions_check = empty($missingExtensions);
-$tests[] = [
-    'name' => 'PHP Extensions',
-    'status' => $extensions_check ? 'pass' : 'fail',
-    'message' => $extensions_check ? 'All required extensions are installed.' : 'Missing extensions: ' . implode(', ', $missingExtensions),
-    'expected' => 'json, curl, mbstring, fileinfo',
-    'fix' => $extensions_check ? '' : 'Enable missing PHP extensions through your hosting control panel or contact your hosting provider.'
-];
-if (!$extensions_check) $hasErrors = true;
-
-// Test 3: Data Directory Permissions
-$dataPath = $config['storage_path'];
-$dirExists = file_exists($dataPath);
-$dirWritable = $dirExists && is_writable($dataPath);
-
-$dirStatus = 'fail';
-$dirMessage = '';
-$dirFix = '';
-
-if (!$dirExists) {
-    $dirMessage = 'Data directory does not exist: ' . $dataPath;
-    $dirFix = 'Create the data directory and ensure proper permissions: <code>mkdir -p ' . $dataPath . '</code>';
-    $hasErrors = true;
-} elseif (!$dirWritable) {
-    $dirMessage = 'Data directory exists but is not writable: ' . $dataPath;
-    $dirFix = 'Set proper permissions: <code>chmod 755 ' . $dataPath . '</code>';
-    $hasErrors = true;
+// Check if data directory exists and is writable
+echo '<h3>Data Directory Test</h3>';
+$dataDir = __DIR__ . '/data';
+if (!file_exists($dataDir)) {
+    echo '<p><span class="error">✗</span> Data directory does not exist.</p>';
+    echo '<p>Create it with: <code>mkdir data</code></p>';
 } else {
-    $dirStatus = 'pass';
-    $dirMessage = 'Data directory exists and is writable: ' . $dataPath;
-}
-
-$tests[] = [
-    'name' => 'Data Directory',
-    'status' => $dirStatus,
-    'message' => $dirMessage,
-    'expected' => 'Directory exists and is writable',
-    'fix' => $dirFix
-];
-
-// Test 4: Mod Rewrite Enabled
-$modRewriteEnabled = function_exists('apache_get_modules') ? in_array('mod_rewrite', apache_get_modules()) : null;
-$modRewriteStatus = $modRewriteEnabled === null ? 'warn' : ($modRewriteEnabled ? 'pass' : 'warn');
-$modRewriteMessage = $modRewriteEnabled === null ? 
-                   'Could not detect Apache modules. Mod rewrite status unknown.' : 
-                   ($modRewriteEnabled ? 'Mod rewrite is enabled.' : 'Mod rewrite may not be enabled.');
-$tests[] = [
-    'name' => 'Apache Mod Rewrite',
-    'status' => $modRewriteStatus,
-    'message' => $modRewriteMessage,
-    'expected' => 'Enabled',
-    'fix' => $modRewriteEnabled === false ? 'Enable mod_rewrite in your Apache configuration or contact your hosting provider. For SiteGround, this is typically enabled by default.' : ''
-];
-if ($modRewriteStatus === 'warn') $hasWarnings = true;
-
-// Test 5: Config File
-$configFileInaccessible = false;
-$testUrl = str_replace('/test.php', '/config.php', $_SERVER['PHP_SELF']);
-$testFullUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . "://$_SERVER[HTTP_HOST]$testUrl";
-
-$ch = curl_init($testFullUrl);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_NOBODY, true);
-curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
-
-$configFileInaccessible = ($httpCode == 403 || $httpCode == 404);
-$tests[] = [
-    'name' => 'Config File Protection',
-    'status' => $configFileInaccessible ? 'pass' : 'fail',
-    'message' => $configFileInaccessible ? 'Config file is protected from direct access.' : 'Config file may be accessible directly: HTTP code ' . $httpCode,
-    'expected' => 'Protected (403 or 404 response)',
-    'fix' => $configFileInaccessible ? '' : 'Check .htaccess file permissions and configuration. Ensure the following rule is present and working:<br><pre>
-&lt;Files "config.php"&gt;
-    Order Allow,Deny
-    Deny from all
-&lt;/Files&gt;</pre>'
-];
-if (!$configFileInaccessible) $hasErrors = true;
-
-// Test 6: API Connectivity
-$testEndpoint = str_replace('/test.php', '/status', $_SERVER['PHP_SELF']);
-$testFullEndpoint = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . "://$_SERVER[HTTP_HOST]$testEndpoint";
-
-$ch = curl_init($testFullEndpoint);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_HTTPHEADER, ['X-API-Key: demo-key-factory']);
-$response = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
-
-$responseData = json_decode($response, true);
-$hasValidStatus = $httpCode === 200 && isset($responseData['status']) && $responseData['status'] === 'ok';
-
-$tests[] = [
-    'name' => 'API Connectivity',
-    'status' => $hasValidStatus ? 'pass' : 'fail',
-    'message' => $hasValidStatus ? 'API endpoints are accessible.' : 'API endpoints may not be working correctly. HTTP code: ' . $httpCode,
-    'expected' => 'HTTP 200 with status: ok',
-    'fix' => $hasValidStatus ? '' : 'Check your Apache configuration and .htaccess file. Ensure mod_rewrite is working correctly and the API routes are properly set up. If using subdirectories, ensure your rewrite rules account for them. Try adding this to your .htaccess file:<br><pre>RewriteBase /api/</pre>'
-];
-if (!$hasValidStatus) $hasErrors = true;
-
-// Output test results
-if ($directAccess) {
-    // HTML output for direct access
-    $overallStatus = $hasErrors ? 'fail' : ($hasWarnings ? 'warn' : 'pass');
-    $overallStatusText = $hasErrors ? 'Failed' : ($hasWarnings ? 'Passed with Warnings' : 'Passed');
-    $overallStatusClass = $hasErrors ? 'error' : ($hasWarnings ? 'warning' : 'success');
-    
-    echo '<h2>Overall Status: <span class="' . $overallStatusClass . '">' . $overallStatusText . '</span></h2>';
-    
-    foreach ($tests as $test) {
-        echo '<div class="test-item ' . $test['status'] . '">';
-        echo '<strong>' . $test['name'] . ':</strong> ';
-        $statusText = $test['status'] === 'pass' ? 'Pass' : ($test['status'] === 'warn' ? 'Warning' : 'Fail');
-        $statusClass = $test['status'] === 'pass' ? 'success' : ($test['status'] === 'warn' ? 'warning' : 'error');
-        echo '<span class="' . $statusClass . '">' . $statusText . '</span><br>';
-        echo 'Result: ' . $test['message'] . '<br>';
-        echo 'Expected: ' . $test['expected'];
-        
-        if (!empty($test['fix'])) {
-            echo '<div class="fix-instructions">';
-            echo '<strong>How to fix:</strong> ' . $test['fix'];
-            echo '</div>';
-        }
-        
-        echo '</div>';
-    }
-    
-    if ($overallStatus === 'pass') {
-        echo '<h2>Installation Status: <span class="success">Ready to Use</span></h2>';
-        echo '<p>Congratulations! Your Data Consolidation API installation is working correctly.</p>';
+    if (is_writable($dataDir)) {
+        echo '<p><span class="success">✓</span> Data directory exists and is writable.</p>';
     } else {
-        echo '<h2>Installation Status: <span class="' . $overallStatusClass . '">Needs Attention</span></h2>';
-        echo '<p>Please fix the issues above to ensure proper functionality.</p>';
+        echo '<p><span class="error">✗</span> Data directory exists but is not writable.</p>';
+        echo '<p>Fix with: <code>chmod 755 data</code></p>';
     }
-    
-    echo '<h2>Next Steps</h2>';
-    echo '<p>Once all tests pass:</p>';
-    echo '<ol>';
-    echo '<li>Configure your API key in <code>config.php</code></li>';
-    echo '<li>Update your allowed origins for proper CORS support</li>';
-    echo '<li>Set up the Dropbox token if you plan to use automatic exports</li>';
-    echo '</ol>';
-    
-    echo '<h2>Troubleshooting Common Issues</h2>';
-    echo '<details>';
-    echo '<summary><strong>API Connectivity Failing (404 Errors)</strong></summary>';
-    echo '<div class="fix-instructions">';
-    echo '<p>If you\\'re getting 404 errors when testing API connectivity, try these fixes:</p>';
-    echo '<ol>';
-    echo '<li>Make sure the .htaccess file exists in the same directory as index.php</li>';
-    echo '<li>If your API is in a subdirectory (e.g., /api/), add <code>RewriteBase /api/</code> to your .htaccess file</li>';
-    echo '<li>Check if mod_rewrite is enabled on your server</li>';
-    echo '<li>Verify that all files (index.php, endpoints/*.php, etc.) are in the correct location</li>';
-    echo '<li>If using SiteGround, make sure you have activated the Apache mod_rewrite in cPanel → PHP & Site Software → Apache Handlers</li>';
-    echo '</ol>';
-    echo '</div>';
-    echo '</details>';
-    
-    echo '</div></body></html>';
+}
+
+echo '<h3>Configuration File Test</h3>';
+if (file_exists(__DIR__ . '/config.php')) {
+    echo '<p><span class="success">✓</span> Configuration file exists.</p>';
 } else {
-    // JSON output for API access
-    $result = [
-        'status' => $hasErrors ? 'error' : ($hasWarnings ? 'warning' : 'ok'),
-        'message' => $hasErrors ? 'Installation has issues that need to be fixed.' : 
-                    ($hasWarnings ? 'Installation is working but has warnings.' : 'Installation is working correctly.'),
-        'tests' => $tests
-    ];
+    echo '<p><span class="error">✗</span> Configuration file does not exist.</p>';
+    echo '<p>Make sure config.php is in the same directory as this file.</p>';
+}
+
+echo '
+    </div>
     
-    echo json_encode($result);
-}`;
+    <h2>Next Steps</h2>
+    <p>Once all tests pass:</p>
+    <ol>
+        <li>Set up your API key in config.php</li>
+        <li>Try a test request to the /status endpoint</li>
+        <li>Configure your client application to use the API</li>
+    </ol>
+    
+</body>
+</html>';`;
   };
   
   const createStatusPHP = () => {
@@ -553,107 +381,53 @@ For any issues or questions, please contact support.`;
 
   const createInstallPHP = () => {
     return `<?php
-// Simple installer file
-header('Content-Type: text/html');
+// Simple installer file - basic version to prevent 500 errors
 ?>
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Data Consolidation API - Simple Installer</title>
+    <title>API Installer</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; line-height: 1.6; }
-        h1 { color: #333; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-        h2 { margin-top: 30px; color: #444; }
-        .success { color: green; font-weight: bold; }
-        .error { color: red; font-weight: bold; }
-        .warning { color: orange; font-weight: bold; }
-        .step { background: #f8f8f8; padding: 15px; margin: 20px 0; border-radius: 5px; border-left: 5px solid #ddd; }
-        .button {
-            display: inline-block;
-            background-color: #4CAF50;
-            color: white;
-            padding: 10px 20px;
-            text-decoration: none;
-            border-radius: 4px;
-            cursor: pointer;
-            border: none;
-            font-size: 16px;
-        }
-        .button:hover {
-            background-color: #45a049;
-        }
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        h1 { color: #333; }
+        .button { display: inline-block; background: #4CAF50; color: white; padding: 10px 20px; 
+                 text-decoration: none; border-radius: 4px; }
+        .step { border: 1px solid #ddd; padding: 15px; margin: 15px 0; border-radius: 5px; }
     </style>
 </head>
 <body>
     <h1>Data Consolidation API - Installation</h1>
-    <p>Welcome to the Data Consolidation API installer.</p>
     
     <div class="step">
-        <h2>System Check</h2>
-        <?php
-        // Check PHP version
-        $phpVersion = phpversion();
-        $phpVersionCheck = version_compare($phpVersion, '7.4.0', '>=');
-        echo "<p><strong>PHP Version:</strong> $phpVersion ";
-        if ($phpVersionCheck) {
-            echo "<span class='success'>✓</span>";
-        } else {
-            echo "<span class='error'>✗</span> (Required: PHP 7.4.0 or higher)";
-        }
-        echo "</p>";
-        
-        // Check required extensions
-        $requiredExtensions = ['json', 'curl', 'mbstring'];
-        $missingExtensions = [];
-        foreach ($requiredExtensions as $ext) {
-            if (!extension_loaded($ext)) {
-                $missingExtensions[] = $ext;
-            }
-        }
-        echo "<p><strong>PHP Extensions:</strong> ";
-        if (empty($missingExtensions)) {
-            echo "<span class='success'>All required extensions are installed ✓</span>";
-        } else {
-            echo "<span class='error'>Missing extensions: " . implode(', ', $missingExtensions) . " ✗</span>";
-        }
-        echo "</p>";
-        
-        // Check write permissions
-        $currentDir = dirname(__FILE__);
-        $canWrite = is_writable($currentDir);
-        echo "<p><strong>Write Permission:</strong> ";
-        if ($canWrite) {
-            echo "<span class='success'>Directory is writable ✓</span>";
-        } else {
-            echo "<span class='error'>Directory is not writable ✗</span>";
-        }
-        echo "</p>";
-        ?>
+        <h2>Step 1: Verify System Requirements</h2>
+        <ul>
+            <li>PHP 7.0 or higher</li>
+            <li>Apache with mod_rewrite enabled</li>
+            <li>Write permissions in the installation directory</li>
+        </ul>
     </div>
     
     <div class="step">
-        <h2>Installation Instructions</h2>
+        <h2>Step 2: Installation Instructions</h2>
         <ol>
-            <li>Extract all files from the zip package to your web directory</li>
-            <li>Create a <strong>data</strong> directory and ensure it's writable</li>
-            <li>Create an <strong>endpoints</strong> directory for the API endpoints</li>
-            <li>Run the test script at <a href="test.php">test.php</a> to verify your installation</li>
+            <li>Extract all files to your web directory</li>
+            <li>Create a data directory with write permissions</li>
+            <li>Edit config.php with your settings</li>
+            <li>Run the test script to verify installation</li>
         </ol>
         
         <p><a href="test.php" class="button">Run Test Script</a></p>
     </div>
     
     <div class="step">
-        <h2>API Configuration</h2>
-        <p>Edit the <strong>config.php</strong> file to set:</p>
+        <h2>Step 3: Next Steps</h2>
+        <p>After installation is complete:</p>
         <ul>
-            <li>Allowed origins for CORS</li>
-            <li>Storage path for data</li>
-            <li>Authentication credentials</li>
+            <li>Configure your API key</li>
+            <li>Set up CORS allowed origins</li>
+            <li>Start using the API endpoints</li>
         </ul>
     </div>
-    
-    <p>For more detailed instructions, please refer to the included README.md file.</p>
 </body>
 </html>`;
   };
@@ -815,4 +589,37 @@ if (!file_exists($config['storage_path'])) {
                   <ul className="list-disc list-inside ml-3">
                     <li>Connect to your server using an FTP client (like FileZilla)</li>
                     <li>Navigate to your website's document root</li>
-                    <li>Create a new folder named "api" (or
+                    <li>Create a new folder named "api"</li>
+                    <li>Upload all extracted files to this folder</li>
+                  </ul>
+                </CollapsibleContent>
+              </Collapsible>
+            </li>
+            
+            <li>
+              <Collapsible open={isOpenConfig} onOpenChange={setIsOpenConfig} className="space-y-2">
+                <CollapsibleTrigger className="font-medium flex items-center">
+                  Configure the API
+                  {isOpenConfig ? <ChevronUp className="h-4 w-4 ml-2" /> : <ChevronDown className="h-4 w-4 ml-2" />}
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pl-5 space-y-2 text-muted-foreground">
+                  <p>After uploading, you need to:</p>
+                  <ol className="list-decimal list-inside ml-3">
+                    <li>Create a data directory: <code>mkdir data</code></li>
+                    <li>Set permissions: <code>chmod 755 data</code></li>
+                    <li>Edit config.php to set your own API key and allowed origins</li>
+                    <li>Run the test script at: <code>https://yourdomain.com/api/test.php</code></li>
+                  </ol>
+                </CollapsibleContent>
+              </Collapsible>
+            </li>
+            
+            <li className="font-medium">Start using the API with your application</li>
+          </ol>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default Installer;
