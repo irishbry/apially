@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Code, Copy, FileJson } from "lucide-react";
+import { Code, Copy, FileJson, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,6 +9,7 @@ import ApiService from "@/services/ApiService";
 
 const ApiInstructions: React.FC = () => {
   const [apiKey, setApiKey] = useState('');
+  const [domainName, setDomainName] = useState(window.location.origin || 'https://your-domain.com');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -27,7 +28,9 @@ const ApiInstructions: React.FC = () => {
     });
   };
 
-  const curlExample = `curl -X POST https://your-api-endpoint.com/data \\
+  const apiEndpoint = `${domainName}/api/data`;
+
+  const curlExample = `curl -X POST ${apiEndpoint} \\
   -H "Content-Type: application/json" \\
   -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" \\
   -d '{
@@ -38,7 +41,7 @@ const ApiInstructions: React.FC = () => {
   }'`;
 
   const jsExample = `// Using fetch API
-const url = 'https://your-api-endpoint.com/data';
+const url = '${apiEndpoint}';
 const apiKey = '${apiKey || 'YOUR_API_KEY'}';
 
 const data = {
@@ -63,7 +66,7 @@ fetch(url, {
   const pythonExample = `import requests
 import json
 
-url = "https://your-api-endpoint.com/data"
+url = "${apiEndpoint}"
 api_key = "${apiKey || 'YOUR_API_KEY'}"
 
 headers = {
@@ -100,16 +103,19 @@ print(response.json())`;
               Send your data to the following endpoint using your API key for authentication:
             </p>
             <div className="flex items-center justify-between bg-secondary p-3 rounded-md">
-              <code className="text-xs sm:text-sm">https://your-api-endpoint.com/data</code>
+              <code className="text-xs sm:text-sm break-all">{apiEndpoint}</code>
               <Button 
                 variant="ghost" 
                 size="sm"
-                onClick={() => copyToClipboard('https://your-api-endpoint.com/data', 'API endpoint copied!')}
+                onClick={() => copyToClipboard(apiEndpoint, 'API endpoint copied!')}
                 className="h-8 px-2"
               >
                 <Copy className="h-3 w-3" />
               </Button>
             </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              <span className="font-medium flex items-center gap-1"><Globe className="h-3 w-3" /> Note:</span> This endpoint will automatically use your domain name. After deployment to SiteGround, this will reflect your actual server address.
+            </p>
           </div>
           
           <div className="space-y-3">

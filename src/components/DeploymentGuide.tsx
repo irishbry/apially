@@ -2,8 +2,9 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ExternalLink, Server, Globe, Github, FileCode } from "lucide-react";
+import { ExternalLink, Server, Globe, Github, FileCode, Upload } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import Installer from '@/components/Installer';
 
 const DeploymentGuide: React.FC = () => {
   return (
@@ -19,16 +20,21 @@ const DeploymentGuide: React.FC = () => {
       </CardHeader>
       <CardContent>
         <div className="space-y-6">
-          <Tabs defaultValue="netlify" className="w-full">
-            <TabsList className="grid grid-cols-3 mb-4">
+          <Tabs defaultValue="siteground" className="w-full">
+            <TabsList className="grid grid-cols-4 mb-4">
+              <TabsTrigger value="siteground">SiteGround</TabsTrigger>
               <TabsTrigger value="netlify">Netlify</TabsTrigger>
               <TabsTrigger value="vercel">Vercel</TabsTrigger>
               <TabsTrigger value="manual">Manual</TabsTrigger>
             </TabsList>
             
+            <TabsContent value="siteground" className="space-y-4">
+              <Installer />
+            </TabsContent>
+            
             <TabsContent value="netlify" className="space-y-4">
               <div className="space-y-2">
-                <h3 className="text-sm font-medium">Deploy to Netlify (Recommended)</h3>
+                <h3 className="text-sm font-medium">Deploy to Netlify</h3>
                 <ol className="list-decimal list-inside space-y-2 text-sm">
                   <li>Push this code to a GitHub repository</li>
                   <li>Sign up for <a href="https://www.netlify.com/" className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">Netlify</a></li>
