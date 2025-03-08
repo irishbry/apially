@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -293,13 +294,13 @@ function addDataSource(event) {
 }
 
 // Add source to the UI list
-function addSourceToList(name, url, type) {
+function addSourceToList(name, url, sourceType) {
   const sourcesList = document.getElementById('sources-list');
   const li = document.createElement('li');
   li.innerHTML = \`
-    <strong>${name}</strong> (${type})
+    <strong>\${name}</strong> (\${sourceType})
     <br>
-    ${url}
+    \${url}
   \`;
   sourcesList.appendChild(li);
 }
