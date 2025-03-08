@@ -21,7 +21,7 @@ const DeploymentGuide: React.FC = () => {
       </CardHeader>
       <CardContent>
         <div className="space-y-6">
-          <Alert variant="warning" className="mb-4">
+          <Alert variant="destructive" className="mb-4 bg-amber-50 border-amber-200 text-amber-800">
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Important Installation Notes</AlertTitle>
             <AlertDescription>
