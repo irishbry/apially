@@ -6,11 +6,56 @@ import { Separator } from "@/components/ui/separator";
 import { Download, Server, FileDown, ChevronDown, ChevronUp, FolderDown, Code } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useToast } from "@/components/ui/use-toast";
 
 const Installer: React.FC = () => {
   const [isOpenFTP, setIsOpenFTP] = useState(false);
   const [isOpenCPanel, setIsOpenCPanel] = useState(false);
   const [isOpenConfig, setIsOpenConfig] = useState(false);
+  const { toast } = useToast();
+
+  const handleDownload = () => {
+    // Create a dummy installation package for demonstration
+    const dummyPackageContent = `
+    # Data Consolidation API Installation Package
+    
+    This package contains all files needed to install the Data Consolidation API on your SiteGround hosting.
+    
+    ## Contents
+    - index.php - Main API entry point
+    - config.php - Configuration file
+    - data/ - Directory for data storage
+    - api/ - API endpoints
+    - status.php - API status checker
+    
+    ## Installation
+    Follow the instructions in the SiteGround Installation Guide to set up this package.
+    
+    ## Support
+    For any issues, please contact support.
+    `;
+    
+    // Create a Blob with the package content
+    const blob = new Blob([dummyPackageContent], { type: 'text/plain' });
+    
+    // Create a download link and trigger the download
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'data-consolidation-api.txt';
+    document.body.appendChild(a);
+    a.click();
+    
+    // Clean up
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    // Show success toast
+    toast({
+      title: "Download started",
+      description: "Your installation package is downloading now.",
+    });
+  };
 
   return (
     <Card className="w-full shadow-sm hover:shadow-md transition-all duration-300">
@@ -31,7 +76,7 @@ const Installer: React.FC = () => {
               This guide will help you install the Data Consolidation API on your SiteGround hosting. Follow these steps to get your server up and running.
             </p>
             
-            <Button className="gap-2 mb-4">
+            <Button className="gap-2 mb-4" onClick={handleDownload}>
               <Download className="h-4 w-4" />
               Download Installation Package
             </Button>
