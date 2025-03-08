@@ -31,6 +31,7 @@ class ApiService {
   private data: DataEntry[] = [];
   private sources: Source[] = [];
   private dropboxLink: string = "";
+  private apiKey: string = "";
   private subscribers: ((data: DataEntry[]) => void)[] = [];
   private sourceSubscribers: ((sources: Source[]) => void)[] = [];
   private schema: DataSchema = {
@@ -44,6 +45,9 @@ class ApiService {
     
     // Initialize with demo sources
     this.loadSources();
+    
+    // Load saved API key
+    this.loadApiKey();
     
     // Simulate scheduled daily export
     this.scheduleExport();
@@ -66,6 +70,29 @@ class ApiService {
       ApiService.instance = new ApiService();
     }
     return ApiService.instance;
+  }
+
+  // Load API key from localStorage
+  private loadApiKey(): void {
+    const savedKey = localStorage.getItem('csv-api-key');
+    if (savedKey) {
+      this.apiKey = savedKey;
+    }
+  }
+
+  // Get current API key
+  public getApiKey(): string {
+    return this.apiKey;
+  }
+
+  // Set API key
+  public setApiKey(key: string): void {
+    this.apiKey = key;
+    localStorage.setItem('csv-api-key', key);
+    toast({
+      title: "API Key Updated",
+      description: "Your API key has been set successfully.",
+    });
   }
 
   // Generate some demo data
