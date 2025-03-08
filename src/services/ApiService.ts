@@ -1,9 +1,11 @@
+
 import { toast } from "@/components/ui/use-toast";
 
 // Type for incoming data
 export interface DataEntry {
   id?: string;
   timestamp?: string;
+  sourceId?: string;
   [key: string]: any;
 }
 
@@ -13,13 +15,24 @@ export interface DataSchema {
   fieldTypes: {[key: string]: string};
 }
 
+// Source interface
+export interface Source {
+  id: string;
+  name: string;
+  apiKey: string;
+  createdAt: string;
+  dataCount: number;
+  lastActive?: string;
+}
+
 // Main API service
 class ApiService {
   private static instance: ApiService;
-  private apiKey: string = "";
   private data: DataEntry[] = [];
+  private sources: Source[] = [];
   private dropboxLink: string = "";
   private subscribers: ((data: DataEntry[]) => void)[] = [];
+  private sourceSubscribers: ((sources: Source[]) => void)[] = [];
   private schema: DataSchema = {
     requiredFields: [],
     fieldTypes: {}
@@ -28,6 +41,9 @@ class ApiService {
   private constructor() {
     // Initialize with demo data
     this.generateDemoData();
+    
+    // Initialize with demo sources
+    this.loadSources();
     
     // Simulate scheduled daily export
     this.scheduleExport();
@@ -62,6 +78,7 @@ class ApiService {
       demoData.push({
         id: `demo-${i}`,
         timestamp: timestamp.toISOString(),
+        sourceId: `source-${Math.floor(Math.random() * 3) + 1}`,
         sensorId: `sensor-${Math.floor(Math.random() * 5) + 1}`,
         temperature: Math.round((Math.random() * 30 + 10) * 10) / 10,
         humidity: Math.round(Math.random() * 100),
@@ -72,23 +89,119 @@ class ApiService {
     this.data = demoData;
   }
 
-  // Set API key
-  public setApiKey(key: string): void {
-    this.apiKey = key;
-    localStorage.setItem('csv-api-key', key);
-    toast({
-      title: "API Key Updated",
-      description: "Your API key has been set successfully.",
-    });
+  // Load saved sources or create demo sources
+  private loadSources() {
+    const savedSources = localStorage.getItem('csv-api-sources');
+    if (savedSources) {
+      this.sources = JSON.parse(savedSources);
+    } else {
+      // Create demo sources
+      this.sources = [
+        {
+          id: 'source-1',
+          name: 'Factory Sensors',
+          apiKey: 'demo-key-factory',
+          createdAt: new Date().toISOString(),
+          dataCount: 4,
+          lastActive: new Date().toISOString()
+        },
+        {
+          id: 'source-2',
+          name: 'Warehouse Monitors',
+          apiKey: 'demo-key-warehouse',
+          createdAt: new Date().toISOString(),
+          dataCount: 3,
+          lastActive: new Date().toISOString()
+        },
+        {
+          id: 'source-3',
+          name: 'Office Environment',
+          apiKey: 'demo-key-office',
+          createdAt: new Date().toISOString(),
+          dataCount: 3,
+          lastActive: new Date().toISOString()
+        }
+      ];
+      this.saveSources();
+    }
   }
 
-  // Get current API key
-  public getApiKey(): string {
-    if (!this.apiKey) {
-      const savedKey = localStorage.getItem('csv-api-key');
-      if (savedKey) this.apiKey = savedKey;
+  // Save sources to localStorage
+  private saveSources() {
+    localStorage.setItem('csv-api-sources', JSON.stringify(this.sources));
+  }
+
+  // Get all sources
+  public getSources(): Source[] {
+    return [...this.sources];
+  }
+
+  // Add a new source
+  public addSource(name: string): Source {
+    const id = `source-${Date.now()}`;
+    const apiKey = this.generateApiKey();
+    
+    const newSource: Source = {
+      id,
+      name,
+      apiKey,
+      createdAt: new Date().toISOString(),
+      dataCount: 0
+    };
+    
+    this.sources.push(newSource);
+    this.saveSources();
+    this.notifySourceSubscribers();
+    
+    return newSource;
+  }
+
+  // Update a source name
+  public updateSourceName(id: string, name: string): boolean {
+    const sourceIndex = this.sources.findIndex(s => s.id === id);
+    if (sourceIndex === -1) return false;
+    
+    this.sources[sourceIndex].name = name;
+    this.saveSources();
+    this.notifySourceSubscribers();
+    
+    return true;
+  }
+
+  // Generate a new API key for a source
+  public regenerateApiKey(id: string): string | null {
+    const sourceIndex = this.sources.findIndex(s => s.id === id);
+    if (sourceIndex === -1) return null;
+    
+    const newApiKey = this.generateApiKey();
+    this.sources[sourceIndex].apiKey = newApiKey;
+    this.saveSources();
+    this.notifySourceSubscribers();
+    
+    return newApiKey;
+  }
+
+  // Delete a source
+  public deleteSource(id: string): boolean {
+    const initialLength = this.sources.length;
+    this.sources = this.sources.filter(s => s.id !== id);
+    
+    if (this.sources.length !== initialLength) {
+      // Also delete all data associated with this source
+      this.data = this.data.filter(d => d.sourceId !== id);
+      
+      this.saveSources();
+      this.notifySourceSubscribers();
+      this.notifySubscribers();
+      return true;
     }
-    return this.apiKey;
+    
+    return false;
+  }
+
+  // Generate a random API key
+  private generateApiKey(): string {
+    return Array.from(Array(32), () => Math.floor(Math.random() * 36).toString(36)).join('');
   }
 
   // Set Dropbox link
@@ -155,7 +268,7 @@ class ApiService {
   }
 
   // Normalize data
-  private normalizeData(data: DataEntry): DataEntry {
+  private normalizeData(data: DataEntry, sourceId: string): DataEntry {
     const normalized = { ...data };
     
     // Ensure timestamp is in ISO format
@@ -174,13 +287,33 @@ class ApiService {
       normalized.id = `entry-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     }
     
+    // Add source ID
+    normalized.sourceId = sourceId;
+    
     return normalized;
+  }
+
+  // Find source by API key
+  private findSourceByApiKey(apiKey: string): Source | null {
+    return this.sources.find(s => s.apiKey === apiKey) || null;
+  }
+
+  // Update source stats after receiving data
+  private updateSourceStats(sourceId: string): void {
+    const sourceIndex = this.sources.findIndex(s => s.id === sourceId);
+    if (sourceIndex === -1) return;
+    
+    this.sources[sourceIndex].dataCount += 1;
+    this.sources[sourceIndex].lastActive = new Date().toISOString();
+    this.saveSources();
+    this.notifySourceSubscribers();
   }
 
   // Receive data from API endpoint
   public receiveData(data: DataEntry, apiKey: string): { success: boolean; message: string } {
-    // Validate API key
-    if (apiKey !== this.apiKey) {
+    // Find source by API key
+    const source = this.findSourceByApiKey(apiKey);
+    if (!source) {
       return { success: false, message: "Invalid API key" };
     }
 
@@ -190,11 +323,14 @@ class ApiService {
       return { success: false, message: `Data validation failed: ${validation.errors.join(', ')}` };
     }
     
-    // Normalize data
-    const normalizedData = this.normalizeData(data);
+    // Normalize data and add source ID
+    const normalizedData = this.normalizeData(data, source.id);
     
     // Add to data store
     this.data.unshift(normalizedData);
+    
+    // Update source stats
+    this.updateSourceStats(source.id);
     
     // Notify subscribers
     this.notifySubscribers();
@@ -207,10 +343,22 @@ class ApiService {
     return this.data;
   }
 
+  // Get data for a specific source
+  public getDataBySource(sourceId: string): DataEntry[] {
+    return this.data.filter(d => d.sourceId === sourceId);
+  }
+
   // Clear all data
   public clearData(): void {
     this.data = [];
+    
+    // Reset data counts for all sources
+    this.sources.forEach(s => s.dataCount = 0);
+    this.saveSources();
+    
     this.notifySubscribers();
+    this.notifySourceSubscribers();
+    
     toast({
       title: "Data Cleared",
       description: "All stored data has been cleared.",
@@ -250,9 +398,22 @@ class ApiService {
     };
   }
 
+  // Subscribe to source changes
+  public subscribeToSources(callback: (sources: Source[]) => void): () => void {
+    this.sourceSubscribers.push(callback);
+    return () => {
+      this.sourceSubscribers = this.sourceSubscribers.filter(cb => cb !== callback);
+    };
+  }
+
   // Notify subscribers of data changes
   private notifySubscribers(): void {
     this.subscribers.forEach(callback => callback(this.data));
+  }
+
+  // Notify subscribers of source changes
+  private notifySourceSubscribers(): void {
+    this.sourceSubscribers.forEach(callback => callback(this.sources));
   }
 
   // Get API usage information (for the dashboard)
@@ -263,8 +424,21 @@ class ApiService {
   } {
     return {
       totalRequests: this.data.length,
-      uniqueSources: new Set(this.data.map(d => d.sensorId)).size,
+      uniqueSources: new Set(this.data.map(d => d.sourceId)).size,
       lastReceived: this.data[0]?.timestamp || 'No data received'
+    };
+  }
+
+  // Get source-specific stats
+  public getSourcesStats(): {
+    totalSources: number,
+    activeSources: number,
+    totalDataPoints: number
+  } {
+    return {
+      totalSources: this.sources.length,
+      activeSources: this.sources.filter(s => s.dataCount > 0).length,
+      totalDataPoints: this.sources.reduce((sum, s) => sum + s.dataCount, 0)
     };
   }
 }

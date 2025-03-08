@@ -10,6 +10,7 @@ import ApiUsageStats from "@/components/ApiUsageStats";
 import Header from "@/components/Header";
 import SchemaEditor from "@/components/SchemaEditor";
 import DeploymentGuide from "@/components/DeploymentGuide";
+import SourcesManager from "@/components/SourcesManager";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const Index = () => {
@@ -34,6 +35,11 @@ const Index = () => {
             <ApiUsageStats />
           </section>
           
+          {/* Sources Management */}
+          <section>
+            <SourcesManager />
+          </section>
+          
           {/* Configuration */}
           <section>
             <h2 className="text-xl font-medium mb-4">Configuration</h2>
@@ -46,7 +52,6 @@ const Index = () => {
               
               <TabsContent value="basic">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <ApiKeyForm />
                   <DropboxLinkForm />
                 </div>
               </TabsContent>

@@ -4,49 +4,69 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Download, Filter, Search, Trash2 } from "lucide-react";
-import ApiService, { DataEntry } from "@/services/ApiService";
+import ApiService, { DataEntry, Source } from "@/services/ApiService";
 import { downloadCSV } from "@/utils/csvUtils";
 
 const DataTable: React.FC = () => {
   const [data, setData] = useState<DataEntry[]>([]);
+  const [sources, setSources] = useState<Source[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedSource, setSelectedSource] = useState<string>('all');
   const [visibleData, setVisibleData] = useState<DataEntry[]>([]);
   const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
     // Get initial data
     setData(ApiService.getData());
+    setSources(ApiService.getSources());
     
     // Subscribe to data changes
-    const unsubscribe = ApiService.subscribe(newData => {
+    const unsubscribeData = ApiService.subscribe(newData => {
       setData([...newData]);
     });
     
-    return () => unsubscribe();
+    // Subscribe to source changes
+    const unsubscribeSources = ApiService.subscribeToSources(newSources => {
+      setSources([...newSources]);
+    });
+    
+    return () => {
+      unsubscribeData();
+      unsubscribeSources();
+    };
   }, []);
   
   useEffect(() => {
-    // Filter data based on search term
-    if (!searchTerm.trim()) {
-      setVisibleData(data);
-    } else {
+    // Filter data based on search term and selected source
+    let filtered = data;
+    
+    // Filter by source
+    if (selectedSource !== 'all') {
+      filtered = filtered.filter(entry => entry.sourceId === selectedSource);
+    }
+    
+    // Filter by search term
+    if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
-      const filtered = data.filter(entry => {
+      filtered = filtered.filter(entry => {
         return Object.values(entry).some(value => 
           value !== null && 
           value !== undefined && 
           String(value).toLowerCase().includes(term)
         );
       });
-      setVisibleData(filtered);
     }
-  }, [data, searchTerm]);
+    
+    setVisibleData(filtered);
+  }, [data, searchTerm, selectedSource]);
 
   const handleExportCSV = () => {
     setIsDownloading(true);
     setTimeout(() => {
-      downloadCSV(data);
+      // Export only filtered data
+      downloadCSV(visibleData);
       setIsDownloading(false);
     }, 500);
   };
@@ -55,12 +75,19 @@ const DataTable: React.FC = () => {
     ApiService.clearData();
   };
 
+  // Get source name from ID
+  const getSourceName = (sourceId: string | undefined): string => {
+    if (!sourceId) return 'Unknown';
+    const source = sources.find(s => s.id === sourceId);
+    return source ? source.name : sourceId;
+  };
+
   // Get all columns dynamically from data
   const getColumns = () => {
     if (data.length === 0) return ['No Data'];
     
     // Get all unique keys, prioritizing common ones
-    const priorityKeys = ['timestamp', 'id', 'sensorId'];
+    const priorityKeys = ['timestamp', 'id', 'sourceId', 'sensorId'];
     const allKeys = new Set<string>();
     
     // Add priority keys first
@@ -80,8 +107,9 @@ const DataTable: React.FC = () => {
 
   const columns = getColumns();
 
-  const formatCellValue = (value: any) => {
+  const formatCellValue = (key: string, value: any) => {
     if (value === undefined || value === null) return '-';
+    if (key === 'sourceId') return getSourceName(value);
     if (typeof value === 'object') return JSON.stringify(value);
     return String(value);
   };
@@ -104,7 +132,7 @@ const DataTable: React.FC = () => {
             <Button 
               size="sm"
               onClick={handleExportCSV}
-              disabled={isDownloading || data.length === 0}
+              disabled={isDownloading || visibleData.length === 0}
               className="hover-lift"
             >
               {isDownloading ? (
@@ -121,14 +149,31 @@ const DataTable: React.FC = () => {
         <CardDescription>
           View and manage data received from your API
         </CardDescription>
-        <div className="relative mt-2">
-          <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search data..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-8"
-          />
+        <div className="flex flex-col gap-2 sm:flex-row mt-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search data..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-8"
+            />
+          </div>
+          <div className="w-full sm:w-48">
+            <Select value={selectedSource} onValueChange={setSelectedSource}>
+              <SelectTrigger>
+                <SelectValue placeholder="Filter by source" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Sources</SelectItem>
+                {sources.map((source) => (
+                  <SelectItem key={source.id} value={source.id}>
+                    {source.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="p-0">
@@ -139,7 +184,7 @@ const DataTable: React.FC = () => {
                 <TableRow>
                   {columns.map((column) => (
                     <TableHead key={column} className="whitespace-nowrap">
-                      {column}
+                      {column === 'sourceId' ? 'Source' : column}
                     </TableHead>
                   ))}
                 </TableRow>
@@ -150,7 +195,7 @@ const DataTable: React.FC = () => {
                     <TableRow key={entry.id || index} className="animate-fade-in">
                       {columns.map(column => (
                         <TableCell key={`${entry.id || index}-${column}`} className="whitespace-nowrap">
-                          {formatCellValue(entry[column])}
+                          {formatCellValue(column, entry[column])}
                         </TableCell>
                       ))}
                     </TableRow>
@@ -169,6 +214,7 @@ const DataTable: React.FC = () => {
       </CardContent>
       <CardFooter className="py-3 text-sm text-muted-foreground">
         Showing {visibleData.length} of {data.length} entries
+        {selectedSource !== 'all' && ` for ${getSourceName(selectedSource)}`}
       </CardFooter>
     </Card>
   );

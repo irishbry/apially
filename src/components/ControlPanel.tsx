@@ -1,19 +1,62 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CheckCircle, Clock, Database, Send, X } from "lucide-react";
-import ApiService, { DataEntry } from "@/services/ApiService";
+import ApiService, { DataEntry, Source } from "@/services/ApiService";
 import { useToast } from "@/components/ui/use-toast";
 
 const ControlPanel: React.FC = () => {
   const [isSending, setIsSending] = useState(false);
   const [lastResult, setLastResult] = useState<{success: boolean, message: string} | null>(null);
+  const [sources, setSources] = useState<Source[]>([]);
+  const [selectedSource, setSelectedSource] = useState<string>('');
   const { toast } = useToast();
+
+  useEffect(() => {
+    // Load sources
+    const sources = ApiService.getSources();
+    setSources(sources);
+    
+    // Select first source by default if available
+    if (sources.length > 0) {
+      setSelectedSource(sources[0].id);
+    }
+    
+    // Subscribe to source changes
+    const unsubscribe = ApiService.subscribeToSources(newSources => {
+      setSources([...newSources]);
+      
+      // If current selected source is removed, select the first available one
+      if (newSources.length > 0 && !newSources.find(s => s.id === selectedSource)) {
+        setSelectedSource(newSources[0].id);
+      }
+    });
+    
+    return () => unsubscribe();
+  }, []);
 
   const sendTestData = () => {
     setIsSending(true);
     setLastResult(null);
+    
+    // Get selected source
+    const source = sources.find(s => s.id === selectedSource);
+    
+    if (!source) {
+      setLastResult({
+        success: false,
+        message: "No source selected. Please select a source first.",
+      });
+      toast({
+        title: "Error",
+        description: "No source selected. Please select a source first.",
+        variant: "destructive",
+      });
+      setIsSending(false);
+      return;
+    }
     
     // Create test data
     const testData: DataEntry = {
@@ -26,32 +69,18 @@ const ControlPanel: React.FC = () => {
     
     // Simulate API call delay
     setTimeout(() => {
-      const apiKey = ApiService.getApiKey();
+      const result = ApiService.receiveData(testData, source.apiKey);
       
-      if (!apiKey) {
-        setLastResult({
-          success: false,
-          message: "No API key set. Please set an API key first.",
-        });
-        toast({
-          title: "Error",
-          description: "No API key set. Please set an API key first.",
-          variant: "destructive",
-        });
-      } else {
-        const result = ApiService.receiveData(testData, apiKey);
-        
-        setLastResult({
-          success: result.success,
-          message: result.message,
-        });
-        
-        toast({
-          title: result.success ? "Success" : "Error",
-          description: result.message,
-          variant: result.success ? "default" : "destructive",
-        });
-      }
+      setLastResult({
+        success: result.success,
+        message: result.message,
+      });
+      
+      toast({
+        title: result.success ? "Success" : "Error",
+        description: result.message,
+        variant: result.success ? "default" : "destructive",
+      });
       
       setIsSending(false);
     }, 800);
@@ -77,10 +106,37 @@ const ControlPanel: React.FC = () => {
         <div className="space-y-6">
           <div className="space-y-3">
             <h3 className="text-sm font-medium">Test Data Submission</h3>
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2">
+                <label htmlFor="source-select" className="text-sm text-muted-foreground">
+                  Select Source for Test Data
+                </label>
+                <Select 
+                  value={selectedSource} 
+                  onValueChange={setSelectedSource}
+                  disabled={sources.length === 0}
+                >
+                  <SelectTrigger id="source-select">
+                    <SelectValue placeholder="Select a source" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sources.map((source) => (
+                      <SelectItem key={source.id} value={source.id}>
+                        {source.name}
+                      </SelectItem>
+                    ))}
+                    {sources.length === 0 && (
+                      <SelectItem value="none" disabled>
+                        No sources available
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              
               <Button 
                 onClick={sendTestData} 
-                disabled={isSending}
+                disabled={isSending || sources.length === 0 || !selectedSource}
                 className="hover-lift"
               >
                 {isSending ? (

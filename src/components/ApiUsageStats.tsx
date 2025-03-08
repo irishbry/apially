@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
-import { Database, Clock, Activity } from "lucide-react";
+import { Database, Clock, Activity, Users, Layers } from "lucide-react";
 import ApiService from "@/services/ApiService";
 
 const ApiUsageStats: React.FC = () => {
@@ -10,21 +10,36 @@ const ApiUsageStats: React.FC = () => {
     uniqueSources: 0,
     lastReceived: 'No data'
   });
+  
+  const [sourceStats, setSourceStats] = useState({
+    totalSources: 0,
+    activeSources: 0,
+    totalDataPoints: 0
+  });
 
   useEffect(() => {
     // Get initial stats
     updateStats();
     
     // Subscribe to data changes
-    const unsubscribe = ApiService.subscribe(() => {
+    const unsubscribeData = ApiService.subscribe(() => {
       updateStats();
     });
     
-    return () => unsubscribe();
+    // Subscribe to source changes
+    const unsubscribeSources = ApiService.subscribeToSources(() => {
+      updateStats();
+    });
+    
+    return () => {
+      unsubscribeData();
+      unsubscribeSources();
+    };
   }, []);
 
   const updateStats = () => {
     setStats(ApiService.getApiUsageStats());
+    setSourceStats(ApiService.getSourcesStats());
   };
 
   // Format timestamp
@@ -40,16 +55,30 @@ const ApiUsageStats: React.FC = () => {
   };
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-4">
       <Card className="glass shadow-sm hover:shadow-md transition-all duration-300">
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
             <div className="flex flex-col">
-              <span className="text-sm font-medium text-muted-foreground">Total Requests</span>
-              <span className="text-2xl font-bold mt-1">{stats.totalRequests}</span>
+              <span className="text-sm font-medium text-muted-foreground">Total Data Points</span>
+              <span className="text-2xl font-bold mt-1">{sourceStats.totalDataPoints}</span>
             </div>
             <div className="bg-primary/10 p-3 rounded-full">
               <Activity className="h-5 w-5 text-primary" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="glass shadow-sm hover:shadow-md transition-all duration-300">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col">
+              <span className="text-sm font-medium text-muted-foreground">Active Sources</span>
+              <span className="text-2xl font-bold mt-1">{sourceStats.activeSources}/{sourceStats.totalSources}</span>
+            </div>
+            <div className="bg-primary/10 p-3 rounded-full">
+              <Users className="h-5 w-5 text-primary" />
             </div>
           </div>
         </CardContent>
@@ -78,6 +107,20 @@ const ApiUsageStats: React.FC = () => {
             </div>
             <div className="bg-primary/10 p-3 rounded-full">
               <Clock className="h-5 w-5 text-primary" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="glass shadow-sm hover:shadow-md transition-all duration-300">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col">
+              <span className="text-sm font-medium text-muted-foreground">Data Types</span>
+              <span className="text-2xl font-bold mt-1">{Object.keys(ApiService.getSchema().fieldTypes).length}</span>
+            </div>
+            <div className="bg-primary/10 p-3 rounded-full">
+              <Layers className="h-5 w-5 text-primary" />
             </div>
           </div>
         </CardContent>
