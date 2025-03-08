@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -5,6 +6,7 @@ import { ExternalLink, Server, Globe, Github, FileCode, Upload, AlertTriangle, C
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Installer from '@/components/Installer';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Link } from "react-router-dom";
 
 const DeploymentGuide: React.FC = () => {
   return (
@@ -14,8 +16,14 @@ const DeploymentGuide: React.FC = () => {
           <Server className="h-5 w-5 text-primary" />
           Deployment Guide
         </CardTitle>
-        <CardDescription>
-          How to deploy this application on your own domain
+        <CardDescription className="flex justify-between items-center">
+          <span>How to deploy this application on your own domain</span>
+          <Link to="/deploy">
+            <Button variant="secondary" size="sm" className="ml-auto">
+              Detailed Non-Technical Guide
+              <ExternalLink className="h-3 w-3 ml-1" />
+            </Button>
+          </Link>
         </CardDescription>
       </CardHeader>
       <CardContent>
