@@ -31,6 +31,7 @@ const DeploymentGuide: React.FC = () => {
                 <li>Always use the test.php script to verify your installation</li>
                 <li>If uploading to csvscrub.com/api, make sure all files are in that directory</li>
                 <li><strong>Ensure the .htaccess file has proper RewriteBase setting</strong> (e.g., RewriteBase /api/)</li>
+                <li><strong className="text-amber-800">The .htaccess file is critical but may be hidden in file managers</strong></li>
               </ul>
             </AlertDescription>
           </Alert>
@@ -142,7 +143,9 @@ const DeploymentGuide: React.FC = () => {
               <li><strong>API Connectivity Error (404)</strong>: 
                 <ul className="list-disc list-inside ml-5 text-muted-foreground">
                   <li>Check that all files are in the correct location. For csvscrub.com/api, all files should be directly in the "api" folder.</li>
-                  <li>Make sure .htaccess file is uploaded and readable by the server (it's often hidden in FTP clients).</li>
+                  <li><strong className="text-amber-800">Make sure .htaccess file is uploaded and readable by the server (it's often hidden in FTP clients).</strong></li>
+                  <li>To see hidden files in cPanel File Manager: Click "Settings" and check "Show Hidden Files (dotfiles)"</li>
+                  <li>In FileZilla (FTP): Go to Server > Force showing hidden files</li>
                   <li>Verify mod_rewrite is enabled in your Apache configuration with <code>a2enmod rewrite</code> and restart Apache.</li>
                   <li>Check that your .htaccess has the correct RewriteBase directive (should be <code>RewriteBase /api/</code> for csvscrub.com/api installations).</li>
                   <li>Ensure your Apache configuration has <code>AllowOverride All</code> for the directory.</li>

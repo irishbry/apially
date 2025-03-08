@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Download, Server, FileDown, ChevronDown, ChevronUp, FolderDown, Code, CheckSquare, FileText } from "lucide-react";
+import { Download, Server, FileDown, ChevronDown, ChevronUp, FolderDown, Code, CheckSquare, FileText, AlertTriangle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import JSZip from 'jszip';
 import FileSaver from 'file-saver';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const Installer: React.FC = () => {
   const [isOpenFTP, setIsOpenFTP] = useState(false);
@@ -207,10 +208,18 @@ header('Content-Type: text/html; charset=utf-8');
         .button { display: inline-block; background: #4CAF50; color: white; padding: 10px 20px; 
                  text-decoration: none; border-radius: 4px; }
         .step { border: 1px solid #ddd; padding: 15px; margin: 15px 0; border-radius: 5px; }
+        .warning { background-color: #fff3cd; border-color: #ffeeba; color: #856404; padding: 10px; border-radius: 4px; }
     </style>
 </head>
 <body>
     <h1>Data Consolidation API - Installation</h1>
+    
+    <div class="warning">
+        <h3>⚠️ Important: Hidden .htaccess File</h3>
+        <p>The .htaccess file is <strong>critical</strong> for this application to work but may be hidden in your file manager.</p>
+        <p>If you don't see it in your files, please check "Show hidden files" option in your file manager or FTP client.</p>
+        <p>Without this file, you will get 404 errors when accessing API endpoints.</p>
+    </div>
     
     <div class="step">
         <h2>Step 1: Verify System Requirements</h2>
@@ -227,7 +236,7 @@ header('Content-Type: text/html; charset=utf-8');
             <li>Extract all files to your web directory (make sure .htaccess is included)</li>
             <li>Create a 'data' directory with write permissions (chmod 755)</li>
             <li>Ensure mod_rewrite is enabled in Apache</li>
-            <li>Ensure the RewriteBase in .htaccess matches your installation path</li>
+            <li>Ensure the RewriteBase in .htaccess matches your installation path (should be set to '/api/' by default)</li>
             <li>Run the test script to verify installation</li>
         </ol>
         
@@ -240,6 +249,7 @@ header('Content-Type: text/html; charset=utf-8');
             <li><strong>404 Errors:</strong> Make sure mod_rewrite is enabled and .htaccess is working</li>
             <li><strong>500 Errors:</strong> Check PHP error logs for details</li>
             <li><strong>Permission Issues:</strong> Set proper permissions on the 'data' directory</li>
+            <li><strong>Missing .htaccess:</strong> Create it manually using the content from htaccess_readme.md</li>
         </ul>
     </div>
     
@@ -256,6 +266,52 @@ header('Content-Type: text/html; charset=utf-8');
 </html>`;
   };
 
+  const createHtaccessReadme = () => {
+    return `# IMPORTANT: .htaccess File
+    
+The .htaccess file is CRITICAL for the API to work correctly but may be hidden in your file browser.
+
+## What to do if you don't see the .htaccess file:
+
+1. In File Manager: Click on "Settings" and check "Show Hidden Files (dotfiles)"
+2. In FTP clients: Enable "Show hidden files" option
+3. In Windows Explorer: Go to View > Options > Change folder and search options > View tab > Select "Show hidden files, folders, and drives"
+4. In macOS Finder: Press Cmd+Shift+. (period) to toggle hidden files
+
+## Manual creation:
+If you still don't see the .htaccess file, create it manually with this content:
+
+\`\`\`
+# Enable rewrite engine
+RewriteEngine On
+
+# Explicitly set the RewriteBase to match your installation directory
+RewriteBase /api/
+
+# If the request is for a real file or directory, skip rewrite rules
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Rewrite all other URLs to index.php
+RewriteRule ^(.*)$ index.php [QSA,L]
+
+# Add CORS headers
+<IfModule mod_headers.c>
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET, POST, OPTIONS"
+    Header set Access-Control-Allow-Headers "Content-Type, X-API-Key"
+</IfModule>
+
+# Protect data directory
+<IfModule mod_rewrite.c>
+    RewriteRule ^data/ - [F,L]
+</IfModule>
+\`\`\`
+
+The .htaccess file is essential for the API to function properly - without it, you'll get 404 errors.
+`;
+  };
+
   const handleDownload = async () => {
     setIsDownloading(true);
     
@@ -268,6 +324,9 @@ header('Content-Type: text/html; charset=utf-8');
       zip.file("index.php", createIndexPHP());
       zip.file(".htaccess", createHtaccess());
       zip.file("test.php", createTestPHP());
+      
+      // Add a special readme about the .htaccess file
+      zip.file("htaccess_readme.md", createHtaccessReadme());
       
       // Create config.php (simplified)
       zip.file("config.php", `<?php
@@ -305,6 +364,10 @@ A simple PHP API for collecting and consolidating data from various sources.
 3. Configure your settings in config.php
 4. Test the installation by visiting https://your-domain.com/path/to/api/test.php
 
+## IMPORTANT: Hidden .htaccess File
+
+The .htaccess file is CRITICAL but may be hidden in your file browser. See htaccess_readme.md for details.
+
 ## API Endpoints
 
 - **/status** - GET endpoint for checking API status
@@ -334,10 +397,10 @@ If you experience 404 errors:
       // Save the ZIP file using FileSaver
       FileSaver.saveAs(zipContent, "data-consolidation-api.zip");
       
-      // Show success toast
+      // Show success toast with .htaccess warning
       toast({
         title: "Download started",
-        description: "Your installation package is downloading now. Extract the ZIP file to use it.",
+        description: "Your installation package is downloading. IMPORTANT: The .htaccess file may be hidden - see htaccess_readme.md in the package.",
       });
     } catch (error) {
       console.error("Error creating ZIP package:", error);
@@ -364,6 +427,21 @@ If you experience 404 errors:
       </CardHeader>
       <CardContent>
         <div className="space-y-6">
+          <Alert variant="default" className="mb-4 bg-amber-50 border-amber-200 text-amber-800">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Important Note About Hidden Files</AlertTitle>
+            <AlertDescription>
+              <p className="mb-2">The <strong>.htaccess</strong> file is <strong>critical</strong> for the API to work but may be hidden in your file browser.</p>
+              <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
+                <li>In cPanel File Manager: Click on "Settings" and check "Show Hidden Files (dotfiles)"</li>
+                <li>In FTP clients: Enable "Show hidden files" option</li>
+                <li>In Windows Explorer: Enable "Show hidden files" in folder options</li>
+                <li>In macOS Finder: Press Cmd+Shift+. (period) to toggle hidden files</li>
+              </ul>
+              <p className="mt-2">Without this file, you will get 404 errors when accessing API endpoints.</p>
+            </AlertDescription>
+          </Alert>
+
           <div className="p-4 bg-primary/5 rounded-md">
             <h3 className="text-sm font-medium mb-2">Installation Overview</h3>
             <p className="text-sm text-muted-foreground mb-4">
@@ -392,7 +470,8 @@ If you experience 404 errors:
             <ul className="list-disc list-inside space-y-1 text-sm">
               <li><strong>install.php</strong> - All-in-one installer script</li>
               <li><strong>index.php</strong> - Main API entry point</li>
-              <li><strong>.htaccess</strong> - Apache configuration with RewriteBase</li>
+              <li><strong className="text-amber-700">.htaccess</strong> - <span className="text-amber-700">Apache configuration (may be hidden!)</span></li>
+              <li><strong>htaccess_readme.md</strong> - Instructions if .htaccess is hidden</li>
               <li><strong>test.php</strong> - Verify your installation and troubleshoot issues</li>
               <li><strong>data/</strong> - Directory for storing data</li>
             </ul>
@@ -429,7 +508,7 @@ If you experience 404 errors:
                     <li>Upload the downloaded ZIP file to this folder</li>
                     <li>Extract the ZIP file in the "api" folder</li>
                     <li><strong>Important:</strong> Make sure all files are directly in the "api" folder, not in a subfolder</li>
-                    <li><strong>Very Important:</strong> Ensure the .htaccess file was properly extracted - it's often hidden</li>
+                    <li><strong className="text-amber-700">Very Important:</strong> Ensure the .htaccess file was properly extracted - to see hidden files in cPanel File Manager, click "Settings" then check "Show Hidden Files"</li>
                   </ul>
                   
                   <p className="mt-2">Option 2: Using FTP</p>
