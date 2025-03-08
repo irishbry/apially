@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -677,54 +678,69 @@ if (!file_exists($config['storage_path'])) {
               <li><strong>Test Script</strong> - Verify your installation and troubleshoot issues</li>
               <li><strong>Documentation</strong> - README and usage instructions</li>
             </ol>
+          </div>
+          
+          <ol className="list-decimal list-inside space-y-3 text-sm mt-4">
+            <li className="font-medium">Log in to your SiteGround account</li>
             
-            <ol className="list-decimal list-inside space-y-3 text-sm mt-4">
-              <li className="font-medium">Log in to your SiteGround account</li>
-              
-              <li>
-                <Collapsible open={isOpenCPanel} onOpenChange={setIsOpenCPanel} className="space-y-2">
-                  <CollapsibleTrigger className="font-medium flex items-center">
-                    Access cPanel
-                    {isOpenCPanel ? <ChevronUp className="h-4 w-4 ml-2" /> : <ChevronDown className="h-4 w-4 ml-2" />}
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="pl-5 space-y-2 text-muted-foreground">
-                    <p>Go to your SiteGround User Area and select your hosting account.</p>
-                    <p>Click on "Websites" then "Site Tools" or "cPanel" depending on your hosting plan.</p>
-                  </CollapsibleContent>
-                </Collapsible>
-              </li>
-              
-              <li>
-                <Collapsible open={isOpenFTP} onOpenChange={setIsOpenFTP} className="space-y-2">
-                  <CollapsibleTrigger className="font-medium flex items-center">
-                    Upload files using File Manager or FTP
-                    {isOpenFTP ? <ChevronUp className="h-4 w-4 ml-2" /> : <ChevronDown className="h-4 w-4 ml-2" />}
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="pl-5 space-y-2 text-muted-foreground">
-                    <p>Option 1: Using File Manager in cPanel</p>
-                    <ul className="list-disc list-inside ml-3">
-                      <li>Open File Manager</li>
-                      <li>Navigate to your website's document root (usually public_html)</li>
-                      <li>Create a new folder named "api" (or use your preferred name)</li>
-                      <li>Upload the downloaded ZIP file to this folder</li>
-                      <li>Extract the ZIP file in the "api" folder</li>
-                      <li><strong>Important:</strong> Make sure all files are directly in the "api" folder, not in a subfolder</li>
-                    </ul>
-                    
-                    <p className="mt-2">Option 2: Using FTP</p>
-                    <ul className="list-disc list-inside ml-3">
-                      <li>Connect to your server using an FTP client (like FileZilla)</li>
-                      <li>Navigate to your website's document root</li>
-                      <li>Create a new folder named "api" (or use your preferred name)</li>
-                      <li>Extract the ZIP file on your computer</li>
-                      <li>Upload all extracted files directly to the "api" folder</li>
-                    </ul>
-                  </CollapsibleContent>
-                </Collapsible>
-              </li>
-              
-              <li className="font-medium">Run the installer script</li>
-              <div className="pl-5 text-muted-foreground">
-                <p>After uploading all files:</p>
-                <ol className="list-disc list-inside ml-3">
-                  <li>Visit <code>https://your-domain.com/api/install.php</code> in your browser</li>
+            <li>
+              <Collapsible open={isOpenCPanel} onOpenChange={setIsOpenCPanel} className="space-y-2">
+                <CollapsibleTrigger className="font-medium flex items-center">
+                  Access cPanel
+                  {isOpenCPanel ? <ChevronUp className="h-4 w-4 ml-2" /> : <ChevronDown className="h-4 w-4 ml-2" />}
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pl-5 space-y-2 text-muted-foreground">
+                  <p>Go to your SiteGround User Area and select your hosting account.</p>
+                  <p>Click on "Websites" then "Site Tools" or "cPanel" depending on your hosting plan.</p>
+                </CollapsibleContent>
+              </Collapsible>
+            </li>
+            
+            <li>
+              <Collapsible open={isOpenFTP} onOpenChange={setIsOpenFTP} className="space-y-2">
+                <CollapsibleTrigger className="font-medium flex items-center">
+                  Upload files using File Manager or FTP
+                  {isOpenFTP ? <ChevronUp className="h-4 w-4 ml-2" /> : <ChevronDown className="h-4 w-4 ml-2" />}
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pl-5 space-y-2 text-muted-foreground">
+                  <p>Option 1: Using File Manager in cPanel</p>
+                  <ul className="list-disc list-inside ml-3">
+                    <li>Open File Manager</li>
+                    <li>Navigate to your website's document root (usually public_html)</li>
+                    <li>Create a new folder named "api" (or use your preferred name)</li>
+                    <li>Upload the downloaded ZIP file to this folder</li>
+                    <li>Extract the ZIP file in the "api" folder</li>
+                    <li><strong>Important:</strong> Make sure all files are directly in the "api" folder, not in a subfolder</li>
+                  </ul>
+                  
+                  <p className="mt-2">Option 2: Using FTP</p>
+                  <ul className="list-disc list-inside ml-3">
+                    <li>Connect to your server using an FTP client (like FileZilla)</li>
+                    <li>Navigate to your website's document root</li>
+                    <li>Create a new folder named "api" (or use your preferred name)</li>
+                    <li>Extract the ZIP file on your computer</li>
+                    <li>Upload all extracted files directly to the "api" folder</li>
+                  </ul>
+                </CollapsibleContent>
+              </Collapsible>
+            </li>
+            
+            <li className="font-medium">Run the test script</li>
+            <div className="pl-5 text-muted-foreground">
+              <p>After uploading all files:</p>
+              <ol className="list-disc list-inside ml-3">
+                <li>Visit <code>https://your-domain.com/api/test.php</code> in your browser</li>
+                <li>The test script will check your installation and identify any issues</li>
+                <li>Follow any recommendations to fix installation problems</li>
+                <li>Once all tests pass, your API is ready to use</li>
+              </ol>
+            </div>
+          </ol>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default Installer;
+
