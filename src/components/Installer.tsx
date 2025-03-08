@@ -7,54 +7,369 @@ import { Download, Server, FileDown, ChevronDown, ChevronUp, FolderDown, Code } 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/components/ui/use-toast";
+import JSZip from 'jszip';
+import FileSaver from 'file-saver';
 
 const Installer: React.FC = () => {
   const [isOpenFTP, setIsOpenFTP] = useState(false);
   const [isOpenCPanel, setIsOpenCPanel] = useState(false);
   const [isOpenConfig, setIsOpenConfig] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const { toast } = useToast();
 
-  const handleDownload = () => {
-    // Create a dummy installation package for demonstration
-    const dummyPackageContent = `
-    # Data Consolidation API Installation Package
+  const handleDownload = async () => {
+    setIsDownloading(true);
     
-    This package contains all files needed to install the Data Consolidation API on your SiteGround hosting.
+    try {
+      // Create a new JSZip instance
+      const zip = new JSZip();
+      
+      // Create root directory structure
+      const apiDir = zip.folder("data-consolidation-api");
+      const dataDir = apiDir.folder("data");
+      
+      // Add index.php - Main entry point
+      apiDir.file("index.php", `<?php
+/**
+ * Data Consolidation API
+ * Main entry point for API requests
+ */
+
+// Load configuration
+require_once 'config.php';
+
+// Get request method and path
+$method = $_SERVER['REQUEST_METHOD'];
+$uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$uri = explode('/', trim($uri, '/'));
+
+// Set headers for API responses
+header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: ' . implode(', ', $config['allowed_origins']));
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, X-API-Key');
+
+// Handle preflight OPTIONS requests
+if ($method === 'OPTIONS') {
+    http_response_code(200);
+    exit();
+}
+
+// Check for API key in header
+$apiKey = isset($_SERVER['HTTP_X_API_KEY']) ? $_SERVER['HTTP_X_API_KEY'] : '';
+if (empty($apiKey)) {
+    http_response_code(401);
+    echo json_encode(['error' => 'API key is required']);
+    exit();
+}
+
+// Basic routing
+if (count($uri) > 0) {
+    $endpoint = $uri[count($uri) - 1];
     
-    ## Contents
-    - index.php - Main API entry point
-    - config.php - Configuration file
-    - data/ - Directory for data storage
-    - api/ - API endpoints
-    - status.php - API status checker
+    switch ($endpoint) {
+        case 'data':
+            require_once 'endpoints/data.php';
+            break;
+        case 'export':
+            require_once 'endpoints/export.php';
+            break;
+        case 'status':
+            require_once 'endpoints/status.php';
+            break;
+        default:
+            http_response_code(404);
+            echo json_encode(['error' => 'Endpoint not found']);
+            break;
+    }
+} else {
+    http_response_code(404);
+    echo json_encode(['error' => 'Endpoint not found']);
+}
+`);
+
+      // Add config.php - Configuration file
+      apiDir.file("config.php", `<?php
+/**
+ * Configuration file for Data Consolidation API
+ * Edit this file to configure your API settings
+ */
+
+$config = [
+    // Allowed origins for CORS
+    'allowed_origins' => ['*'], // Replace with your frontend domain in production
     
-    ## Installation
-    Follow the instructions in the SiteGround Installation Guide to set up this package.
+    // Path to data storage directory (absolute path)
+    'storage_path' => __DIR__ . '/data',
     
-    ## Support
-    For any issues, please contact support.
-    `;
+    // Dropbox integration settings
+    'dropbox_token' => 'YOUR_DROPBOX_TOKEN',
     
-    // Create a Blob with the package content
-    const blob = new Blob([dummyPackageContent], { type: 'text/plain' });
-    
-    // Create a download link and trigger the download
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'data-consolidation-api.txt';
-    document.body.appendChild(a);
-    a.click();
-    
-    // Clean up
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-    // Show success toast
-    toast({
-      title: "Download started",
-      description: "Your installation package is downloading now.",
-    });
+    // Authentication credentials for admin access
+    'admin_username' => 'admin',
+    'admin_password' => 'change_this_password'
+];
+
+// Validate storage directory
+if (!file_exists($config['storage_path'])) {
+    mkdir($config['storage_path'], 0755, true);
+}
+`);
+
+      // Add .htaccess file
+      apiDir.file(".htaccess", `# Enable rewrite engine
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php [QSA,L]
+
+# Protect config file
+<Files "config.php">
+    Order Allow,Deny
+    Deny from all
+</Files>
+
+# Protect data directory
+<Files "data/*">
+    Order Allow,Deny
+    Deny from all
+</Files>
+
+# Cross-Origin headers for API
+<IfModule mod_headers.c>
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "POST, GET, OPTIONS"
+    Header set Access-Control-Allow-Headers "Content-Type, X-API-Key"
+    Header set Access-Control-Max-Age "3600"
+</IfModule>
+`);
+
+      // Create endpoints directory
+      const endpointsDir = apiDir.folder("endpoints");
+      
+      // Add status.php endpoint
+      endpointsDir.file("status.php", `<?php
+/**
+ * Status endpoint
+ * Returns the current status of the API
+ */
+
+// Check if method is GET
+if ($method !== 'GET') {
+    http_response_code(405);
+    echo json_encode(['error' => 'Method not allowed']);
+    exit();
+}
+
+// Check write permissions on data directory
+$canWrite = is_writable($config['storage_path']);
+
+// Return API status
+echo json_encode([
+    'status' => 'ok',
+    'version' => '1.0.0',
+    'timestamp' => date('c'),
+    'storage' => [
+        'path' => $config['storage_path'],
+        'writable' => $canWrite
+    ]
+]);
+`);
+
+      // Add data.php endpoint
+      endpointsDir.file("data.php", `<?php
+/**
+ * Data endpoint
+ * Receives and stores data from sources
+ */
+
+// Check if method is POST
+if ($method !== 'POST') {
+    http_response_code(405);
+    echo json_encode(['error' => 'Method not allowed']);
+    exit();
+}
+
+// Get JSON body
+$input = file_get_contents('php://input');
+$data = json_decode($input, true);
+
+// Validate data
+if (empty($data) || !is_array($data)) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Invalid data format']);
+    exit();
+}
+
+// Required fields validation
+$requiredFields = ['sensorId'];
+foreach ($requiredFields as $field) {
+    if (!isset($data[$field])) {
+        http_response_code(400);
+        echo json_encode(['error' => "Missing required field: {$field}"]);
+        exit();
+    }
+}
+
+// Add timestamp if not present
+if (!isset($data['timestamp'])) {
+    $data['timestamp'] = date('c');
+}
+
+// Add unique ID if not present
+if (!isset($data['id'])) {
+    $data['id'] = uniqid('entry-');
+}
+
+// Store the data
+$filename = $config['storage_path'] . '/' . date('Y-m-d-H-i-s') . '-' . uniqid() . '.json';
+$success = file_put_contents($filename, json_encode($data, JSON_PRETTY_PRINT));
+
+if ($success === false) {
+    http_response_code(500);
+    echo json_encode(['error' => 'Failed to save data']);
+    exit();
+}
+
+// Return success response
+echo json_encode([
+    'success' => true,
+    'message' => 'Data received successfully',
+    'id' => $data['id']
+]);
+`);
+
+      // Add export.php endpoint
+      endpointsDir.file("export.php", `<?php
+/**
+ * Export endpoint
+ * Exports collected data to CSV format
+ */
+
+// Check if method is GET
+if ($method !== 'GET') {
+    http_response_code(405);
+    echo json_encode(['error' => 'Method not allowed']);
+    exit();
+}
+
+// Get all JSON files from data directory
+$files = glob($config['storage_path'] . '/*.json');
+if (empty($files)) {
+    echo json_encode(['message' => 'No data to export']);
+    exit();
+}
+
+// Collect all data
+$allData = [];
+foreach ($files as $file) {
+    $content = file_get_contents($file);
+    $data = json_decode($content, true);
+    if ($data) {
+        $allData[] = $data;
+    }
+}
+
+// Get all possible fields
+$allFields = [];
+foreach ($allData as $item) {
+    foreach (array_keys($item) as $key) {
+        if (!in_array($key, $allFields)) {
+            $allFields[] = $key;
+        }
+    }
+}
+
+// Generate CSV content
+$csvContent = implode(",", $allFields) . "\\n";
+foreach ($allData as $item) {
+    $line = [];
+    foreach ($allFields as $field) {
+        $value = isset($item[$field]) ? $item[$field] : '';
+        // Escape quotes in CSV
+        if (is_string($value)) {
+            $value = '"' . str_replace('"', '""', $value) . '"';
+        }
+        $line[] = $value;
+    }
+    $csvContent .= implode(",", $line) . "\\n";
+}
+
+// Dropbox export option
+$dropboxExport = false;
+if (!empty($config['dropbox_token'])) {
+    $dropboxExport = true;
+    // In a real implementation, you would use Dropbox API to upload the CSV
+    // This is a placeholder for demonstration
+}
+
+// Return CSV directly to the client
+header('Content-Type: text/csv');
+header('Content-Disposition: attachment; filename="data-export-' . date('Y-m-d') . '.csv"');
+echo $csvContent;
+`);
+
+      // Add README.md
+      apiDir.file("README.md", `# Data Consolidation API
+
+A simple PHP API for collecting and consolidating data from various sources.
+
+## Installation
+
+1. Upload all files to your web server
+2. Set appropriate permissions (755 for directories, 644 for files)
+3. Configure your settings in config.php
+4. Test the installation by visiting https://your-domain.com/path/to/api/status
+
+## API Endpoints
+
+- **/data** - POST endpoint for receiving data
+- **/export** - GET endpoint for exporting data to CSV
+- **/status** - GET endpoint for checking API status
+
+## Configuration
+
+Edit the config.php file to set:
+- Allowed origins for CORS
+- Storage path for data
+- Dropbox token for backups
+- Admin credentials
+
+## Security
+
+- Always use HTTPS in production
+- Change the default admin password
+- Consider implementing additional authentication if needed
+
+## Support
+
+For any issues or questions, please contact support.
+`);
+
+      // Create sample data file
+      dataDir.file(".gitkeep", "");
+      
+      // Generate the ZIP file
+      const zipContent = await zip.generateAsync({ type: "blob" });
+      
+      // Save the ZIP file using FileSaver
+      FileSaver.saveAs(zipContent, "data-consolidation-api.zip");
+      
+      // Show success toast
+      toast({
+        title: "Download started",
+        description: "Your installation package is downloading now. Extract the ZIP file to use it.",
+      });
+    } catch (error) {
+      console.error("Error creating ZIP package:", error);
+      toast({
+        title: "Download failed",
+        description: "There was an error creating the installation package.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   return (
@@ -76,9 +391,22 @@ const Installer: React.FC = () => {
               This guide will help you install the Data Consolidation API on your SiteGround hosting. Follow these steps to get your server up and running.
             </p>
             
-            <Button className="gap-2 mb-4" onClick={handleDownload}>
-              <Download className="h-4 w-4" />
-              Download Installation Package
+            <Button 
+              className="gap-2 mb-4" 
+              onClick={handleDownload} 
+              disabled={isDownloading}
+            >
+              {isDownloading ? (
+                <>
+                  <div className="h-4 w-4 border-2 border-t-transparent border-white rounded-full animate-spin" />
+                  Creating Package...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4" />
+                  Download Installation Package
+                </>
+              )}
             </Button>
             
             <ol className="list-decimal list-inside space-y-3 text-sm">
@@ -109,7 +437,8 @@ const Installer: React.FC = () => {
                       <li>Open File Manager</li>
                       <li>Navigate to your website's document root (usually public_html)</li>
                       <li>Create a new folder named "api" (or use your preferred name)</li>
-                      <li>Upload the installation package and extract it</li>
+                      <li>Upload the downloaded ZIP file to this folder</li>
+                      <li>Right-click on the ZIP file and select "Extract"</li>
                     </ul>
                     
                     <p className="mt-2">Option 2: Using FTP</p>
@@ -117,7 +446,8 @@ const Installer: React.FC = () => {
                       <li>Connect to your server using an FTP client (like FileZilla)</li>
                       <li>Navigate to your website's document root</li>
                       <li>Create a new folder named "api" (or use your preferred name)</li>
-                      <li>Upload the extracted installation files to this folder</li>
+                      <li>Extract the ZIP file on your computer</li>
+                      <li>Upload the extracted "data-consolidation-api" folder to your server</li>
                     </ul>
                   </CollapsibleContent>
                 </Collapsible>
@@ -130,7 +460,7 @@ const Installer: React.FC = () => {
                     {isOpenConfig ? <ChevronUp className="h-4 w-4 ml-2" /> : <ChevronDown className="h-4 w-4 ml-2" />}
                   </CollapsibleTrigger>
                   <CollapsibleContent className="pl-5 space-y-2 text-muted-foreground">
-                    <p>In the "api" folder, locate the config.php file and edit it:</p>
+                    <p>In the "data-consolidation-api" folder, locate the config.php file and edit it:</p>
                     <div className="bg-secondary p-3 rounded-md mt-2 mb-2">
                       <pre className="text-xs overflow-x-auto">
 {`// config.php
@@ -150,16 +480,17 @@ $config = [
               
               <li className="font-medium">Set the correct permissions</li>
               <div className="pl-5 text-muted-foreground">
-                <p>Make sure the "data" directory is writable:</p>
+                <p>Make sure the directories and files have the correct permissions:</p>
                 <div className="bg-secondary p-2 rounded-md mt-1 mb-2">
-                  <code className="text-xs">chmod 755 api</code><br />
-                  <code className="text-xs">chmod 755 api/data</code>
+                  <code className="text-xs">chmod 755 data-consolidation-api</code><br />
+                  <code className="text-xs">chmod 755 data-consolidation-api/data</code><br />
+                  <code className="text-xs">chmod 644 data-consolidation-api/*.php</code>
                 </div>
               </div>
               
               <li className="font-medium">Test the installation</li>
               <div className="pl-5 text-muted-foreground">
-                <p>Visit <code>https://your-domain.com/api/status.php</code> to verify the API is working.</p>
+                <p>Visit <code>https://your-domain.com/api/data-consolidation-api/status</code> to verify the API is working.</p>
                 <p>You should see a JSON response with status: "ok"</p>
               </div>
             </ol>
@@ -178,27 +509,34 @@ $config = [
               
               <TabsContent value="htaccess" className="space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  Create or modify the .htaccess file in your api directory to enable clean URLs and enhance security:
+                  The .htaccess file is already included in the package, but you may need to modify it:
                 </p>
                 <div className="bg-secondary p-3 rounded-md overflow-x-auto">
                   <pre className="text-xs">
-{`RewriteEngine On
+{`# Enable rewrite engine
+RewriteEngine On
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^data/?$ data.php [QSA,NC,L]
+RewriteRule ^(.*)$ index.php [QSA,L]
 
 # Protect config file
 <Files "config.php">
-Order Allow,Deny
-Deny from all
+    Order Allow,Deny
+    Deny from all
+</Files>
+
+# Protect data directory
+<Files "data/*">
+    Order Allow,Deny
+    Deny from all
 </Files>
 
 # Cross-Origin headers for API
 <IfModule mod_headers.c>
-  Header set Access-Control-Allow-Origin "*"
-  Header set Access-Control-Allow-Methods "POST, GET, OPTIONS"
-  Header set Access-Control-Allow-Headers "Content-Type, X-API-Key"
-  Header set Access-Control-Max-Age "3600"
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "POST, GET, OPTIONS"
+    Header set Access-Control-Allow-Headers "Content-Type, X-API-Key"
+    Header set Access-Control-Max-Age "3600"
 </IfModule>`}
                   </pre>
                 </div>
@@ -210,16 +548,16 @@ Deny from all
                 </p>
                 <div className="space-y-2">
                   <div className="p-2 bg-secondary/50 rounded-md">
-                    <code className="text-xs">POST /api/data</code>
-                    <p className="text-xs mt-1">Main endpoint for receiving data from sources.</p>
+                    <code className="text-xs">POST /api/data-consolidation-api/data</code>
+                    <p className="text-xs mt-1">Main endpoint for receiving data from sources. Send JSON data with X-API-Key header.</p>
                   </div>
                   <div className="p-2 bg-secondary/50 rounded-md">
-                    <code className="text-xs">GET /api/export</code>
-                    <p className="text-xs mt-1">Manually trigger data export to CSV.</p>
+                    <code className="text-xs">GET /api/data-consolidation-api/export</code>
+                    <p className="text-xs mt-1">Export data to CSV format. Requires X-API-Key header.</p>
                   </div>
                   <div className="p-2 bg-secondary/50 rounded-md">
-                    <code className="text-xs">GET /api/status</code>
-                    <p className="text-xs mt-1">Check if the API is running correctly.</p>
+                    <code className="text-xs">GET /api/data-consolidation-api/status</code>
+                    <p className="text-xs mt-1">Check if the API is running correctly. Requires X-API-Key header.</p>
                   </div>
                 </div>
               </TabsContent>
