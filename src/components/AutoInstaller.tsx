@@ -585,7 +585,7 @@ header("Content-Type: text/html; charset=utf-8");
         <?php endif; ?>
     </div>
 </body>
-</html>';
+</html>`;
 
     // Final step
     $status["step"] = 4;
