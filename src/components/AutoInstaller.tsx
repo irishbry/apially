@@ -378,7 +378,7 @@ document.getElementById("source-form").addEventListener("submit", function(e) {
   
   // Add to list
   const li = document.createElement("li");
-  li.textContent = `${name}: ${url}`;
+  li.textContent = \`\${name}: \${url}\`;
   document.getElementById("sources-list").appendChild(li);
   
   // Clear form
@@ -568,7 +568,7 @@ header("Content-Type: text/html; charset=utf-8");
     <div class="test">
         <h3>Next Steps</h3>
         <?php if ($success): ?>
-        <p><span class=\"success\">Your API is installed correctly!</span> You can now:</p>
+        <p><span class="success">Your API is installed correctly!</span> You can now:</p>
         <ul>
             <li>Configure your API key in the config.php file</li>
             <li>Start sending requests to your API endpoints</li>
