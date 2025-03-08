@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,371 +18,186 @@ const Installer: React.FC = () => {
 
   const createIndexPHP = () => {
     return `<?php
-/**
- * Data Consolidation API
- * Main entry point for API requests
- */
-
-// Load configuration
-require_once 'config.php';
-
-// Get request method and path
-$method = $_SERVER['REQUEST_METHOD'];
-$uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-$uri = explode('/', trim($uri, '/'));
-
-// Set headers for API responses
+// Main API entry point
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: ' . implode(', ', $config['allowed_origins']));
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, X-API-Key');
 
-// Handle preflight OPTIONS requests
-if ($method === 'OPTIONS') {
-    http_response_code(200);
-    exit();
-}
+// Check for actual path
+$requestPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$basePath = dirname($_SERVER['SCRIPT_NAME']);
+$endpoint = str_replace($basePath, '', $requestPath);
+$endpoint = trim($endpoint, '/');
 
-// Check for API key in header
-$apiKey = isset($_SERVER['HTTP_X_API_KEY']) ? $_SERVER['HTTP_X_API_KEY'] : '';
-if (empty($apiKey)) {
-    http_response_code(401);
-    echo json_encode(['error' => 'API key is required']);
-    exit();
-}
-
-// Basic routing
-if (count($uri) > 0) {
-    $endpoint = $uri[count($uri) - 1];
-    
-    switch ($endpoint) {
-        case 'data':
-            require_once 'endpoints/data.php';
-            break;
-        case 'export':
-            require_once 'endpoints/export.php';
-            break;
-        case 'status':
-            require_once 'endpoints/status.php';
-            break;
-        case 'test':
-            require_once 'test.php';
-            break;
-        default:
-            http_response_code(404);
-            echo json_encode(['error' => 'Endpoint not found']);
-            break;
-    }
-} else {
-    http_response_code(404);
-    echo json_encode(['error' => 'Endpoint not found']);
+// Simple routing
+switch ($endpoint) {
+    case 'status':
+        echo json_encode([
+            'status' => 'ok',
+            'version' => '1.0.0',
+            'timestamp' => date('c')
+        ]);
+        break;
+        
+    case 'test':
+        include 'test.php';
+        break;
+        
+    case '':
+        echo json_encode([
+            'name' => 'Data Consolidation API',
+            'version' => '1.0.0',
+            'endpoints' => ['/status', '/test']
+        ]);
+        break;
+        
+    default:
+        header('HTTP/1.1 404 Not Found');
+        echo json_encode(['error' => 'Endpoint not found']);
 }`;
   };
   
   const createHtaccess = () => {
     return `# Enable rewrite engine
 RewriteEngine On
+
+# Explicitly set the RewriteBase to match your installation directory
 RewriteBase /api/
+
+# If the request is for a real file or directory, skip rewrite rules
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
+
+# Rewrite all other URLs to index.php
 RewriteRule ^(.*)$ index.php [QSA,L]
 
-# Protect config file
-<Files "config.php">
-    Order Allow,Deny
-    Deny from all
-</Files>
-
-# Protect data directory
-<Files "data/*">
-    Order Allow,Deny
-    Deny from all
-</Files>
-
-# Cross-Origin headers for API
+# Add CORS headers
 <IfModule mod_headers.c>
     Header set Access-Control-Allow-Origin "*"
-    Header set Access-Control-Allow-Methods "POST, GET, OPTIONS"
+    Header set Access-Control-Allow-Methods "GET, POST, OPTIONS"
     Header set Access-Control-Allow-Headers "Content-Type, X-API-Key"
-    Header set Access-Control-Max-Age "3600"
-</IfModule>`.replace(/%\{([^}]+)\}/g, '${$1}');
+</IfModule>
+
+# Protect data directory
+<IfModule mod_rewrite.c>
+    RewriteRule ^data/ - [F,L]
+</IfModule>`;
   };
   
   const createTestPHP = () => {
     return `<?php
-// Installation test script
-// Simplified version to avoid 500 errors
-
-// Output simple HTML
-echo '<!DOCTYPE html>
+// Simple test script that avoids complex PHP functions that might cause errors
+header('Content-Type: text/html; charset=utf-8');
+?>
+<!DOCTYPE html>
 <html>
 <head>
     <title>API Installation Test</title>
     <style>
         body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
         h1 { color: #333; }
-        .success { color: green; }
-        .error { color: red; }
-        .test { padding: 10px; border: 1px solid #ddd; margin: 10px 0; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        .warning { color: orange; font-weight: bold; }
+        .test { border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; }
+        code { background: #f5f5f5; padding: 2px 4px; border-radius: 3px; }
     </style>
 </head>
 <body>
     <h1>API Installation Test</h1>
-    <p>This page tests your API installation.</p>
     
     <div class="test">
-        <h3>PHP Version Test</h3>';
-        
-// Check PHP version
-$phpVersion = phpversion();
-$phpVersionCheck = version_compare($phpVersion, '7.0.0', '>=');
-echo "<p>PHP Version: {$phpVersion} ";
-echo $phpVersionCheck ? '<span class="success">✓</span>' : '<span class="error">✗</span> (Requires 7.0.0+)';
-echo '</p>';
-
-// Check if data directory exists and is writable
-echo '<h3>Data Directory Test</h3>';
-$dataDir = __DIR__ . '/data';
-if (!file_exists($dataDir)) {
-    echo '<p><span class="error">✗</span> Data directory does not exist.</p>';
-    echo '<p>Create it with: <code>mkdir data</code></p>';
-} else {
-    if (is_writable($dataDir)) {
-        echo '<p><span class="success">✓</span> Data directory exists and is writable.</p>';
-    } else {
-        echo '<p><span class="error">✗</span> Data directory exists but is not writable.</p>';
-        echo '<p>Fix with: <code>chmod 755 data</code></p>';
-    }
-}
-
-echo '<h3>Configuration File Test</h3>';
-if (file_exists(__DIR__ . '/config.php')) {
-    echo '<p><span class="success">✓</span> Configuration file exists.</p>';
-} else {
-    echo '<p><span class="error">✗</span> Configuration file does not exist.</p>';
-    echo '<p>Make sure config.php is in the same directory as this file.</p>';
-}
-
-echo '
+        <h3>Server Information</h3>
+        <p>PHP Version: <?php echo phpversion(); ?></p>
+        <p>Server Software: <?php echo $_SERVER['SERVER_SOFTWARE'] ?? 'Unknown'; ?></p>
+        <p>Document Root: <?php echo $_SERVER['DOCUMENT_ROOT'] ?? 'Unknown'; ?></p>
     </div>
     
-    <h2>Next Steps</h2>
-    <p>Once all tests pass:</p>
-    <ol>
-        <li>Set up your API key in config.php</li>
-        <li>Try a test request to the /status endpoint</li>
-        <li>Configure your client application to use the API</li>
-    </ol>
+    <div class="test">
+        <h3>API Connectivity</h3>
+        <?php
+        // Test API connection to status endpoint
+        $statusUrl = '../status';
+        $ch = curl_init($statusUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HEADER, true);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $success = false;
+        
+        if ($httpCode === 200) {
+            // Extract JSON response body
+            list($header, $body) = explode("\\r\\n\\r\\n", $response, 2);
+            $data = json_decode($body, true);
+            
+            if ($data && isset($data['status']) && $data['status'] === 'ok') {
+                echo '<p><span class="success">Success!</span> API endpoints are working correctly.</p>';
+                $success = true;
+            } else {
+                echo '<p><span class="error">Fail</span> API returned HTTP 200 but unexpected response format.</p>';
+            }
+        } else {
+            echo '<p><span class="error">Fail</span></p>';
+            echo '<p>Result: API endpoints may not be working correctly. HTTP code: ' . $httpCode . '</p>';
+            echo '<p>Expected: HTTP 200 with status: ok</p>';
+            echo '<p>How to fix: Check your Apache configuration and .htaccess file. Ensure mod_rewrite is working correctly and the API routes are properly set up. If using subdirectories, ensure your rewrite rules account for them. Try adding this to your .htaccess file:</p>';
+            echo '<code>RewriteBase /api/</code></p>';
+        }
+        curl_close($ch);
+        ?>
+    </div>
     
+    <div class="test">
+        <h3>File Permissions</h3>
+        <?php
+        // Check if data directory exists
+        $dataDir = '../data';
+        if (file_exists($dataDir)) {
+            if (is_writable($dataDir)) {
+                echo '<p><span class="success">Success!</span> Data directory exists and is writable.</p>';
+            } else {
+                echo '<p><span class="warning">Warning</span> Data directory exists but is not writable.</p>';
+                echo '<p>How to fix: Run <code>chmod 755 data</code> to set correct permissions.</p>';
+            }
+        } else {
+            echo '<p><span class="warning">Warning</span> Data directory does not exist.</p>';
+            echo '<p>How to fix: Create the data directory with <code>mkdir data</code> and set permissions with <code>chmod 755 data</code>.</p>';
+        }
+        
+        // Check if .htaccess file exists
+        if (file_exists('../.htaccess')) {
+            echo '<p><span class="success">Success!</span> .htaccess file exists.</p>';
+        } else {
+            echo '<p><span class="error">Error</span> .htaccess file does not exist.</p>';
+            echo '<p>How to fix: Make sure you have uploaded the .htaccess file to your server.</p>';
+        }
+        ?>
+    </div>
+    
+    <div class="test">
+        <h3>Next Steps</h3>
+        <?php if ($success): ?>
+        <p><span class="success">Your API is installed correctly!</span> You can now:</p>
+        <ul>
+            <li>Configure your API key in the config.php file</li>
+            <li>Start sending requests to your API endpoints</li>
+            <li>Check the README.md file for more information</li>
+        </ul>
+        <?php else: ?>
+        <p>Please fix the issues above before using the API.</p>
+        <p>Common solutions:</p>
+        <ul>
+            <li>Make sure mod_rewrite is enabled in Apache</li>
+            <li>Check that AllowOverride is set to All in your Apache config</li>
+            <li>Verify that all files were uploaded correctly</li>
+            <li>If using a subdirectory, make sure RewriteBase is set correctly in .htaccess</li>
+        </ul>
+        <?php endif; ?>
+    </div>
 </body>
-</html>';`;
+</html>`;
   };
   
-  const createStatusPHP = () => {
-    return `<?php
-/**
- * Status endpoint
- * Returns the current status of the API
- */
-
-// Check if method is GET
-if ($method !== 'GET') {
-    http_response_code(405);
-    echo json_encode(['error' => 'Method not allowed']);
-    exit();
-}
-
-// Check write permissions on data directory
-$canWrite = is_writable($config['storage_path']);
-
-// Return API status
-echo json_encode([
-    'status' => 'ok',
-    'version' => '1.0.0',
-    'timestamp' => date('c'),
-    'storage' => [
-        'path' => $config['storage_path'],
-        'writable' => $canWrite
-    ]
-]);`;
-  };
-  
-  const createDataPHP = () => {
-    return `<?php
-/**
- * Data endpoint
- * Receives and stores data from sources
- */
-
-// Check if method is POST
-if ($method !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['error' => 'Method not allowed']);
-    exit();
-}
-
-// Get JSON body
-$input = file_get_contents('php://input');
-$data = json_decode($input, true);
-
-// Validate data
-if (empty($data) || !is_array($data)) {
-    http_response_code(400);
-    echo json_encode(['error' => 'Invalid data format']);
-    exit();
-}
-
-// Required fields validation
-$requiredFields = ['sensorId'];
-foreach ($requiredFields as $field) {
-    if (!isset($data[$field])) {
-        http_response_code(400);
-        echo json_encode(['error' => "Missing required field: {$field}"]);
-        exit();
-    }
-}
-
-// Add timestamp if not present
-if (!isset($data['timestamp'])) {
-    $data['timestamp'] = date('c');
-}
-
-// Add unique ID if not present
-if (!isset($data['id'])) {
-    $data['id'] = uniqid('entry-');
-}
-
-// Store the data
-$filename = $config['storage_path'] . '/' . date('Y-m-d-H-i-s') . '-' . uniqid() . '.json';
-$success = file_put_contents($filename, json_encode($data, JSON_PRETTY_PRINT));
-
-if ($success === false) {
-    http_response_code(500);
-    echo json_encode(['error' => 'Failed to save data']);
-    exit();
-}
-
-// Return success response
-echo json_encode([
-    'success' => true,
-    'message' => 'Data received successfully',
-    'id' => $data['id']
-]);`;
-  };
-  
-  const createExportPHP = () => {
-    return `<?php
-/**
- * Export endpoint
- * Exports collected data to CSV format
- */
-
-// Check if method is GET
-if ($method !== 'GET') {
-    http_response_code(405);
-    echo json_encode(['error' => 'Method not allowed']);
-    exit();
-}
-
-// Get all JSON files from data directory
-$files = glob($config['storage_path'] . '/*.json');
-if (empty($files)) {
-    echo json_encode(['message' => 'No data to export']);
-    exit();
-}
-
-// Collect all data
-$allData = [];
-foreach ($files as $file) {
-    $content = file_get_contents($file);
-    $data = json_decode($content, true);
-    if ($data) {
-        $allData[] = $data;
-    }
-}
-
-// Get all possible fields
-$allFields = [];
-foreach ($allData as $item) {
-    foreach (array_keys($item) as $key) {
-        if (!in_array($key, $allFields)) {
-            $allFields[] = $key;
-        }
-    }
-}
-
-// Generate CSV content
-$csvContent = implode(",", $allFields) . "\\n";
-foreach ($allData as $item) {
-    $line = [];
-    foreach ($allFields as $field) {
-        $value = isset($item[$field]) ? $item[$field] : '';
-        // Escape quotes in CSV
-        if (is_string($value)) {
-            $value = '"' . str_replace('"', '""', $value) . '"';
-        }
-        $line[] = $value;
-    }
-    $csvContent .= implode(",", $line) . "\\n";
-}
-
-// Dropbox export option
-$dropboxExport = false;
-if (!empty($config['dropbox_token'])) {
-    $dropboxExport = true;
-    // In a real implementation, you would use Dropbox API to upload the CSV
-    // This is a placeholder for demonstration
-}
-
-// Return CSV directly to the client
-header('Content-Type: text/csv');
-header('Content-Disposition: attachment; filename="data-export-' . date('Y-m-d') . '.csv"');
-echo $csvContent;`;
-  };
-  
-  const createReadme = () => {
-    return `# Data Consolidation API
-
-A simple PHP API for collecting and consolidating data from various sources.
-
-## Installation
-
-1. Upload all files to your web server
-2. Set appropriate permissions (755 for directories, 644 for files)
-3. Configure your settings in config.php
-4. Test the installation by visiting https://your-domain.com/path/to/api/test.php
-
-## API Endpoints
-
-- **/data** - POST endpoint for receiving data
-- **/export** - GET endpoint for exporting data to CSV
-- **/status** - GET endpoint for checking API status
-- **/test.php** - Test script to verify your installation 
-
-## Configuration
-
-Edit the config.php file to set:
-- Allowed origins for CORS
-- Storage path for data
-- Dropbox token for backups
-- Admin credentials
-
-## Security
-
-- Always use HTTPS in production
-- Change the default admin password
-- Consider implementing additional authentication if needed
-
-## Support
-
-For any issues or questions, please contact support.`;
-  };
-
   const createInstallPHP = () => {
-    return `<?php
-// Simple installer file - basic version to prevent 500 errors
-?>
-<!DOCTYPE html>
+    return `<!DOCTYPE html>
 <html>
 <head>
     <title>API Installer</title>
@@ -410,9 +224,10 @@ For any issues or questions, please contact support.`;
     <div class="step">
         <h2>Step 2: Installation Instructions</h2>
         <ol>
-            <li>Extract all files to your web directory</li>
-            <li>Create a data directory with write permissions</li>
-            <li>Edit config.php with your settings</li>
+            <li>Extract all files to your web directory (make sure .htaccess is included)</li>
+            <li>Create a 'data' directory with write permissions (chmod 755)</li>
+            <li>Ensure mod_rewrite is enabled in Apache</li>
+            <li>Ensure the RewriteBase in .htaccess matches your installation path</li>
             <li>Run the test script to verify installation</li>
         </ol>
         
@@ -420,7 +235,16 @@ For any issues or questions, please contact support.`;
     </div>
     
     <div class="step">
-        <h2>Step 3: Next Steps</h2>
+        <h2>Step 3: Common Issues</h2>
+        <ul>
+            <li><strong>404 Errors:</strong> Make sure mod_rewrite is enabled and .htaccess is working</li>
+            <li><strong>500 Errors:</strong> Check PHP error logs for details</li>
+            <li><strong>Permission Issues:</strong> Set proper permissions on the 'data' directory</li>
+        </ul>
+    </div>
+    
+    <div class="step">
+        <h2>Step 4: Next Steps</h2>
         <p>After installation is complete:</p>
         <ul>
             <li>Configure your API key</li>
@@ -447,38 +271,59 @@ For any issues or questions, please contact support.`;
       
       // Create config.php (simplified)
       zip.file("config.php", `<?php
-/**
- * Configuration file for Data Consolidation API
- */
+// Simple configuration file for Data Consolidation API
 
 $config = [
     // Allowed origins for CORS
     'allowed_origins' => ['*'], // Replace with your frontend domain in production
     
-    // Path to data storage directory (absolute path)
+    // Path to data storage directory
     'storage_path' => __DIR__ . '/data',
     
     // API key (change this in production)
     'api_key' => 'your-secure-api-key-here'
 ];
 
-// Validate storage directory
+// Create storage directory if it doesn't exist
 if (!file_exists($config['storage_path'])) {
     mkdir($config['storage_path'], 0755, true);
 }
 `);
 
       // Create directories
-      const endpointsDir = zip.folder("endpoints");
       const dataDir = zip.folder("data");
       
-      // Add endpoint files
-      endpointsDir.file("status.php", createStatusPHP());
-      endpointsDir.file("data.php", createDataPHP());
-      endpointsDir.file("export.php", createExportPHP());
-      
       // Add README
-      zip.file("README.md", createReadme());
+      zip.file("README.md", `# Data Consolidation API
+
+A simple PHP API for collecting and consolidating data from various sources.
+
+## Installation
+
+1. Upload all files to your web server
+2. Set appropriate permissions (755 for directories, 644 for files)
+3. Configure your settings in config.php
+4. Test the installation by visiting https://your-domain.com/path/to/api/test.php
+
+## API Endpoints
+
+- **/status** - GET endpoint for checking API status
+- **/test.php** - Test script to verify your installation 
+
+## Configuration
+
+Edit the config.php file to set:
+- Allowed origins for CORS
+- Storage path for data
+- API key for authentication
+
+## Troubleshooting
+
+If you experience 404 errors:
+- Make sure mod_rewrite is enabled in Apache
+- Check that .htaccess file is uploaded and readable
+- Verify that RewriteBase in .htaccess matches your installation path
+`);
       
       // Create sample data file
       dataDir.file(".gitkeep", "");
@@ -544,12 +389,13 @@ if (!file_exists($config['storage_path'])) {
             </Button>
             
             <p className="text-sm font-medium mb-2 text-primary">What's Included in the Package:</p>
-            <ol className="list-disc list-inside space-y-1 text-sm">
+            <ul className="list-disc list-inside space-y-1 text-sm">
               <li><strong>install.php</strong> - All-in-one installer script</li>
-              <li><strong>Complete API Files</strong> - Ready to use on your server</li>
-              <li><strong>Test Script</strong> - Verify your installation and troubleshoot issues</li>
-              <li><strong>Documentation</strong> - README and usage instructions</li>
-            </ol>
+              <li><strong>index.php</strong> - Main API entry point</li>
+              <li><strong>.htaccess</strong> - Apache configuration with RewriteBase</li>
+              <li><strong>test.php</strong> - Verify your installation and troubleshoot issues</li>
+              <li><strong>data/</strong> - Directory for storing data</li>
+            </ul>
           </div>
           
           <ol className="list-decimal list-inside space-y-3 text-sm mt-4">
@@ -583,6 +429,7 @@ if (!file_exists($config['storage_path'])) {
                     <li>Upload the downloaded ZIP file to this folder</li>
                     <li>Extract the ZIP file in the "api" folder</li>
                     <li><strong>Important:</strong> Make sure all files are directly in the "api" folder, not in a subfolder</li>
+                    <li><strong>Very Important:</strong> Ensure the .htaccess file was properly extracted - it's often hidden</li>
                   </ul>
                   
                   <p className="mt-2">Option 2: Using FTP</p>
@@ -591,6 +438,7 @@ if (!file_exists($config['storage_path'])) {
                     <li>Navigate to your website's document root</li>
                     <li>Create a new folder named "api"</li>
                     <li>Upload all extracted files to this folder</li>
+                    <li>Make sure to include the .htaccess file (enable "Show hidden files" in your FTP client)</li>
                   </ul>
                 </CollapsibleContent>
               </Collapsible>
@@ -605,9 +453,10 @@ if (!file_exists($config['storage_path'])) {
                 <CollapsibleContent className="pl-5 space-y-2 text-muted-foreground">
                   <p>After uploading, you need to:</p>
                   <ol className="list-decimal list-inside ml-3">
-                    <li>Create a data directory: <code>mkdir data</code></li>
+                    <li>Create a data directory if it doesn't exist: <code>mkdir data</code></li>
                     <li>Set permissions: <code>chmod 755 data</code></li>
-                    <li>Edit config.php to set your own API key and allowed origins</li>
+                    <li>Verify that the .htaccess file has the correct RewriteBase setting (should be "/api/" by default)</li>
+                    <li>If your installation is in a different path, edit the RewriteBase in .htaccess</li>
                     <li>Run the test script at: <code>https://yourdomain.com/api/test.php</code></li>
                   </ol>
                 </CollapsibleContent>

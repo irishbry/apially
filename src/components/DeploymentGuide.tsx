@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ExternalLink, Server, Globe, Github, FileCode, Upload, AlertTriangle, CheckCircle } from "lucide-react";
+import { ExternalLink, Server, Globe, Github, FileCode, Upload, AlertTriangle, CheckCircle, FileWarning } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Installer from '@/components/Installer';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -30,6 +30,7 @@ const DeploymentGuide: React.FC = () => {
                 <li>Make sure your server has write permissions for the data directory</li>
                 <li>Always use the test.php script to verify your installation</li>
                 <li>If uploading to csvscrub.com/api, make sure all files are in that directory</li>
+                <li><strong>Ensure the .htaccess file has proper RewriteBase setting</strong> (e.g., RewriteBase /api/)</li>
               </ul>
             </AlertDescription>
           </Alert>
@@ -137,29 +138,60 @@ const DeploymentGuide: React.FC = () => {
           
           <div className="p-4 bg-primary/5 rounded-md">
             <h3 className="text-sm font-medium mb-2">Troubleshooting Common Issues</h3>
-            <ol className="list-decimal list-inside space-y-1 text-sm">
+            <ol className="list-decimal list-inside space-y-2 text-sm">
               <li><strong>API Connectivity Error (404)</strong>: 
                 <ul className="list-disc list-inside ml-5 text-muted-foreground">
                   <li>Check that all files are in the correct location. For csvscrub.com/api, all files should be directly in the "api" folder.</li>
-                  <li>Make sure .htaccess file is uploaded and readable by the server.</li>
-                  <li>Verify mod_rewrite is enabled in your Apache configuration.</li>
+                  <li>Make sure .htaccess file is uploaded and readable by the server (it's often hidden in FTP clients).</li>
+                  <li>Verify mod_rewrite is enabled in your Apache configuration with <code>a2enmod rewrite</code> and restart Apache.</li>
+                  <li>Check that your .htaccess has the correct RewriteBase directive (should be <code>RewriteBase /api/</code> for csvscrub.com/api installations).</li>
+                  <li>Ensure your Apache configuration has <code>AllowOverride All</code> for the directory.</li>
                   <li>Try accessing the test.php file directly to see detailed diagnostics.</li>
+                </ul>
+              </li>
+              <li><strong>Server Error (500)</strong>:
+                <ul className="list-disc list-inside ml-5 text-muted-foreground">
+                  <li>Check your server's error logs for specific PHP errors.</li>
+                  <li>Verify PHP version is 7.0 or higher.</li>
+                  <li>Make sure all required PHP extensions are enabled (curl, json).</li>
+                  <li>Simplify the code if needed - remove complex functionality for initial testing.</li>
                 </ul>
               </li>
               <li><strong>Permission Issues</strong>:
                 <ul className="list-disc list-inside ml-5 text-muted-foreground">
-                  <li>Set the data directory permissions to 755 (chmod 755 data)</li>
+                  <li>Set the data directory permissions to 755 or 775 (chmod 755 data)</li>
                   <li>Set PHP files to 644 (chmod 644 *.php)</li>
+                  <li>Ensure the web server user (www-data, apache, etc.) has write access to the data directory</li>
                 </ul>
               </li>
               <li><strong>Configuration</strong>:
                 <ul className="list-disc list-inside ml-5 text-muted-foreground">
                   <li>Update the config.php with your domain in allowed_origins</li>
-                  <li>Set your API key and Dropbox link in the application</li>
+                  <li>Set your API key to a secure value</li>
                 </ul>
               </li>
             </ol>
           </div>
+          
+          <Alert variant="default" className="mb-4 bg-blue-50 border-blue-200 text-blue-800">
+            <FileWarning className="h-4 w-4" />
+            <AlertTitle>Apache Configuration Note</AlertTitle>
+            <AlertDescription className="text-sm">
+              <p className="mb-2">If you're experiencing 404 errors, your Apache server might need additional configuration:</p>
+              <ol className="list-decimal list-inside space-y-1">
+                <li>Check if mod_rewrite is enabled: <code>sudo a2enmod rewrite</code></li>
+                <li>Edit your VirtualHost configuration file (often in /etc/apache2/sites-available/) to include:</li>
+                <pre className="bg-blue-100/50 p-2 rounded-md text-xs mt-1 overflow-x-auto">
+{`<Directory /path/to/your/api>
+    Options Indexes FollowSymLinks
+    AllowOverride All
+    Require all granted
+</Directory>`}
+                </pre>
+                <li>Restart Apache: <code>sudo systemctl restart apache2</code></li>
+              </ol>
+            </AlertDescription>
+          </Alert>
         </div>
       </CardContent>
     </Card>
