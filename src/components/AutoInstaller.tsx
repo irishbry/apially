@@ -522,13 +522,13 @@ header("Content-Type: text/html; charset=utf-8");
             $data = json_decode($body, true);
             
             if ($data && isset($data["status"]) && $data["status"] === "ok") {
-                echo "<p><span class=\"success\">Success!</span> API endpoints are working correctly.</p>";
+                echo "<p><span class=\\"success\\">Success!</span> API endpoints are working correctly.</p>";
                 $success = true;
             } else {
-                echo "<p><span class=\"error\">Fail</span> API returned HTTP 200 but unexpected response format.</p>";
+                echo "<p><span class=\\"error\\">Fail</span> API returned HTTP 200 but unexpected response format.</p>";
             }
         } else {
-            echo "<p><span class=\"error\">Fail</span></p>";
+            echo "<p><span class=\\"error\\">Fail</span></p>";
             echo "<p>Result: API endpoints may not be working correctly. HTTP code: " . $httpCode . "</p>";
             echo "<p>Expected: HTTP 200 with status: ok</p>";
             echo "<p>How to fix: Check your Apache configuration and .htaccess file. Ensure mod_rewrite is working correctly and the API routes are properly set up. If using subdirectories, ensure your rewrite rules account for them. Try adding this to your .htaccess file:</p>";
@@ -545,21 +545,21 @@ header("Content-Type: text/html; charset=utf-8");
         $dataDir = "../data";
         if (file_exists($dataDir)) {
             if (is_writable($dataDir)) {
-                echo "<p><span class=\"success\">Success!</span> Data directory exists and is writable.</p>";
+                echo "<p><span class=\\"success\\">Success!</span> Data directory exists and is writable.</p>";
             } else {
-                echo "<p><span class=\"warning\">Warning</span> Data directory exists but is not writable.</p>";
+                echo "<p><span class=\\"warning\\">Warning</span> Data directory exists but is not writable.</p>";
                 echo "<p>How to fix: Run <code>chmod 755 data</code> to set correct permissions.</p>";
             }
         } else {
-            echo "<p><span class=\"warning\">Warning</span> Data directory does not exist.</p>";
+            echo "<p><span class=\\"warning\\">Warning</span> Data directory does not exist.</p>";
             echo "<p>How to fix: Create the data directory with <code>mkdir data</code> and set permissions with <code>chmod 755 data</code>.</p>";
         }
         
         // Check if .htaccess file exists
         if (file_exists("../.htaccess")) {
-            echo "<p><span class=\"success\">Success!</span> .htaccess file exists.</p>";
+            echo "<p><span class=\\"success\\">Success!</span> .htaccess file exists.</p>";
         } else {
-            echo "<p><span class=\"error\">Error</span> .htaccess file does not exist.</p>";
+            echo "<p><span class=\\"error\\">Error</span> .htaccess file does not exist.</p>";
             echo "<p>How to fix: Make sure you have uploaded the .htaccess file to your server.</p>";
         }
         ?>
@@ -860,4 +860,3 @@ For more help, please refer to the detailed troubleshooting guide in the documen
 };
 
 export default AutoInstaller;
-
