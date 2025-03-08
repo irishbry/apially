@@ -553,18 +553,13 @@ For any issues or questions, please contact support.`;
 
   const createInstallPHP = () => {
     return `<?php
-/**
- * All-in-one Installer for Data Consolidation API
- * This file helps verify and set up your installation
- */
-
-// Set content type to HTML
+// Simple installer file
 header('Content-Type: text/html');
 ?>
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Data Consolidation API - Installer</title>
+    <title>Data Consolidation API - Simple Installer</title>
     <style>
         body { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; line-height: 1.6; }
         h1 { color: #333; border-bottom: 1px solid #eee; padding-bottom: 10px; }
@@ -573,9 +568,6 @@ header('Content-Type: text/html');
         .error { color: red; font-weight: bold; }
         .warning { color: orange; font-weight: bold; }
         .step { background: #f8f8f8; padding: 15px; margin: 20px 0; border-radius: 5px; border-left: 5px solid #ddd; }
-        .step.complete { border-left-color: green; }
-        .step.incomplete { border-left-color: orange; }
-        .step.error { border-left-color: red; }
         .button {
             display: inline-block;
             background-color: #4CAF50;
@@ -590,865 +582,78 @@ header('Content-Type: text/html');
         .button:hover {
             background-color: #45a049;
         }
-        code { background: #eee; padding: 2px 4px; border-radius: 3px; font-family: monospace; }
-        pre { background: #f1f1f1; padding: 10px; border-radius: 5px; overflow: auto; }
     </style>
 </head>
 <body>
-    <h1>Data Consolidation API - Installer</h1>
-    <p>This tool helps you set up and verify your API installation.</p>
+    <h1>Data Consolidation API - Installation</h1>
+    <p>Welcome to the Data Consolidation API installer.</p>
     
-    <?php
-    // Check PHP version
-    $phpVersion = phpversion();
-    $phpVersionCheck = version_compare($phpVersion, '7.4.0', '>=');
-    
-    // Check required extensions
-    $requiredExtensions = ['json', 'curl', 'mbstring', 'fileinfo'];
-    $missingExtensions = [];
-    foreach ($requiredExtensions as $ext) {
-        if (!extension_loaded($ext)) {
-            $missingExtensions[] = $ext;
+    <div class="step">
+        <h2>System Check</h2>
+        <?php
+        // Check PHP version
+        $phpVersion = phpversion();
+        $phpVersionCheck = version_compare($phpVersion, '7.4.0', '>=');
+        echo "<p><strong>PHP Version:</strong> $phpVersion ";
+        if ($phpVersionCheck) {
+            echo "<span class='success'>✓</span>";
+        } else {
+            echo "<span class='error'>✗</span> (Required: PHP 7.4.0 or higher)";
         }
-    }
-    $extensionsCheck = empty($missingExtensions);
-    
-    // Directory for API files
-    $apiDir = dirname(__FILE__);
-    $canWriteApiDir = is_writable($apiDir);
-    
-    // Check if files already exist
-    $hasIndex = file_exists($apiDir . '/index.php');
-    $hasConfig = file_exists($apiDir . '/config.php');
-    $hasHtaccess = file_exists($apiDir . '/.htaccess');
-    
-    // Data directory
-    $dataDir = $apiDir . '/data';
-    $hasDataDir = file_exists($dataDir);
-    $canWriteData = $hasDataDir && is_writable($dataDir);
-    
-    // Endpoints directory
-    $endpointsDir = $apiDir . '/endpoints';
-    $hasEndpointsDir = file_exists($endpointsDir);
-    
-    // Initialize or get current step
-    $step = isset($_GET['step']) ? intval($_GET['step']) : 1;
-    $error = isset($_GET['error']) ? $_GET['error'] : '';
-    
-    // Handle step actions
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        if (isset($_POST['step']) && $_POST['step'] == 1) {
-            // Environment check passed, move to step 2
-            header('Location: install.php?step=2');
-            exit();
-        }
-        else if (isset($_POST['step']) && $_POST['step'] == 2) {
-            // Create directories
-            if (!$hasDataDir) {
-                if (!mkdir($dataDir, 0755, true)) {
-                    header('Location: install.php?step=2&error=data_dir');
-                    exit();
-                }
-            }
-            
-            if (!$hasEndpointsDir) {
-                if (!mkdir($endpointsDir, 0755, true)) {
-                    header('Location: install.php?step=2&error=endpoints_dir');
-                    exit();
-                }
-            }
-            
-            // Move to step 3
-            header('Location: install.php?step=3');
-            exit();
-        }
-        else if (isset($_POST['step']) && $_POST['step'] == 3) {
-            // Create config file
-            $allowedOrigins = isset($_POST['allowed_origins']) ? $_POST['allowed_origins'] : '*';
-            $adminUser = isset($_POST['admin_username']) ? $_POST['admin_username'] : 'admin';
-            $adminPass = isset($_POST['admin_password']) ? $_POST['admin_password'] : 'change_this_password';
-            
-            $configContent = "<?php
-/**
- * Configuration file for Data Consolidation API
- * Edit this file to configure your API settings
- */
-
-\$config = [
-    // Allowed origins for CORS
-    'allowed_origins' => ['{$allowedOrigins}'], // Replace with your frontend domain in production
-    
-    // Path to data storage directory (absolute path)
-    'storage_path' => __DIR__ . '/data',
-    
-    // Dropbox integration settings
-    'dropbox_token' => 'YOUR_DROPBOX_TOKEN',
-    
-    // Authentication credentials for admin access
-    'admin_username' => '{$adminUser}',
-    'admin_password' => '{$adminPass}'
-];
-
-// Validate storage directory
-if (!file_exists(\$config['storage_path'])) {
-    mkdir(\$config['storage_path'], 0755, true);
-}
-";
-            
-            if (file_put_contents($apiDir . '/config.php', $configContent) === false) {
-                header('Location: install.php?step=3&error=config_write');
-                exit();
-            }
-            
-            // Move to step 4
-            header('Location: install.php?step=4');
-            exit();
-        }
-        else if (isset($_POST['step']) && $_POST['step'] == 4) {
-            // Create .htaccess
-            $htaccessContent = "# Enable rewrite engine
-RewriteEngine On
-RewriteBase /api/
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^(.*)$ index.php [QSA,L]
-
-# Protect config file
-<Files \"config.php\">
-    Order Allow,Deny
-    Deny from all
-</Files>
-
-# Protect data directory
-<Files \"data/*\">
-    Order Allow,Deny
-    Deny from all
-</Files>
-
-# Cross-Origin headers for API
-<IfModule mod_headers.c>
-    Header set Access-Control-Allow-Origin \"*\"
-    Header set Access-Control-Allow-Methods \"POST, GET, OPTIONS\"
-    Header set Access-Control-Allow-Headers \"Content-Type, X-API-Key\"
-    Header set Access-Control-Max-Age \"3600\"
-</IfModule>";
-            
-            if (file_put_contents($apiDir . '/.htaccess', $htaccessContent) === false) {
-                header('Location: install.php?step=4&error=htaccess_write');
-                exit();
-            }
-            
-            // Create index.php
-            $indexContent = "<?php
-/**
- * Data Consolidation API
- * Main entry point for API requests
- */
-
-// Load configuration
-require_once 'config.php';
-
-// Get request method and path
-\$method = \$_SERVER['REQUEST_METHOD'];
-\$uri = parse_url(\$_SERVER['REQUEST_URI'], PHP_URL_PATH);
-\$uri = explode('/', trim(\$uri, '/'));
-
-// Set headers for API responses
-header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: ' . implode(', ', \$config['allowed_origins']));
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, X-API-Key');
-
-// Handle preflight OPTIONS requests
-if (\$method === 'OPTIONS') {
-    http_response_code(200);
-    exit();
-}
-
-// Check for API key in header
-\$apiKey = isset(\$_SERVER['HTTP_X_API_KEY']) ? \$_SERVER['HTTP_X_API_KEY'] : '';
-if (empty(\$apiKey)) {
-    http_response_code(401);
-    echo json_encode(['error' => 'API key is required']);
-    exit();
-}
-
-// Basic routing
-if (count(\$uri) > 0) {
-    \$endpoint = \$uri[count(\$uri) - 1];
-    
-    switch (\$endpoint) {
-        case 'data':
-            require_once 'endpoints/data.php';
-            break;
-        case 'export':
-            require_once 'endpoints/export.php';
-            break;
-        case 'status':
-            require_once 'endpoints/status.php';
-            break;
-        case 'test':
-            require_once 'test.php';
-            break;
-        default:
-            http_response_code(404);
-            echo json_encode(['error' => 'Endpoint not found']);
-            break;
-    }
-} else {
-    http_response_code(404);
-    echo json_encode(['error' => 'Endpoint not found']);
-}";
-            
-            if (file_put_contents($apiDir . '/index.php', $indexContent) === false) {
-                header('Location: install.php?step=4&error=index_write');
-                exit();
-            }
-            
-            // Create test.php
-            $testContent = "<?php
-/**
- * Installation Test Script
- * This file helps verify that your installation is working correctly
- */
-
-// Check if directly accessed
-\$directAccess = !isset(\$config);
-if (\$directAccess) {
-    // If accessed directly, load config
-    require_once 'config.php';
-    header('Content-Type: text/html');
-    echo '<!DOCTYPE html>
-    <html>
-    <head>
-        <title>Data Consolidation API - Installation Test</title>
-        <style>
-            body { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; line-height: 1.6; }
-            h1 { color: #333; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-            h2 { margin-top: 30px; color: #444; }
-            .success { color: green; font-weight: bold; }
-            .error { color: red; font-weight: bold; }
-            .warning { color: orange; font-weight: bold; }
-            .test-item { background: #f8f8f8; padding: 15px; margin: 10px 0; border-radius: 5px; border-left: 5px solid #ddd; }
-            .test-item.pass { border-left-color: green; }
-            .test-item.fail { border-left-color: red; }
-            .test-item.warn { border-left-color: orange; }
-            code { background: #eee; padding: 2px 4px; border-radius: 3px; font-family: monospace; }
-            pre { background: #f1f1f1; padding: 10px; border-radius: 5px; overflow: auto; }
-            .fix-instructions { background: #fffaf0; padding: 10px; border-left: 3px solid #ffc107; margin-top: 10px; }
-        </style>
-    </head>
-    <body>
-        <h1>Data Consolidation API - Installation Test</h1>
-        <p>This tool checks your installation and helps identify any issues.</p>
-        <div id=\"test-results\">';
-} else {
-    // If accessed through API, return JSON
-    // API key already verified in index.php
-}
-
-// Initialize tests array
-\$tests = [];
-\$hasErrors = false;
-\$hasWarnings = false;
-
-// Test 1: PHP Version
-\$phpVersion = phpversion();
-\$phpVersionCheck = version_compare(\$phpVersion, '7.4.0', '>=');
-\$tests[] = [
-    'name' => 'PHP Version',
-    'status' => \$phpVersionCheck ? 'pass' : 'fail',
-    'message' => 'PHP version: ' . \$phpVersion,
-    'expected' => 'PHP 7.4.0 or higher',
-    'fix' => \$phpVersionCheck ? '' : 'Contact your hosting provider to upgrade PHP to version 7.4.0 or higher.'
-];
-if (!\$phpVersionCheck) \$hasErrors = true;
-
-// Test 2: Required PHP Extensions
-\$requiredExtensions = ['json', 'curl', 'mbstring', 'fileinfo'];
-\$missingExtensions = [];
-foreach (\$requiredExtensions as \$ext) {
-    if (!extension_loaded(\$ext)) {
-        \$missingExtensions[] = \$ext;
-    }
-}
-\$extensions_check = empty(\$missingExtensions);
-\$tests[] = [
-    'name' => 'PHP Extensions',
-    'status' => \$extensions_check ? 'pass' : 'fail',
-    'message' => \$extensions_check ? 'All required extensions are installed.' : 'Missing extensions: ' . implode(', ', \$missingExtensions),
-    'expected' => 'json, curl, mbstring, fileinfo',
-    'fix' => \$extensions_check ? '' : 'Enable missing PHP extensions through your hosting control panel or contact your hosting provider.'
-];
-if (!\$extensions_check) \$hasErrors = true;
-
-// Test 3: Data Directory Permissions
-\$dataPath = \$config['storage_path'];
-\$dirExists = file_exists(\$dataPath);
-\$dirWritable = \$dirExists && is_writable(\$dataPath);
-
-\$dirStatus = 'fail';
-\$dirMessage = '';
-\$dirFix = '';
-
-if (!\$dirExists) {
-    \$dirMessage = 'Data directory does not exist: ' . \$dataPath;
-    \$dirFix = 'Create the data directory and ensure proper permissions: <code>mkdir -p ' . \$dataPath . '</code>';
-    \$hasErrors = true;
-} elseif (!\$dirWritable) {
-    \$dirMessage = 'Data directory exists but is not writable: ' . \$dataPath;
-    \$dirFix = 'Set proper permissions: <code>chmod 755 ' . \$dataPath . '</code>';
-    \$hasErrors = true;
-} else {
-    \$dirStatus = 'pass';
-    \$dirMessage = 'Data directory exists and is writable: ' . \$dataPath;
-}
-
-\$tests[] = [
-    'name' => 'Data Directory',
-    'status' => \$dirStatus,
-    'message' => \$dirMessage,
-    'expected' => 'Directory exists and is writable',
-    'fix' => \$dirFix
-];
-
-// Test 4: Mod Rewrite Enabled
-\$modRewriteEnabled = function_exists('apache_get_modules') ? in_array('mod_rewrite', apache_get_modules()) : null;
-\$modRewriteStatus = \$modRewriteEnabled === null ? 'warn' : (\$modRewriteEnabled ? 'pass' : 'warn');
-\$modRewriteMessage = \$modRewriteEnabled === null ? 
-                   'Could not detect Apache modules. Mod rewrite status unknown.' : 
-                   (\$modRewriteEnabled ? 'Mod rewrite is enabled.' : 'Mod rewrite may not be enabled.');
-\$tests[] = [
-    'name' => 'Apache Mod Rewrite',
-    'status' => \$modRewriteStatus,
-    'message' => \$modRewriteMessage,
-    'expected' => 'Enabled',
-    'fix' => \$modRewriteEnabled === false ? 'Enable mod_rewrite in your Apache configuration or contact your hosting provider. For SiteGround, this is typically enabled by default.' : ''
-];
-if (\$modRewriteStatus === 'warn') \$hasWarnings = true;
-
-// Test 5: Config File
-\$configFileInaccessible = false;
-\$testUrl = str_replace('/test.php', '/config.php', \$_SERVER['PHP_SELF']);
-\$testFullUrl = (isset(\$_SERVER['HTTPS']) && \$_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . \"://\$_SERVER[HTTP_HOST]\$testUrl\";
-
-\$ch = curl_init(\$testFullUrl);
-curl_setopt(\$ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt(\$ch, CURLOPT_NOBODY, true);
-curl_exec(\$ch);
-\$httpCode = curl_getinfo(\$ch, CURLINFO_HTTP_CODE);
-curl_close(\$ch);
-
-\$configFileInaccessible = (\$httpCode == 403 || \$httpCode == 404);
-\$tests[] = [
-    'name' => 'Config File Protection',
-    'status' => \$configFileInaccessible ? 'pass' : 'fail',
-    'message' => \$configFileInaccessible ? 'Config file is protected from direct access.' : 'Config file may be accessible directly: HTTP code ' . \$httpCode,
-    'expected' => 'Protected (403 or 404 response)',
-    'fix' => \$configFileInaccessible ? '' : 'Check .htaccess file permissions and configuration. Ensure the following rule is present and working:<br><pre>
-&lt;Files \"config.php\"&gt;
-    Order Allow,Deny
-    Deny from all
-&lt;/Files&gt;</pre>'
-];
-if (!\$configFileInaccessible) \$hasErrors = true;
-
-// Test 6: API Connectivity
-\$testEndpoint = str_replace('/test.php', '/status', \$_SERVER['PHP_SELF']);
-\$testFullEndpoint = (isset(\$_SERVER['HTTPS']) && \$_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . \"://\$_SERVER[HTTP_HOST]\$testEndpoint\";
-
-\$ch = curl_init(\$testFullEndpoint);
-curl_setopt(\$ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt(\$ch, CURLOPT_HTTPHEADER, ['X-API-Key: demo-key-factory']);
-\$response = curl_exec(\$ch);
-\$httpCode = curl_getinfo(\$ch, CURLINFO_HTTP_CODE);
-curl_close(\$ch);
-
-\$responseData = json_decode(\$response, true);
-\$hasValidStatus = \$httpCode === 200 && isset(\$responseData['status']) && \$responseData['status'] === 'ok';
-
-\$tests[] = [
-    'name' => 'API Connectivity',
-    'status' => \$hasValidStatus ? 'pass' : 'fail',
-    'message' => \$hasValidStatus ? 'API endpoints are accessible.' : 'API endpoints may not be working correctly. HTTP code: ' . \$httpCode,
-    'expected' => 'HTTP 200 with status: ok',
-    'fix' => \$hasValidStatus ? '' : 'Check your Apache configuration and .htaccess file. Ensure mod_rewrite is working correctly and the API routes are properly set up. If using subdirectories, ensure your rewrite rules account for them. Try adding this to your .htaccess file:<br><pre>RewriteBase /api/</pre>'
-];
-if (!\$hasValidStatus) \$hasErrors = true;
-
-// Output test results
-if (\$directAccess) {
-    // HTML output for direct access
-    \$overallStatus = \$hasErrors ? 'fail' : (\$hasWarnings ? 'warn' : 'pass');
-    \$overallStatusText = \$hasErrors ? 'Failed' : (\$hasWarnings ? 'Passed with Warnings' : 'Passed');
-    \$overallStatusClass = \$hasErrors ? 'error' : (\$hasWarnings ? 'warning' : 'success');
-    
-    echo '<h2>Overall Status: <span class=\"' . \$overallStatusClass . '\">' . \$overallStatusText . '</span></h2>';
-    
-    foreach (\$tests as \$test) {
-        echo '<div class=\"test-item ' . \$test['status'] . '\">';
-        echo '<strong>' . \$test['name'] . ':</strong> ';
-        \$statusText = \$test['status'] === 'pass' ? 'Pass' : (\$test['status'] === 'warn' ? 'Warning' : 'Fail');
-        \$statusClass = \$test['status'] === 'pass' ? 'success' : (\$test['status'] === 'warn' ? 'warning' : 'error');
-        echo '<span class=\"' . \$statusClass . '\">' . \$statusText . '</span><br>';
-        echo 'Result: ' . \$test['message'] . '<br>';
-        echo 'Expected: ' . \$test['expected'];
+        echo "</p>";
         
-        if (!empty(\$test['fix'])) {
-            echo '<div class=\"fix-instructions\">';
-            echo '<strong>How to fix:</strong> ' . \$test['fix'];
-            echo '</div>';
+        // Check required extensions
+        $requiredExtensions = ['json', 'curl', 'mbstring'];
+        $missingExtensions = [];
+        foreach ($requiredExtensions as $ext) {
+            if (!extension_loaded($ext)) {
+                $missingExtensions[] = $ext;
+            }
         }
+        echo "<p><strong>PHP Extensions:</strong> ";
+        if (empty($missingExtensions)) {
+            echo "<span class='success'>All required extensions are installed ✓</span>";
+        } else {
+            echo "<span class='error'>Missing extensions: " . implode(', ', $missingExtensions) . " ✗</span>";
+        }
+        echo "</p>";
         
-        echo '</div>';
-    }
-    
-    if (\$overallStatus === 'pass') {
-        echo '<h2>Installation Status: <span class=\"success\">Ready to Use</span></h2>';
-        echo '<p>Congratulations! Your Data Consolidation API installation is working correctly.</p>';
-    } else {
-        echo '<h2>Installation Status: <span class=\"' . \$overallStatusClass . '\">Needs Attention</span></h2>';
-        echo '<p>Please fix the issues above to ensure proper functionality.</p>';
-    }
-    
-    echo '<h2>Next Steps</h2>';
-    echo '<p>Once all tests pass:</p>';
-    echo '<ol>';
-    echo '<li>Configure your API key in <code>config.php</code></li>';
-    echo '<li>Update your allowed origins for proper CORS support</li>';
-    echo '<li>Set up the Dropbox token if you plan to use automatic exports</li>';
-    echo '</ol>';
-    
-    echo '<h2>Troubleshooting Common Issues</h2>';
-    echo '<details>';
-    echo '<summary><strong>API Connectivity Failing (404 Errors)</strong></summary>';
-    echo '<div class=\"fix-instructions\">';
-    echo '<p>If you\\'re getting 404 errors when testing API connectivity, try these fixes:</p>';
-    echo '<ol>';
-    echo '<li>Make sure the .htaccess file exists in the same directory as index.php</li>';
-    echo '<li>If your API is in a subdirectory (e.g., /api/), add <code>RewriteBase /api/</code> to your .htaccess file</li>';
-    echo '<li>Check if mod_rewrite is enabled on your server</li>';
-    echo '<li>Verify that all files (index.php, endpoints/*.php, etc.) are in the correct location</li>';
-    echo '<li>If using SiteGround, make sure you have activated the Apache mod_rewrite in cPanel → PHP & Site Software → Apache Handlers</li>';
-    echo '</ol>';
-    echo '</div>';
-    echo '</details>';
-    
-    echo '</div></body></html>';
-} else {
-    // JSON output for API access
-    \$result = [
-        'status' => \$hasErrors ? 'error' : (\$hasWarnings ? 'warning' : 'ok'),
-        'message' => \$hasErrors ? 'Installation has issues that need to be fixed.' : 
-                    (\$hasWarnings ? 'Installation is working but has warnings.' : 'Installation is working correctly.'),
-        'tests' => \$tests
-    ];
-    
-    echo json_encode(\$result);
-}";
-            
-            if (file_put_contents($apiDir . '/test.php', $testContent) === false) {
-                header('Location: install.php?step=4&error=test_write');
-                exit();
-            }
-            
-            // Create endpoint files
-            $endpointsToCreate = [
-                'status.php' => "<?php
-/**
- * Status endpoint
- * Returns the current status of the API
- */
-
-// Check if method is GET
-if (\$method !== 'GET') {
-    http_response_code(405);
-    echo json_encode(['error' => 'Method not allowed']);
-    exit();
-}
-
-// Check write permissions on data directory
-\$canWrite = is_writable(\$config['storage_path']);
-
-// Return API status
-echo json_encode([
-    'status' => 'ok',
-    'version' => '1.0.0',
-    'timestamp' => date('c'),
-    'storage' => [
-        'path' => \$config['storage_path'],
-        'writable' => \$canWrite
-    ]
-]);",
-                'data.php' => "<?php
-/**
- * Data endpoint
- * Receives and stores data from sources
- */
-
-// Check if method is POST
-if (\$method !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['error' => 'Method not allowed']);
-    exit();
-}
-
-// Get JSON body
-\$input = file_get_contents('php://input');
-\$data = json_decode(\$input, true);
-
-// Validate data
-if (empty(\$data) || !is_array(\$data)) {
-    http_response_code(400);
-    echo json_encode(['error' => 'Invalid data format']);
-    exit();
-}
-
-// Required fields validation
-\$requiredFields = ['sensorId'];
-foreach (\$requiredFields as \$field) {
-    if (!isset(\$data[\$field])) {
-        http_response_code(400);
-        echo json_encode(['error' => \"Missing required field: {\$field}\"]);
-        exit();
-    }
-}
-
-// Add timestamp if not present
-if (!isset(\$data['timestamp'])) {
-    \$data['timestamp'] = date('c');
-}
-
-// Add unique ID if not present
-if (!isset(\$data['id'])) {
-    \$data['id'] = uniqid('entry-');
-}
-
-// Store the data
-\$filename = \$config['storage_path'] . '/' . date('Y-m-d-H-i-s') . '-' . uniqid() . '.json';
-\$success = file_put_contents(\$filename, json_encode(\$data, JSON_PRETTY_PRINT));
-
-if (\$success === false) {
-    http_response_code(500);
-    echo json_encode(['error' => 'Failed to save data']);
-    exit();
-}
-
-// Return success response
-echo json_encode([
-    'success' => true,
-    'message' => 'Data received successfully',
-    'id' => \$data['id']
-]);",
-                'export.php' => "<?php
-/**
- * Export endpoint
- * Exports collected data to CSV format
- */
-
-// Check if method is GET
-if (\$method !== 'GET') {
-    http_response_code(405);
-    echo json_encode(['error' => 'Method not allowed']);
-    exit();
-}
-
-// Get all JSON files from data directory
-\$files = glob(\$config['storage_path'] . '/*.json');
-if (empty(\$files)) {
-    echo json_encode(['message' => 'No data to export']);
-    exit();
-}
-
-// Collect all data
-\$allData = [];
-foreach (\$files as \$file) {
-    \$content = file_get_contents(\$file);
-    \$data = json_decode(\$content, true);
-    if (\$data) {
-        \$allData[] = \$data;
-    }
-}
-
-// Get all possible fields
-\$allFields = [];
-foreach (\$allData as \$item) {
-    foreach (array_keys(\$item) as \$key) {
-        if (!in_array(\$key, \$allFields)) {
-            \$allFields[] = \$key;
+        // Check write permissions
+        $currentDir = dirname(__FILE__);
+        $canWrite = is_writable($currentDir);
+        echo "<p><strong>Write Permission:</strong> ";
+        if ($canWrite) {
+            echo "<span class='success'>Directory is writable ✓</span>";
+        } else {
+            echo "<span class='error'>Directory is not writable ✗</span>";
         }
-    }
-}
-
-// Generate CSV content
-\$csvContent = implode(\",\", \$allFields) . \"\\n\";
-foreach (\$allData as \$item) {
-    \$line = [];
-    foreach (\$allFields as \$field) {
-        \$value = isset(\$item[\$field]) ? \$item[\$field] : '';
-        // Escape quotes in CSV
-        if (is_string(\$value)) {
-            \$value = '\"' . str_replace('\"', '\"\"', \$value) . '\"';
-        }
-        \$line[] = \$value;
-    }
-    \$csvContent .= implode(\",\", \$line) . \"\\n\";
-}
-
-// Dropbox export option
-\$dropboxExport = false;
-if (!empty(\$config['dropbox_token'])) {
-    \$dropboxExport = true;
-    // In a real implementation, you would use Dropbox API to upload the CSV
-    // This is a placeholder for demonstration
-}
-
-// Return CSV directly to the client
-header('Content-Type: text/csv');
-header('Content-Disposition: attachment; filename=\"data-export-' . date('Y-m-d') . '.csv\"');
-echo \$csvContent;"
-            ];
-            
-            foreach ($endpointsToCreate as $filename => $content) {
-                if (file_put_contents($endpointsDir . '/' . $filename, $content) === false) {
-                    header('Location: install.php?step=4&error=endpoint_write&file=' . $filename);
-                    exit();
-                }
-            }
-            
-            // Move to final step
-            header('Location: install.php?step=5');
-            exit();
-        }
-    }
+        echo "</p>";
+        ?>
+    </div>
     
-    // Display current step
-    if ($step == 1) {
-        // Environment check step
-        ?>
-        <div class="step <?php echo ($phpVersionCheck && $extensionsCheck) ? 'complete' : 'incomplete'; ?>">
-            <h2>Step 1: Environment Check</h2>
-            
-            <p><strong>PHP Version:</strong> <?php echo $phpVersion; ?> 
-                <?php if ($phpVersionCheck): ?>
-                    <span class="success">✓</span>
-                <?php else: ?>
-                    <span class="error">✗</span> (Required: PHP 7.4.0 or higher)
-                <?php endif; ?>
-            </p>
-            
-            <p><strong>PHP Extensions:</strong> 
-                <?php if ($extensionsCheck): ?>
-                    <span class="success">All required extensions are installed ✓</span>
-                <?php else: ?>
-                    <span class="error">Missing extensions: <?php echo implode(', ', $missingExtensions); ?> ✗</span>
-                <?php endif; ?>
-            </p>
-            
-            <?php if (!$phpVersionCheck || !$extensionsCheck): ?>
-                <div class="step error">
-                    <p class="error">Your server environment does not meet the requirements. Please fix these issues before continuing.</p>
-                    <p>If you're using SiteGround hosting:</p>
-                    <ol>
-                        <li>Go to Site Tools > Devs > PHP Manager</li>
-                        <li>Ensure you're using PHP 7.4 or higher</li>
-                        <li>Check that all required extensions are enabled</li>
-                    </ol>
-                </div>
-            <?php else: ?>
-                <form method="post" action="install.php">
-                    <input type="hidden" name="step" value="1">
-                    <button type="submit" class="button">Continue to Step 2</button>
-                </form>
-            <?php endif; ?>
-        </div>
-        <?php
-    }
-    else if ($step == 2) {
-        // Directory setup
-        ?>
-        <div class="step <?php echo ($canWriteApiDir) ? 'complete' : 'incomplete'; ?>">
-            <h2>Step 2: Directory Setup</h2>
-            
-            <p><strong>API Directory:</strong> <?php echo $apiDir; ?> 
-                <?php if ($canWriteApiDir): ?>
-                    <span class="success">Writable ✓</span>
-                <?php else: ?>
-                    <span class="error">Not writable ✗</span>
-                <?php endif; ?>
-            </p>
-            
-            <?php if ($hasDataDir): ?>
-                <p><strong>Data Directory:</strong> <?php echo $dataDir; ?> 
-                    <?php if ($canWriteData): ?>
-                        <span class="success">Exists and writable ✓</span>
-                    <?php else: ?>
-                        <span class="error">Exists but not writable ✗</span>
-                    <?php endif; ?>
-                </p>
-            <?php else: ?>
-                <p><strong>Data Directory:</strong> Will be created at <?php echo $dataDir; ?></p>
-            <?php endif; ?>
-            
-            <?php if ($hasEndpointsDir): ?>
-                <p><strong>Endpoints Directory:</strong> <?php echo $endpointsDir; ?> <span class="success">Exists ✓</span></p>
-            <?php else: ?>
-                <p><strong>Endpoints Directory:</strong> Will be created at <?php echo $endpointsDir; ?></p>
-            <?php endif; ?>
-            
-            <?php if (!$canWriteApiDir): ?>
-                <div class="step error">
-                    <p class="error">The installer cannot write to the API directory. Please fix permissions before continuing.</p>
-                    <p>If you're using SiteGround hosting:</p>
-                    <ol>
-                        <li>Use the File Manager in cPanel</li>
-                        <li>Navigate to the directory</li>
-                        <li>Right-click on the folder and select "Change Permissions"</li>
-                        <li>Set permissions to 755 (drwxr-xr-x)</li>
-                    </ol>
-                </div>
-            <?php else: ?>
-                <form method="post" action="install.php">
-                    <input type="hidden" name="step" value="2">
-                    <button type="submit" class="button">Create Directories and Continue</button>
-                </form>
-            <?php endif; ?>
-            
-            <?php if (!empty($error)): ?>
-                <div class="step error">
-                    <p class="error">
-                        <?php if ($error == 'data_dir'): ?>
-                            Failed to create data directory. Please check permissions and try again.
-                        <?php elseif ($error == 'endpoints_dir'): ?>
-                            Failed to create endpoints directory. Please check permissions and try again.
-                        <?php else: ?>
-                            An unknown error occurred. Please try again.
-                        <?php endif; ?>
-                    </p>
-                </div>
-            <?php endif; ?>
-        </div>
-        <?php
-    }
-    else if ($step == 3) {
-        // Configuration 
-        ?>
-        <div class="step">
-            <h2>Step 3: Configuration</h2>
-            
-            <form method="post" action="install.php">
-                <div style="margin-bottom: 15px;">
-                    <label for="allowed_origins" style="display: block; margin-bottom: 5px;"><strong>Allowed Origins (CORS):</strong></label>
-                    <input type="text" id="allowed_origins" name="allowed_origins" value="*" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                    <small>Use * for development or enter your domain (e.g., https://yourdomain.com)</small>
-                </div>
-                
-                <div style="margin-bottom: 15px;">
-                    <label for="admin_username" style="display: block; margin-bottom: 5px;"><strong>Admin Username:</strong></label>
-                    <input type="text" id="admin_username" name="admin_username" value="admin" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                </div>
-                
-                <div style="margin-bottom: 15px;">
-                    <label for="admin_password" style="display: block; margin-bottom: 5px;"><strong>Admin Password:</strong></label>
-                    <input type="text" id="admin_password" name="admin_password" value="<?php echo md5(uniqid()); ?>" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                    <small>Please change this password after installation</small>
-                </div>
-                
-                <input type="hidden" name="step" value="3">
-                <button type="submit" class="button">Create Configuration and Continue</button>
-            </form>
-            
-            <?php if (!empty($error)): ?>
-                <div class="step error">
-                    <p class="error">
-                        <?php if ($error == 'config_write'): ?>
-                            Failed to write configuration file. Please check permissions and try again.
-                        <?php else: ?>
-                            An unknown error occurred. Please try again.
-                        <?php endif; ?>
-                    </p>
-                </div>
-            <?php endif; ?>
-        </div>
-        <?php
-    }
-    else if ($step == 4) {
-        // Create API files
-        ?>
-        <div class="step">
-            <h2>Step 4: Create API Files</h2>
-            
-            <p>The installer will now create the following files:</p>
-            <ul>
-                <li>.htaccess - For URL rewriting and security</li>
-                <li>index.php - Main API entry point</li>
-                <li>test.php - Installation test script</li>
-                <li>endpoints/status.php - API status endpoint</li>
-                <li>endpoints/data.php - Data collection endpoint</li>
-                <li>endpoints/export.php - Data export endpoint</li>
-            </ul>
-            
-            <form method="post" action="install.php">
-                <input type="hidden" name="step" value="4">
-                <button type="submit" class="button">Create API Files and Continue</button>
-            </form>
-            
-            <?php if (!empty($error)): ?>
-                <div class="step error">
-                    <p class="error">
-                        <?php if ($error == 'htaccess_write'): ?>
-                            Failed to write .htaccess file. Please check permissions and try again.
-                        <?php elseif ($error == 'index_write'): ?>
-                            Failed to write index.php file. Please check permissions and try again.
-                        <?php elseif ($error == 'test_write'): ?>
-                            Failed to write test.php file. Please check permissions and try again.
-                        <?php elseif (strpos($error, 'endpoint_write') === 0): ?>
-                            Failed to write endpoint file. Please check permissions and try again.
-                        <?php else: ?>
-                            An unknown error occurred. Please try again.
-                        <?php endif; ?>
-                    </p>
-                </div>
-            <?php endif; ?>
-        </div>
-        <?php
-    }
-    else if ($step == 5) {
-        // Completion
-        ?>
-        <div class="step complete">
-            <h2>Installation Complete!</h2>
-            
-            <p><span class="success">✓ Your Data Consolidation API has been successfully installed.</span></p>
-            
-            <h3>Next Steps:</h3>
-            <ol>
-                <li>Run the test script to verify your installation:<br>
-                    <a href="test.php" target="_blank" class="button" style="margin-top: 10px; display: inline-block;">Run Test Script</a>
-                </li>
-                <li>Configure your config.php file with appropriate settings</li>
-                <li>Begin using your API with the following endpoints:
-                    <ul>
-                        <li><strong>/api/status</strong> - GET request to check API status</li>
-                        <li><strong>/api/data</strong> - POST request to submit data</li>
-                        <li><strong>/api/export</strong> - GET request to export data</li>
-                    </ul>
-                </li>
-                <li>Integrate with your frontend application or data sources</li>
-            </ol>
-            
-            <h3>For security:</h3>
-            <ul>
-                <li>Use HTTPS in production</li>
-                <li>Change the default admin password</li>
-                <li>Remove this installer script when you're done</li>
-            </ul>
-            
-            <p><strong>Note:</strong> You should delete this installer.php file after successful installation.</p>
-        </div>
-        <?php
-    }
-    ?>
+    <div class="step">
+        <h2>Installation Instructions</h2>
+        <ol>
+            <li>Extract all files from the zip package to your web directory</li>
+            <li>Create a <strong>data</strong> directory and ensure it's writable</li>
+            <li>Create an <strong>endpoints</strong> directory for the API endpoints</li>
+            <li>Run the test script at <a href="test.php">test.php</a> to verify your installation</li>
+        </ol>
+        
+        <p><a href="test.php" class="button">Run Test Script</a></p>
+    </div>
+    
+    <div class="step">
+        <h2>API Configuration</h2>
+        <p>Edit the <strong>config.php</strong> file to set:</p>
+        <ul>
+            <li>Allowed origins for CORS</li>
+            <li>Storage path for data</li>
+            <li>Authentication credentials</li>
+        </ul>
+    </div>
+    
+    <p>For more detailed instructions, please refer to the included README.md file.</p>
 </body>
 </html>`;
   };
@@ -1460,22 +665,16 @@ echo \$csvContent;"
       // Create a new JSZip instance
       const zip = new JSZip();
       
-      // Create all-in-one installer file
+      // Create root directory structure and files for the simplified package
       zip.file("install.php", createInstallPHP());
-
-      // Create root directory structure and all other files for the full API package
-      const apiDir = zip.folder("api-files");
-      const dataDir = apiDir.folder("data");
-      const endpointsDir = apiDir.folder("endpoints");
+      zip.file("index.php", createIndexPHP());
+      zip.file(".htaccess", createHtaccess());
+      zip.file("test.php", createTestPHP());
       
-      // Add all the same files that were included in the installer output
-      apiDir.file("index.php", createIndexPHP());
-      apiDir.file(".htaccess", createHtaccess());
-      apiDir.file("test.php", createTestPHP());
-      apiDir.file("config.php", `<?php
+      // Create config.php (simplified)
+      zip.file("config.php", `<?php
 /**
  * Configuration file for Data Consolidation API
- * Edit this file to configure your API settings
  */
 
 $config = [
@@ -1485,12 +684,8 @@ $config = [
     // Path to data storage directory (absolute path)
     'storage_path' => __DIR__ . '/data',
     
-    // Dropbox integration settings
-    'dropbox_token' => 'YOUR_DROPBOX_TOKEN',
-    
-    // Authentication credentials for admin access
-    'admin_username' => 'admin',
-    'admin_password' => 'change_this_password'
+    // API key (change this in production)
+    'api_key' => 'your-secure-api-key-here'
 ];
 
 // Validate storage directory
@@ -1499,13 +694,17 @@ if (!file_exists($config['storage_path'])) {
 }
 `);
 
+      // Create directories
+      const endpointsDir = zip.folder("endpoints");
+      const dataDir = zip.folder("data");
+      
       // Add endpoint files
       endpointsDir.file("status.php", createStatusPHP());
       endpointsDir.file("data.php", createDataPHP());
       endpointsDir.file("export.php", createExportPHP());
       
       // Add README
-      apiDir.file("README.md", createReadme());
+      zip.file("README.md", createReadme());
       
       // Create sample data file
       dataDir.file(".gitkeep", "");
@@ -1616,29 +815,4 @@ if (!file_exists($config['storage_path'])) {
                   <ul className="list-disc list-inside ml-3">
                     <li>Connect to your server using an FTP client (like FileZilla)</li>
                     <li>Navigate to your website's document root</li>
-                    <li>Create a new folder named "api" (or use your preferred name)</li>
-                    <li>Extract the ZIP file on your computer</li>
-                    <li>Upload all extracted files directly to the "api" folder</li>
-                  </ul>
-                </CollapsibleContent>
-              </Collapsible>
-            </li>
-            
-            <li className="font-medium">Run the test script</li>
-            <div className="pl-5 text-muted-foreground">
-              <p>After uploading all files:</p>
-              <ol className="list-disc list-inside ml-3">
-                <li>Visit <code>https://your-domain.com/api/test.php</code> in your browser</li>
-                <li>The test script will check your installation and identify any issues</li>
-                <li>Follow any recommendations to fix installation problems</li>
-                <li>Once all tests pass, your API is ready to use</li>
-              </ol>
-            </div>
-          </ol>
-        </div>
-      </CardContent>
-    </Card>
-  );
-};
-
-export default Installer;
+                    <li>Create a new folder named "api" (or
