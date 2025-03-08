@@ -2,9 +2,10 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ExternalLink, Server, Globe, Github, FileCode, Upload } from "lucide-react";
+import { ExternalLink, Server, Globe, Github, FileCode, Upload, AlertTriangle, CheckCircle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Installer from '@/components/Installer';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const DeploymentGuide: React.FC = () => {
   return (
@@ -20,6 +21,19 @@ const DeploymentGuide: React.FC = () => {
       </CardHeader>
       <CardContent>
         <div className="space-y-6">
+          <Alert variant="warning" className="mb-4">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Important Installation Notes</AlertTitle>
+            <AlertDescription>
+              <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
+                <li>The API requires PHP with mod_rewrite enabled</li>
+                <li>Make sure your server has write permissions for the data directory</li>
+                <li>Always use the test.php script to verify your installation</li>
+                <li>If uploading to csvscrub.com/api, make sure all files are in that directory</li>
+              </ul>
+            </AlertDescription>
+          </Alert>
+
           <Tabs defaultValue="siteground" className="w-full">
             <TabsList className="grid grid-cols-4 mb-4">
               <TabsTrigger value="siteground">SiteGround</TabsTrigger>
@@ -122,13 +136,28 @@ const DeploymentGuide: React.FC = () => {
           </Tabs>
           
           <div className="p-4 bg-primary/5 rounded-md">
-            <h3 className="text-sm font-medium mb-2">Next Steps After Deployment</h3>
+            <h3 className="text-sm font-medium mb-2">Troubleshooting Common Issues</h3>
             <ol className="list-decimal list-inside space-y-1 text-sm">
-              <li>Set up your domain name in your hosting provider</li>
-              <li>Configure your API key and Dropbox link in the application</li>
-              <li>Share your API endpoint with your data provider: <code className="bg-secondary px-1 py-0.5 rounded">https://your-domain.com/api/data</code></li>
-              <li>Test the integration using the Control Panel</li>
-              <li>For a more robust solution, consider adding a proper backend service</li>
+              <li><strong>API Connectivity Error (404)</strong>: 
+                <ul className="list-disc list-inside ml-5 text-muted-foreground">
+                  <li>Check that all files are in the correct location. For csvscrub.com/api, all files should be directly in the "api" folder.</li>
+                  <li>Make sure .htaccess file is uploaded and readable by the server.</li>
+                  <li>Verify mod_rewrite is enabled in your Apache configuration.</li>
+                  <li>Try accessing the test.php file directly to see detailed diagnostics.</li>
+                </ul>
+              </li>
+              <li><strong>Permission Issues</strong>:
+                <ul className="list-disc list-inside ml-5 text-muted-foreground">
+                  <li>Set the data directory permissions to 755 (chmod 755 data)</li>
+                  <li>Set PHP files to 644 (chmod 644 *.php)</li>
+                </ul>
+              </li>
+              <li><strong>Configuration</strong>:
+                <ul className="list-disc list-inside ml-5 text-muted-foreground">
+                  <li>Update the config.php with your domain in allowed_origins</li>
+                  <li>Set your API key and Dropbox link in the application</li>
+                </ul>
+              </li>
             </ol>
           </div>
         </div>
