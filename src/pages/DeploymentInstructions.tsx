@@ -6,8 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import JSZip from 'jszip';
-import FileSaver from 'file-saver';
+import { packageFrontendFiles, packageApiFiles } from '@/utils/packageUtils';
 
 const DeploymentInstructions = () => {
   const { toast } = useToast();
@@ -18,95 +17,7 @@ const DeploymentInstructions = () => {
     setIsDownloadingFrontend(true);
     
     try {
-      const zip = new JSZip();
-      
-      zip.file("index.html", `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Data Consolidation Frontend</title>
-  <link rel="stylesheet" href="assets/css/style.css">
-</head>
-<body>
-  <div id="app"></div>
-  <script src="assets/js/main.js"></script>
-</body>
-</html>`);
-      
-      const cssFolder = zip.folder("assets/css");
-      cssFolder.file("style.css", `/* Main Stylesheet */
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  line-height: 1.6;
-  color: #333;
-  margin: 0;
-  padding: 0;
-}
-
-#app {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 20px;
-}`);
-      
-      const jsFolder = zip.folder("assets/js");
-      jsFolder.file("main.js", `// Main JavaScript file
-document.addEventListener('DOMContentLoaded', function() {
-  const app = document.getElementById('app');
-  
-  app.innerHTML = \`
-    <div class="container">
-      <header>
-        <h1>Data Consolidation App</h1>
-        <p>Connect to your API at /api</p>
-      </header>
-      <main>
-        <section id="status">
-          <h2>API Status</h2>
-          <div id="status-output">Checking API status...</div>
-        </section>
-      </main>
-    </div>
-  \`;
-  
-  fetch('/api/status')
-    .then(response => response.json())
-    .then(data => {
-      document.getElementById('status-output').innerHTML = 
-        '<div style="color: green">✓ API connected successfully!</div>' +
-        '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
-    })
-    .catch(error => {
-      document.getElementById('status-output').innerHTML = 
-        '<div style="color: red">✗ Error connecting to API. Make sure API is installed properly.</div>' +
-        '<pre>' + error + '</pre>';
-    });
-});`);
-      
-      zip.file("README.md", `# Frontend Files
-
-These are the basic frontend files for your Data Consolidation application.
-
-## File Structure
-
-- index.html - Main HTML file
-- assets/css/style.css - Stylesheet
-- assets/js/main.js - JavaScript functionality
-
-## Installation
-
-1. Upload all files to your web server's root directory
-2. Make sure your API is installed in the /api directory
-3. Open your website in a browser
-
-## Customization
-
-You can modify these files or replace them with your own custom frontend.
-`);
-      
-      const zipContent = await zip.generateAsync({ type: "blob" });
-      FileSaver.saveAs(zipContent, "frontend-files.zip");
+      await packageFrontendFiles();
       
       toast({
         title: "Frontend files downloaded",
@@ -128,183 +39,7 @@ You can modify these files or replace them with your own custom frontend.
     setIsDownloadingAPI(true);
     
     try {
-      const zip = new JSZip();
-      
-      zip.file("index.php", `<?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
-header('Content-Type: application/json');
-
-$requestPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-$basePath = dirname($_SERVER['SCRIPT_NAME']);
-$endpoint = str_replace($basePath, '', $requestPath);
-$endpoint = trim($endpoint, '/');
-
-switch ($endpoint) {
-    case 'status':
-        echo json_encode([
-            'status' => 'ok',
-            'version' => '1.0.0',
-            'timestamp' => date('c')
-        ]);
-        break;
-        
-    case 'test':
-        include 'test.php';
-        break;
-        
-    case '':
-        echo json_encode([
-            'name' => 'Data Consolidation API',
-            'version' => '1.0.0',
-            'endpoints' => ['/status', '/test']
-        ]);
-        break;
-        
-    default:
-        header('HTTP/1.1 404 Not Found');
-        echo json_encode(['error' => 'Endpoint not found']);
-}`);
-      
-      zip.file(".htaccess", `# Enable rewrite engine
-RewriteEngine On
-
-RewriteBase /api/
-
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-
-RewriteRule ^(.*)$ index.php [QSA,L]
-
-<IfModule mod_headers.c>
-    Header set Access-Control-Allow-Origin "*"
-    Header set Access-Control-Allow-Methods "GET, POST, OPTIONS"
-    Header set Access-Control-Allow-Headers "Content-Type, X-API-Key"
-</IfModule>
-
-<IfModule mod_rewrite.c>
-    RewriteRule ^data/ - [F,L]
-</IfModule>`);
-      
-      zip.file("test.php", `<?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
-header('Content-Type: text/html; charset=utf-8');
-?>
-<!DOCTYPE html>
-<html>
-<head>
-    <title>API Installation Test</title>
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-        h1 { color: #333; }
-        .success { color: green; font-weight: bold; }
-        .error { color: red; font-weight: bold; }
-        .warning { color: orange; font-weight: bold; }
-        .test { border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; }
-        code { background: #f5f5f5; padding: 2px 4px; border-radius: 3px; }
-    </style>
-</head>
-<body>
-    <h1>API Installation Test</h1>
-    
-    <div class="test">
-        <h3>PHP Version and Info</h3>
-        <?php
-        echo '<p>PHP Version: ' . phpversion() . '</p>';
-        if (function_exists('phpinfo')) {
-            echo '<p><a href="phpinfo.php" target="_blank">View Full PHP Info</a></p>';
-        }
-        ?>
-    </div>
-
-    <div class="test">
-        <h3>Server Information</h3>
-        <?php
-        echo '<p>Server Software: ' . ($_SERVER['SERVER_SOFTWARE'] ?? 'Unknown') . '</p>';
-        echo '<p>Document Root: ' . ($_SERVER['DOCUMENT_ROOT'] ?? 'Unknown') . '</p>';
-        echo '<p>Script Path: ' . ($_SERVER['SCRIPT_FILENAME'] ?? 'Unknown') . '</p>';
-        ?>
-    </div>
-    
-    <div class="test">
-        <h3>API Configuration</h3>
-        <?php
-        if (file_exists('.htaccess')) {
-            echo "<p><span class='success'>✓</span> .htaccess file exists</p>";
-        } else {
-            echo "<p><span class='error'>✗</span> .htaccess file does not exist</p>";
-            echo "<p>This file is critical for API routing to work!</p>";
-        }
-        
-        if (file_exists('data') && is_dir('data')) {
-            echo "<p><span class='success'>✓</span> data directory exists</p>";
-            
-            if (is_writable('data')) {
-                echo "<p><span class='success'>✓</span> data directory is writable</p>";
-            } else {
-                echo "<p><span class='error'>✗</span> data directory is not writable</p>";
-                echo "<p>Fix with: <code>chmod 755 data</code></p>";
-            }
-        } else {
-            echo "<p><span class='error'>✗</span> data directory does not exist</p>";
-            echo "<p>Fix with: <code>mkdir data</code> and <code>chmod 755 data</code></p>";
-        }
-        ?>
-    </div>
-</body>
-</html>`);
-      
-      zip.file("config.php", `<?php
-$config = [
-    'api_key' => 'your-secure-api-key-here',
-    'allowed_origins' => ['*'],
-    'data_dir' => __DIR__ . '/data'
-];
-
-if (!file_exists($config['data_dir'])) {
-    mkdir($config['data_dir'], 0755, true);
-}
-
-return $config;`);
-      
-      zip.file("phpinfo.php", `<?php
-phpinfo();
-`);
-      
-      const dataDir = zip.folder("data");
-      dataDir.file(".gitkeep", "");
-      
-      zip.file("README.md", `# API Files
-
-These are the core API files for your Data Consolidation application.
-
-## Installation
-
-1. Upload all files to a directory named 'api' in your web server's root
-2. Make sure the .htaccess file is included (it might be hidden in your file browser)
-3. Ensure the 'data' directory is writable by the web server
-4. Test your installation by visiting https://yourdomain.com/api/test.php
-
-## Configuration
-
-Edit config.php to set:
-- Your API key (change from the default value)
-- Allowed origins for CORS headers (set to your domain in production)
-
-## Troubleshooting
-
-If you encounter issues:
-1. Check the test.php page for diagnostics
-2. Make sure .htaccess file is uploaded (it may be hidden)
-3. Verify mod_rewrite is enabled in Apache
-4. Ensure AllowOverride is set to All in your Apache configuration
-`);
-      
-      const zipContent = await zip.generateAsync({ type: "blob" });
-      FileSaver.saveAs(zipContent, "api-files.zip");
+      await packageApiFiles();
       
       toast({
         title: "API files downloaded",
@@ -469,8 +204,8 @@ If you encounter issues:
                   <ol className="list-decimal list-inside text-sm space-y-2">
                     <li>Find the <code>.htaccess</code> file in the api folder (it might be hidden)</li>
                     <li>Open it for editing</li>
-                    <li>Find the line <code>RewriteBase /</code></li>
-                    <li>Change it to <code>RewriteBase /api/</code> (if your API is in the api folder)</li>
+                    <li>Find the line <code>RewriteBase /api/</code></li>
+                    <li>Make sure it matches the path where your API is installed</li>
                     <li>Save the file</li>
                   </ol>
                 </div>
