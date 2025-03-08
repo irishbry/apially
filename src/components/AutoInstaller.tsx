@@ -322,7 +322,7 @@ document.getElementById("root").innerHTML = `
       <h2>API Configuration</h2>
       <div>
         <label>API Key</label>
-        <input type="text" id="api-key" placeholder="Enter your API key">
+        <input type="text" id="api-key" placeholder="Enter your API key" />
         <button id="save-key">Save API Key</button>
       </div>
     </div>
@@ -331,11 +331,11 @@ document.getElementById("root").innerHTML = `
       <form id="source-form">
         <div>
           <label>Source Name</label>
-          <input type="text" id="source-name" placeholder="e.g., Sales Data">
+          <input type="text" id="source-name" placeholder="e.g., Sales Data" />
         </div>
         <div>
           <label>Source URL</label>
-          <input type="text" id="source-url" placeholder="https://example.com/data.csv">
+          <input type="text" id="source-url" placeholder="https://example.com/data.csv" />
         </div>
         <button type="submit">Add Source</button>
       </form>
@@ -860,3 +860,4 @@ For more help, please refer to the detailed troubleshooting guide in the documen
 };
 
 export default AutoInstaller;
+
