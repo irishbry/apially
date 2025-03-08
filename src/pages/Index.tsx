@@ -8,6 +8,9 @@ import DataTable from "@/components/DataTable";
 import ApiInstructions from "@/components/ApiInstructions";
 import ApiUsageStats from "@/components/ApiUsageStats";
 import Header from "@/components/Header";
+import SchemaEditor from "@/components/SchemaEditor";
+import DeploymentGuide from "@/components/DeploymentGuide";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const Index = () => {
   return (
@@ -34,10 +37,28 @@ const Index = () => {
           {/* Configuration */}
           <section>
             <h2 className="text-xl font-medium mb-4">Configuration</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <ApiKeyForm />
-              <DropboxLinkForm />
-            </div>
+            <Tabs defaultValue="basic" className="w-full">
+              <TabsList className="mb-4">
+                <TabsTrigger value="basic">Basic Setup</TabsTrigger>
+                <TabsTrigger value="schema">Data Schema</TabsTrigger>
+                <TabsTrigger value="deployment">Deployment</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="basic">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <ApiKeyForm />
+                  <DropboxLinkForm />
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="schema">
+                <SchemaEditor />
+              </TabsContent>
+              
+              <TabsContent value="deployment">
+                <DeploymentGuide />
+              </TabsContent>
+            </Tabs>
           </section>
           
           {/* Control and Data View */}

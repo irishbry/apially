@@ -1,4 +1,3 @@
-
 import { toast } from "@/components/ui/use-toast";
 
 // Type for incoming data
@@ -8,6 +7,12 @@ export interface DataEntry {
   [key: string]: any;
 }
 
+// Schema validation interface
+export interface DataSchema {
+  requiredFields: string[];
+  fieldTypes: {[key: string]: string};
+}
+
 // Main API service
 class ApiService {
   private static instance: ApiService;
@@ -15,6 +20,10 @@ class ApiService {
   private data: DataEntry[] = [];
   private dropboxLink: string = "";
   private subscribers: ((data: DataEntry[]) => void)[] = [];
+  private schema: DataSchema = {
+    requiredFields: [],
+    fieldTypes: {}
+  };
 
   private constructor() {
     // Initialize with demo data
@@ -22,6 +31,17 @@ class ApiService {
     
     // Simulate scheduled daily export
     this.scheduleExport();
+    
+    // Default schema - can be customized
+    this.schema = {
+      requiredFields: ['sensorId'],
+      fieldTypes: {
+        sensorId: 'string',
+        temperature: 'number',
+        humidity: 'number',
+        pressure: 'number'
+      }
+    };
   }
 
   // Singleton pattern
@@ -90,31 +110,96 @@ class ApiService {
     return this.dropboxLink;
   }
 
-  // Receive data from API endpoint (simulated)
-  public receiveData(data: DataEntry, apiKey: string): boolean {
-    // Validate API key
-    if (apiKey !== this.apiKey) {
-      console.error("Invalid API key");
-      return false;
-    }
+  // Set data schema
+  public setSchema(schema: DataSchema): void {
+    this.schema = schema;
+    localStorage.setItem('csv-data-schema', JSON.stringify(schema));
+    toast({
+      title: "Schema Updated",
+      description: "Your data schema has been updated successfully.",
+    });
+  }
 
-    // Add timestamp if not present
-    if (!data.timestamp) {
-      data.timestamp = new Date().toISOString();
+  // Get current schema
+  public getSchema(): DataSchema {
+    if (!this.schema.requiredFields.length) {
+      const savedSchema = localStorage.getItem('csv-data-schema');
+      if (savedSchema) this.schema = JSON.parse(savedSchema);
+    }
+    return this.schema;
+  }
+
+  // Validate data against schema
+  private validateData(data: DataEntry): { valid: boolean; errors: string[] } {
+    const schema = this.getSchema();
+    const errors: string[] = [];
+    
+    // Check required fields
+    schema.requiredFields.forEach(field => {
+      if (data[field] === undefined || data[field] === null) {
+        errors.push(`Missing required field: ${field}`);
+      }
+    });
+    
+    // Check field types
+    Object.entries(schema.fieldTypes).forEach(([field, type]) => {
+      if (data[field] !== undefined && data[field] !== null) {
+        const actualType = typeof data[field];
+        if (actualType !== type) {
+          errors.push(`Field ${field} should be type ${type}, got ${actualType}`);
+        }
+      }
+    });
+    
+    return { valid: errors.length === 0, errors };
+  }
+
+  // Normalize data
+  private normalizeData(data: DataEntry): DataEntry {
+    const normalized = { ...data };
+    
+    // Ensure timestamp is in ISO format
+    if (normalized.timestamp) {
+      try {
+        normalized.timestamp = new Date(normalized.timestamp).toISOString();
+      } catch (e) {
+        normalized.timestamp = new Date().toISOString();
+      }
+    } else {
+      normalized.timestamp = new Date().toISOString();
     }
     
-    // Add id if not present
-    if (!data.id) {
-      data.id = `entry-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    // Ensure ID exists
+    if (!normalized.id) {
+      normalized.id = `entry-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    }
+    
+    return normalized;
+  }
+
+  // Receive data from API endpoint
+  public receiveData(data: DataEntry, apiKey: string): { success: boolean; message: string } {
+    // Validate API key
+    if (apiKey !== this.apiKey) {
+      return { success: false, message: "Invalid API key" };
     }
 
+    // Validate data against schema
+    const validation = this.validateData(data);
+    if (!validation.valid) {
+      return { success: false, message: `Data validation failed: ${validation.errors.join(', ')}` };
+    }
+    
+    // Normalize data
+    const normalizedData = this.normalizeData(data);
+    
     // Add to data store
-    this.data.unshift(data);
+    this.data.unshift(normalizedData);
     
     // Notify subscribers
     this.notifySubscribers();
     
-    return true;
+    return { success: true, message: "Data received successfully" };
   }
 
   // Get all data

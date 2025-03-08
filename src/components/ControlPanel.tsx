@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, Clock, Send, X } from "lucide-react";
+import { CheckCircle, Clock, Database, Send, X } from "lucide-react";
 import ApiService, { DataEntry } from "@/services/ApiService";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -42,18 +42,14 @@ const ControlPanel: React.FC = () => {
         const result = ApiService.receiveData(testData, apiKey);
         
         setLastResult({
-          success: result,
-          message: result 
-            ? "Test data received successfully!" 
-            : "Failed to receive data. Check your API key.",
+          success: result.success,
+          message: result.message,
         });
         
         toast({
-          title: result ? "Success" : "Error",
-          description: result 
-            ? "Test data received successfully!" 
-            : "Failed to receive data. Check your API key.",
-          variant: result ? "default" : "destructive",
+          title: result.success ? "Success" : "Error",
+          description: result.message,
+          variant: result.success ? "default" : "destructive",
         });
       }
       
@@ -63,6 +59,10 @@ const ControlPanel: React.FC = () => {
 
   const triggerExport = () => {
     ApiService.exportToCsv();
+  };
+
+  const clearAllData = () => {
+    ApiService.clearData();
   };
 
   return (
@@ -113,14 +113,25 @@ const ControlPanel: React.FC = () => {
           
           <div className="space-y-3">
             <h3 className="text-sm font-medium">Manual Operations</h3>
-            <Button
-              variant="outline"
-              onClick={triggerExport}
-              className="hover-lift"
-            >
-              <Clock className="mr-2 h-4 w-4" />
-              Trigger CSV Export Now
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={triggerExport}
+                className="hover-lift"
+              >
+                <Clock className="mr-2 h-4 w-4" />
+                Trigger CSV Export Now
+              </Button>
+              
+              <Button
+                variant="outline"
+                onClick={clearAllData}
+                className="hover-lift"
+              >
+                <Database className="mr-2 h-4 w-4" />
+                Clear All Data
+              </Button>
+            </div>
           </div>
         </div>
       </CardContent>
