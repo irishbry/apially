@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,12 +17,20 @@ const DeploymentGuide: React.FC = () => {
         </CardTitle>
         <CardDescription className="flex justify-between items-center">
           <span>How to deploy this application on your own domain</span>
-          <Link to="/deploy">
-            <Button variant="secondary" size="sm" className="ml-auto">
-              Detailed Non-Technical Guide
-              <ExternalLink className="h-3 w-3 ml-1" />
-            </Button>
-          </Link>
+          <div className="flex gap-2">
+            <Link to="/installer">
+              <Button variant="default" size="sm" className="ml-auto">
+                One-Click Installer
+                <ExternalLink className="h-3 w-3 ml-1" />
+              </Button>
+            </Link>
+            <Link to="/deploy">
+              <Button variant="secondary" size="sm" className="ml-auto">
+                Detailed Guide
+                <ExternalLink className="h-3 w-3 ml-1" />
+              </Button>
+            </Link>
+          </div>
         </CardDescription>
       </CardHeader>
       <CardContent>
