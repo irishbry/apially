@@ -98,7 +98,7 @@ body{font-family:Arial,sans-serif;margin:0;padding:0}
 .container{max-width:1200px;margin:0 auto;padding:15px}');
 
     file_put_contents($frontend_path . '/assets/index.js', '// Simplified JS bundle
-document.getElementById("root").innerHTML = `
+document.getElementById("root").innerHTML = \`
   <div class="container">
     <h1>Data Consolidation Tool</h1>
     <p>API Status: <span id="api-status">Checking...</span></p>
@@ -129,7 +129,7 @@ document.getElementById("root").innerHTML = `
       <ul id="sources-list"></ul>
     </div>
   </div>
-`;
+\`;
 
 // Check API status
 fetch("./api/status")
