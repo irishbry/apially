@@ -17,14 +17,28 @@ import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 import ApiService from "@/services/ApiService";
 import { useToast } from "@/components/ui/use-toast";
+import { useNavigate } from "react-router-dom";
 
 const Index = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     // Check authentication status when component mounts
-    setIsAuthenticated(ApiService.isUserAuthenticated());
+    const authStatus = ApiService.isUserAuthenticated();
+    setIsAuthenticated(authStatus);
+    
+    // Add event listener for auth changes
+    const handleAuthChange = () => {
+      setIsAuthenticated(ApiService.isUserAuthenticated());
+    };
+    
+    window.addEventListener('auth-change', handleAuthChange);
+    
+    return () => {
+      window.removeEventListener('auth-change', handleAuthChange);
+    };
   }, []);
 
   const handleLogout = () => {
@@ -34,6 +48,8 @@ const Index = () => {
       title: "Logged Out",
       description: "You have been logged out successfully.",
     });
+    // Redirect to home after logout
+    navigate('/');
   };
 
   if (!isAuthenticated) {

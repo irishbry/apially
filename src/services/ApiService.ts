@@ -1,4 +1,3 @@
-
 import { toast } from "@/components/ui/use-toast";
 
 // Type for incoming data
@@ -113,6 +112,10 @@ class ApiService {
     if (username === 'admin' && password === 'password') {
       this.isAuthenticated = true;
       localStorage.setItem('csv-api-auth', 'true');
+      
+      // Dispatch auth change event
+      window.dispatchEvent(new Event('auth-change'));
+      
       return true;
     }
     return false;
@@ -122,6 +125,9 @@ class ApiService {
   public logout(): void {
     this.isAuthenticated = false;
     localStorage.removeItem('csv-api-auth');
+    
+    // Dispatch auth change event
+    window.dispatchEvent(new Event('auth-change'));
   }
 
   // Check if user is authenticated

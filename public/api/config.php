@@ -14,10 +14,23 @@ $config = [
     'storage_path' => __DIR__ . '/data',
     
     // API key (change this in production)
-    'api_key' => 'your-secure-api-key-here'
+    'api_key' => 'your-secure-api-key-here',
+    
+    // Demo credentials (remove in production)
+    'demo_user' => 'admin',
+    'demo_password' => 'password'
 ];
 
 // Create storage directory if it doesn't exist
 if (!file_exists($config['storage_path'])) {
     mkdir($config['storage_path'], 0755, true);
+}
+
+// Helper function to log API requests
+function logApiRequest($endpoint, $status, $message = '') {
+    global $config;
+    $logFile = $config['storage_path'] . '/api_log.txt';
+    $timestamp = date('Y-m-d H:i:s');
+    $logEntry = "[$timestamp] $endpoint - Status: $status" . ($message ? " - $message" : "") . PHP_EOL;
+    file_put_contents($logFile, $logEntry, FILE_APPEND);
 }

@@ -6,12 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Lock, User } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import ApiService from "@/services/ApiService";
+import { useNavigate } from "react-router-dom";
 
 const LoginForm: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const handleLogin = () => {
     if (!username.trim() || !password.trim()) {
@@ -34,8 +36,8 @@ const LoginForm: React.FC = () => {
           title: "Login Successful",
           description: "You have been logged in successfully.",
         });
-        // Force a page reload to refresh the authentication state
-        window.location.reload();
+        // Use React Router for navigation instead of page reload
+        navigate('/');
       } else {
         toast({
           title: "Login Failed",
