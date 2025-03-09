@@ -9,7 +9,7 @@ const Header: React.FC = () => {
         <div className="bg-primary/10 p-2 rounded-full">
           <Database className="h-6 w-6 text-primary" />
         </div>
-        <h1 className="text-3xl font-medium tracking-tight">CSV Consolidator Portal</h1>
+        <h1 className="text-3xl font-medium tracking-tight">ApiAlly</h1>
       </div>
       <p className="text-muted-foreground max-w-3xl">
         Easily collect real-time data through your API endpoint, automatically consolidate it into CSV files, 
