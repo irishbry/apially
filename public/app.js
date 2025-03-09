@@ -1,382 +1,619 @@
-
-// Main application script
-
-// Function to show a toast message
-function showToast(message, type = 'info') {
-  const toastContainer = document.getElementById('toast-container');
-  const toast = document.createElement('div');
-  toast.className = `toast ${type} p-4 mb-4 rounded shadow-md flex items-center justify-between animate-fade-in`;
-  
-  // Set the inner HTML of the toast
-  toast.innerHTML = `
-    <div class="flex items-center">
-      ${type === 'success' ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2 text-green-500"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>' : ''}
-      ${type === 'error' ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2 text-red-500"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>' : ''}
-      ${type === 'info' ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2 text-blue-500"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>' : ''}
-      <span>${message}</span>
-    </div>
-    <button class="text-gray-500 hover:text-gray-700 focus:outline-none">
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-    </button>
-  `;
-  
-  // Add a click event to the close button
-  toast.querySelector('button').addEventListener('click', () => {
-    toast.classList.remove('animate-fade-in');
-    toast.classList.add('animate-fade-out');
-    setTimeout(() => toast.remove(), 300);
-  });
-  
-  // Auto-remove after 5 seconds
-  toastContainer.appendChild(toast);
-  setTimeout(() => {
-    if (toast.parentNode === toastContainer) {
-      toast.classList.remove('animate-fade-in');
-      toast.classList.add('animate-fade-out');
-      setTimeout(() => toast.remove(), 300);
-    }
-  }, 5000);
-}
-
-// Function to check if user is logged in
-function isLoggedIn() {
-  return localStorage.getItem('auth') === 'true';
-}
-
-// Function to set login state
-function setLoggedIn(state) {
-  localStorage.setItem('auth', state);
-  updateUIBasedOnAuth();
-}
-
-// Function to update UI based on authentication
-function updateUIBasedOnAuth() {
-  const loginPage = document.getElementById('login-page');
-  const mainApp = document.getElementById('main-app');
-  
-  if (isLoggedIn()) {
-    loginPage.classList.add('hidden');
-    mainApp.classList.remove('hidden');
-  } else {
-    loginPage.classList.remove('hidden');
-    mainApp.classList.add('hidden');
-  }
-}
-
-// Function to handle login
-async function handleLogin() {
-  const username = document.getElementById('username').value;
-  const password = document.getElementById('password').value;
-  
-  if (!username || !password) {
-    showToast('Please enter both username and password', 'error');
-    return;
-  }
-  
-  try {
-    const response = await fetch('api/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ username, password })
+document.addEventListener('DOMContentLoaded', () => {
+    // Event listeners for tab switching
+    document.querySelectorAll('[data-tab]').forEach(tab => {
+        tab.addEventListener('click', () => {
+            const tabName = tab.getAttribute('data-tab');
+            switchTab(tabName);
+        });
     });
-    
-    const data = await response.json();
-    
-    if (data.success) {
-      setLoggedIn(true);
-      showToast('Login successful!', 'success');
-    } else {
-      showToast(data.message || 'Invalid credentials', 'error');
-    }
-  } catch (error) {
-    console.error('Login error:', error);
-    showToast('Error connecting to the server', 'error');
-  }
-}
 
-// Function to handle logout
-function handleLogout() {
-  setLoggedIn(false);
-  showToast('You have been logged out', 'info');
-}
-
-// Tab switching functionality
-function setupTabs() {
-  const tabs = document.querySelectorAll('[data-tab]');
-  
-  tabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-      // Remove active class from all tabs
-      document.querySelectorAll('[data-tab]').forEach(t => {
-        t.classList.remove('border-blue-600', 'text-blue-600');
-        t.classList.add('border-transparent', 'text-gray-500');
-      });
-      
-      // Add active class to current tab
-      tab.classList.remove('border-transparent', 'text-gray-500');
-      tab.classList.add('border-blue-600', 'text-blue-600');
-      
-      // Hide all tab content
-      document.querySelectorAll('.tab-pane').forEach(pane => {
-        pane.classList.remove('active');
-        pane.classList.add('hidden');
-      });
-      
-      // Show active tab content
-      const targetId = `${tab.dataset.tab}-tab-content`;
-      const targetPane = document.getElementById(targetId);
-      if (targetPane) {
-        targetPane.classList.remove('hidden');
-        targetPane.classList.add('active');
-      }
+    // Event listeners for deploy tab switching
+    document.querySelectorAll('[data-deploy-tab]').forEach(tab => {
+        tab.addEventListener('click', () => {
+            const tabName = tab.getAttribute('data-deploy-tab');
+            switchDeployTab(tabName);
+        });
     });
-  });
-}
 
-// Schema Editor functionality
-function setupSchemaEditor() {
-  const addFieldBtn = document.getElementById('add-field-btn');
-  const newFieldInput = document.getElementById('new-field-input');
-  const fieldsList = document.getElementById('fields-list');
-  const saveSchemaBtn = document.getElementById('save-schema-btn');
-  
-  // Load existing schema
-  let schema = JSON.parse(localStorage.getItem('schema') || '{"fields": [], "requiredFields": []}');
-  
-  function updateFieldsList() {
-    if (!fieldsList) return;
-    
-    if (schema.fields.length === 0) {
-      fieldsList.innerHTML = '<p class="text-gray-500 text-center py-4">No fields added yet. Add your first field above.</p>';
-      return;
+    // Event listener for form submission
+    const apiKeyForm = document.getElementById('api-key-form');
+    if (apiKeyForm) {
+        apiKeyForm.addEventListener('submit', handleApiKeySubmit);
     }
-    
-    fieldsList.innerHTML = '';
-    schema.fields.forEach(field => {
-      const fieldItem = document.createElement('div');
-      fieldItem.className = 'flex items-center justify-between bg-gray-50 p-2 rounded-md mb-2';
-      
-      const isRequired = schema.requiredFields.includes(field.name);
-      
-      fieldItem.innerHTML = `
-        <div class="flex items-center gap-2">
-          <input 
-            type="checkbox" 
-            ${isRequired ? 'checked' : ''}
-            class="rounded" 
-            data-field="${field.name}"
-          />
-          <span class="text-sm font-medium">${field.name}</span>
-        </div>
-        <div class="flex items-center gap-2">
-          <span class="text-xs text-gray-500 px-2 py-1 bg-gray-100 rounded">${field.type}</span>
-          <button 
-            class="text-gray-400 hover:text-red-500"
-            data-remove="${field.name}"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-          </button>
-        </div>
-      `;
-      
-      fieldsList.appendChild(fieldItem);
-      
-      // Add event listeners
-      fieldItem.querySelector(`[data-field="${field.name}"]`).addEventListener('change', (e) => {
-        if (e.target.checked) {
-          if (!schema.requiredFields.includes(field.name)) {
-            schema.requiredFields.push(field.name);
-          }
-        } else {
-          schema.requiredFields = schema.requiredFields.filter(f => f !== field.name);
+
+    // Event listener for Dropbox link submission
+    const dropboxLinkForm = document.getElementById('dropbox-link-form');
+    if (dropboxLinkForm) {
+        dropboxLinkForm.addEventListener('submit', handleDropboxLinkSubmit);
+    }
+
+    // Event listener for schema submission
+    const schemaForm = document.getElementById('schema-form');
+    if (schemaForm) {
+        schemaForm.addEventListener('submit', handleSchemaSubmit);
+    }
+
+    // Event listener for data clearing
+    const clearDataButton = document.getElementById('clear-data-button');
+    if (clearDataButton) {
+        clearDataButton.addEventListener('click', handleClearData);
+    }
+
+    // Event listener for CSV export
+    const exportCsvButton = document.getElementById('export-csv-button');
+    if (exportCsvButton) {
+        exportCsvButton.addEventListener('click', handleExportCsv);
+    }
+
+    // Event listener for adding a new source
+    const addSourceForm = document.getElementById('add-source-form');
+    if (addSourceForm) {
+        addSourceForm.addEventListener('submit', handleAddSourceSubmit);
+    }
+
+    // Event listener for toggling source active state
+    document.getElementById('sources-list')?.addEventListener('click', function(event) {
+        if (event.target.classList.contains('toggle-source-active')) {
+            const sourceId = event.target.dataset.sourceId;
+            toggleSourceActive(sourceId);
         }
-      });
-      
-      fieldItem.querySelector(`[data-remove="${field.name}"]`).addEventListener('click', () => {
-        schema.fields = schema.fields.filter(f => f.name !== field.name);
-        schema.requiredFields = schema.requiredFields.filter(f => f !== field.name);
-        updateFieldsList();
-      });
     });
-  }
-  
-  if (addFieldBtn && newFieldInput) {
-    addFieldBtn.addEventListener('click', () => {
-      const fieldName = newFieldInput.value.trim();
-      if (!fieldName) {
-        showToast('Please enter a field name', 'error');
-        return;
-      }
-      
-      if (schema.fields.some(f => f.name === fieldName)) {
-        showToast('This field already exists', 'error');
-        return;
-      }
-      
-      schema.fields.push({
-        name: fieldName,
-        type: 'string'
-      });
-      
-      newFieldInput.value = '';
-      updateFieldsList();
-    });
-  }
-  
-  if (saveSchemaBtn) {
-    saveSchemaBtn.addEventListener('click', () => {
-      localStorage.setItem('schema', JSON.stringify(schema));
-      showToast('Schema saved successfully', 'success');
-    });
-  }
-  
-  // Initialize fields list
-  updateFieldsList();
-}
 
-// Deployment Guide Setup
-function setupDeploymentGuide() {
-  const deploymentGuide = document.getElementById('deployment-guide');
-  if (!deploymentGuide) return;
-  
-  // Update deployment guide tabs
-  const deploymentTabs = document.querySelectorAll('[data-deploy-tab]');
-  if (deploymentTabs.length === 0) return;
-  
-  deploymentTabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-      // Remove active class from all tabs
-      deploymentTabs.forEach(t => {
-        t.classList.remove('bg-blue-100', 'text-blue-700');
-        t.classList.add('bg-gray-100', 'text-gray-700');
-      });
-      
-      // Add active class to current tab
-      tab.classList.remove('bg-gray-100', 'text-gray-700');
-      tab.classList.add('bg-blue-100', 'text-blue-700');
-      
-      // Hide all tab content
-      document.querySelectorAll('.deploy-tab-pane').forEach(pane => {
-        pane.classList.add('hidden');
-      });
-      
-      // Show active tab content
-      const targetId = `${tab.dataset.deployTab}-pane`;
-      const targetPane = document.getElementById(targetId);
-      if (targetPane) {
-        targetPane.classList.remove('hidden');
-      }
+    // Event listener for regenerating API key
+    document.getElementById('sources-list')?.addEventListener('click', function(event) {
+        if (event.target.classList.contains('regenerate-api-key')) {
+            const sourceId = event.target.dataset.sourceId;
+            regenerateApiKey(sourceId);
+        }
     });
-  });
-}
 
-// Test API functionality
-function setupTestApi() {
-  const testEndpointSelect = document.getElementById('test-endpoint');
-  const testDataContainer = document.getElementById('test-data-container');
-  const testApiBtn = document.getElementById('test-api-btn');
-  const testResult = document.getElementById('test-result');
-  const testResultContent = document.getElementById('test-result-content');
-  
-  if (testEndpointSelect) {
-    testEndpointSelect.addEventListener('change', () => {
-      if (testEndpointSelect.value === 'data') {
-        testDataContainer.classList.remove('hidden');
-      } else {
-        testDataContainer.classList.add('hidden');
-      }
+    // Event listener for deleting a source
+    document.getElementById('sources-list')?.addEventListener('click', function(event) {
+        if (event.target.classList.contains('delete-source')) {
+            const sourceId = event.target.dataset.sourceId;
+            deleteSource(sourceId);
+        }
     });
-  }
-  
-  if (testApiBtn) {
-    testApiBtn.addEventListener('click', async () => {
-      const endpoint = testEndpointSelect.value;
-      const apiUrl = `api/${endpoint}`;
-      
-      try {
-        let response;
-        
-        if (endpoint === 'data') {
-          const testData = document.getElementById('test-data').value;
-          let jsonData;
-          
-          try {
-            jsonData = JSON.parse(testData);
-          } catch (error) {
-            showToast('Invalid JSON data', 'error');
-            return;
-          }
-          
-          response = await fetch(apiUrl, {
+
+    // Initial tab setup
+    switchTab('basic');
+    switchDeployTab('instructions');
+
+    // Load initial data
+    loadData();
+    loadSources();
+    loadSchema();
+
+    // Function to switch tabs
+    function switchTab(tabName) {
+        document.querySelectorAll('.tab-pane').forEach(pane => {
+            pane.classList.remove('active');
+        });
+        document.querySelectorAll('[data-tab]').forEach(tab => {
+            tab.classList.remove('active');
+        });
+
+        const selectedTab = document.querySelector(`[data-tab="${tabName}"]`);
+        const selectedPane = document.getElementById(`${tabName}-tab`);
+
+        if (selectedTab) selectedTab.classList.add('active');
+        if (selectedPane) selectedPane.classList.add('active');
+    }
+
+    // Function to switch deploy tabs
+    function switchDeployTab(tabName) {
+        document.querySelectorAll('.deploy-tab-pane').forEach(pane => {
+            pane.classList.remove('active');
+        });
+        document.querySelectorAll('[data-deploy-tab]').forEach(tab => {
+            tab.classList.remove('active');
+        });
+
+        const selectedTab = document.querySelector(`[data-deploy-tab="${tabName}"]`);
+        const selectedPane = document.getElementById(`${tabName}-deploy-tab`);
+
+        if (selectedTab) selectedTab.classList.add('active');
+        if (selectedPane) selectedPane.classList.add('active');
+    }
+
+    // Function to handle API key submission
+    function handleApiKeySubmit(event) {
+        event.preventDefault();
+        const apiKey = document.getElementById('api-key').value;
+        setApiKey(apiKey);
+    }
+
+    // Function to handle Dropbox link submission
+    function handleDropboxLinkSubmit(event) {
+        event.preventDefault();
+        const dropboxLink = document.getElementById('dropbox-link').value;
+        setDropboxLink(dropboxLink);
+    }
+
+    // Function to handle schema submission
+    function handleSchemaSubmit(event) {
+        event.preventDefault();
+        const schemaFields = Array.from(document.querySelectorAll('#fields-list > div')).map(field => {
+            const fieldName = field.querySelector('.field-name').value;
+            const fieldType = field.querySelector('.field-type').value;
+            const isRequired = field.querySelector('.field-required').checked;
+            return { name: fieldName, type: fieldType, required: isRequired };
+        });
+
+        const requiredFields = schemaFields.filter(field => field.required).map(field => field.name);
+        const fieldTypes = schemaFields.reduce((obj, field) => {
+            obj[field.name] = field.type;
+            return obj;
+        }, {});
+
+        const schema = { requiredFields: requiredFields, fieldTypes: fieldTypes };
+        setSchema(schema);
+    }
+
+    // Function to handle clearing data
+    function handleClearData() {
+        clearData();
+    }
+
+    // Function to handle CSV export
+    function handleExportCsv() {
+        exportCsv();
+    }
+
+    // Function to handle adding a new source
+    function handleAddSourceSubmit(event) {
+        event.preventDefault();
+        const sourceName = document.getElementById('source-name').value;
+        addSource(sourceName);
+    }
+
+    // Function to toggle source active state
+    function toggleSourceActive(sourceId) {
+        const apiUrl = `/api/toggleSourceActive?id=${sourceId}`;
+
+        fetch(apiUrl, {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json',
-              'X-API-Key': localStorage.getItem('apiKey') || 'demo-key'
-            },
-            body: testData
-          });
-        } else {
-          response = await fetch(apiUrl);
-        }
-        
-        const data = await response.json();
-        
-        testResult.classList.remove('hidden');
-        testResultContent.textContent = JSON.stringify(data, null, 2);
-        
-        if (response.ok) {
-          showToast('API test completed successfully', 'success');
-        } else {
-          showToast('API returned an error', 'error');
-        }
-      } catch (error) {
-        console.error('API test error:', error);
-        testResult.classList.remove('hidden');
-        testResultContent.textContent = `Error: ${error.message}`;
-        showToast('Error connecting to the API', 'error');
-      }
-    });
-  }
-}
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Success', 'Source active state updated successfully.', 'success');
+                loadSources(); // Reload sources to reflect changes
+            } else {
+                showToast('Error', 'Failed to update source active state.', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('Error', 'Error updating source active state.', 'error');
+        });
+    }
 
-// Document Ready Function
-document.addEventListener('DOMContentLoaded', function() {
-  // Update UI based on authentication
-  updateUIBasedOnAuth();
-  
-  // Setup tab switching
-  setupTabs();
-  
-  // Setup Schema Editor
-  setupSchemaEditor();
-  
-  // Setup Deployment Guide
-  setupDeploymentGuide();
-  
-  // Setup Test API
-  setupTestApi();
-  
-  // Login button event
-  const loginBtn = document.getElementById('login-btn');
-  if (loginBtn) {
-    loginBtn.addEventListener('click', handleLogin);
-  }
-  
-  // Login form enter key event
-  const passwordInput = document.getElementById('password');
-  if (passwordInput) {
-    passwordInput.addEventListener('keyup', (event) => {
-      if (event.key === 'Enter') {
-        handleLogin();
-      }
-    });
-  }
-  
-  // Logout button event
-  const logoutBtn = document.getElementById('logout-btn');
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', handleLogout);
-  }
+    // Function to regenerate API key
+    function regenerateApiKey(sourceId) {
+        const apiUrl = `/api/regenerateApiKey?id=${sourceId}`;
+
+        fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Success', 'API key regenerated successfully.', 'success');
+                loadSources(); // Reload sources to reflect changes
+            } else {
+                showToast('Error', 'Failed to regenerate API key.', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('Error', 'Error regenerating API key.', 'error');
+        });
+    }
+
+    // Function to delete a source
+    function deleteSource(sourceId) {
+        const apiUrl = `/api/deleteSource?id=${sourceId}`;
+
+        fetch(apiUrl, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Success', 'Source deleted successfully.', 'success');
+                loadSources(); // Reload sources to reflect changes
+                loadData(); // Reload data to reflect changes
+            } else {
+                showToast('Error', 'Failed to delete source.', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('Error', 'Error deleting source.', 'error');
+        });
+    }
+
+    // Function to load data from the API
+    function loadData() {
+        const apiUrl = '/api/data';
+
+        fetch(apiUrl)
+            .then(response => response.json())
+            .then(data => {
+                if (Array.isArray(data)) {
+                    displayData(data);
+                } else {
+                    console.error('Data is not an array:', data);
+                    showToast('Error', 'Failed to load data.', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Error', 'Error loading data.', 'error');
+            });
+    }
+
+    // Function to load sources from the API
+    function loadSources() {
+        const apiUrl = '/api/sources';
+
+        fetch(apiUrl)
+            .then(response => response.json())
+            .then(data => {
+                if (data && Array.isArray(data.sources)) {
+                    displaySources(data.sources);
+                } else {
+                    console.error('Sources data is invalid:', data);
+                    showToast('Error', 'Failed to load sources.', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Error', 'Error loading sources.', 'error');
+            });
+    }
+
+    // Function to load schema from the API
+    function loadSchema() {
+        const apiUrl = '/api/schema';
+
+        fetch(apiUrl)
+            .then(response => response.json())
+            .then(data => {
+                if (data && data.schema) {
+                    displaySchema(data.schema);
+                } else {
+                    console.error('Schema data is invalid:', data);
+                    showToast('Error', 'Failed to load schema.', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Error', 'Error loading schema.', 'error');
+            });
+    }
+
+    // Function to set API key
+    function setApiKey(apiKey) {
+        const apiUrl = '/api/api-key';
+
+        fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ apiKey: apiKey })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Success', 'API key updated successfully.', 'success');
+            } else {
+                showToast('Error', 'Failed to update API key.', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('Error', 'Error updating API key.', 'error');
+        });
+    }
+
+    // Function to set Dropbox link
+    function setDropboxLink(dropboxLink) {
+        const apiUrl = '/api/dropbox-link';
+
+        fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ dropboxLink: dropboxLink })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Success', 'Dropbox link updated successfully.', 'success');
+            } else {
+                showToast('Error', 'Failed to update Dropbox link.', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('Error', 'Error updating Dropbox link.', 'error');
+        });
+    }
+
+    // Function to set schema
+    function setSchema(schema) {
+        const apiUrl = '/api/schema';
+
+        fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(schema)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Success', 'Schema updated successfully.', 'success');
+            } else {
+                showToast('Error', 'Failed to update schema.', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('Error', 'Error updating schema.', 'error');
+        });
+    }
+
+    // Function to clear data
+    function clearData() {
+        const apiUrl = '/api/clear-data';
+
+        fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Success', 'Data cleared successfully.', 'success');
+                loadData(); // Reload data to reflect changes
+            } else {
+                showToast('Error', 'Failed to clear data.', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('Error', 'Error clearing data.', 'error');
+        });
+    }
+
+    // Function to export CSV
+    function exportCsv() {
+        const apiUrl = '/api/export-csv';
+
+        fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Success', 'CSV export initiated successfully.', 'success');
+            } else {
+                showToast('Error', 'Failed to initiate CSV export.', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('Error', 'Error initiating CSV export.', 'error');
+        });
+    }
+
+    // Function to add a new source
+    function addSource(sourceName) {
+        const apiUrl = '/api/sources';
+
+        fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ name: sourceName })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Success', 'Source added successfully.', 'success');
+                loadSources(); // Reload sources to reflect changes
+            } else {
+                showToast('Error', 'Failed to add source.', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('Error', 'Error adding source.', 'error');
+        });
+    }
+
+    // Function to display data in the table
+    function displayData(data) {
+        const dataTableBody = document.getElementById('data-table-body');
+        if (!dataTableBody) return;
+
+        dataTableBody.innerHTML = ''; // Clear existing data
+
+        data.forEach(item => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${item.id || ''}</td>
+                <td>${item.timestamp || ''}</td>
+                <td>${item.sourceId || ''}</td>
+                <td>${JSON.stringify(item)}</td>
+            `;
+            dataTableBody.appendChild(row);
+        });
+    }
+
+    // Function to display sources in the sources list
+    function displaySources(sources) {
+        const sourcesList = document.getElementById('sources-list');
+        if (!sourcesList) return;
+
+        sourcesList.innerHTML = ''; // Clear existing sources
+
+        sources.forEach(source => {
+            const sourceDiv = document.createElement('div');
+            sourceDiv.className = 'source-item p-4 border rounded mb-2 flex items-center justify-between';
+            sourceDiv.innerHTML = `
+                <div>
+                    <h3 class="font-bold">${source.name}</h3>
+                    <p class="text-sm text-gray-500">API Key: ${source.apiKey}</p>
+                    <p class="text-sm text-gray-500">Created At: ${source.createdAt}</p>
+                    <p class="text-sm text-gray-500">Data Count: ${source.dataCount}</p>
+                    <p class="text-sm text-gray-500">Active: ${source.active ? 'Yes' : 'No'}</p>
+                    ${source.lastActive ? `<p class="text-sm text-gray-500">Last Active: ${source.lastActive}</p>` : ''}
+                </div>
+                <div class="flex gap-2">
+                    <button class="toggle-source-active bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" data-source-id="${source.id}">
+                        Toggle Active
+                    </button>
+                    <button class="regenerate-api-key bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" data-source-id="${source.id}">
+                        Regenerate API Key
+                    </button>
+                    <button class="delete-source bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" data-source-id="${source.id}">
+                        Delete
+                    </button>
+                </div>
+            `;
+            sourcesList.appendChild(sourceDiv);
+        });
+    }
+
+    // Function to display schema in the schema editor
+    function displaySchema(schema) {
+        const fieldsList = document.getElementById('fields-list');
+        if (!fieldsList) return;
+
+        fieldsList.innerHTML = ''; // Clear existing fields
+
+        // Combine requiredFields and fieldTypes to get all unique field names
+        const allFields = new Set([...schema.requiredFields, ...Object.keys(schema.fieldTypes)]);
+
+        allFields.forEach(fieldName => {
+            const fieldDiv = document.createElement('div');
+            fieldDiv.className = 'p-4 border rounded mb-2 flex items-center';
+            fieldDiv.innerHTML = `
+                <input type="text" class="field-name border rounded p-2 mr-2" value="${fieldName}" placeholder="Field Name">
+                <select class="field-type border rounded p-2 mr-2">
+                    <option value="string" ${schema.fieldTypes[fieldName] === 'string' ? 'selected' : ''}>String</option>
+                    <option value="number" ${schema.fieldTypes[fieldName] === 'number' ? 'selected' : ''}>Number</option>
+                    <option value="boolean" ${schema.fieldTypes[fieldName] === 'boolean' ? 'selected' : ''}>Boolean</option>
+                </select>
+                <label class="inline-flex items-center">
+                    <input type="checkbox" class="field-required mr-2" ${schema.requiredFields.includes(fieldName) ? 'checked' : ''}>
+                    <span class="ml-2">Required</span>
+                </label>
+            `;
+            fieldsList.appendChild(fieldDiv);
+        });
+    }
+
+    // Function to show toast messages
+    function showToast(title, message, type = 'info') {
+        const toastContainer = document.createElement('div');
+        toastContainer.className = `toast ${type} animate-fade-in`;
+        toastContainer.innerHTML = `
+            <div class="toast-content">
+                <h3 class="toast-title">${title}</h3>
+                <p class="toast-message">${message}</p>
+            </div>
+        `;
+        document.body.appendChild(toastContainer);
+
+        // Remove the toast after a delay
+        setTimeout(() => {
+            toastContainer.classList.remove('animate-fade-in');
+            toastContainer.classList.add('animate-fade-out');
+            setTimeout(() => {
+                document.body.removeChild(toastContainer);
+            }, 300);
+        }, 3000);
+    }
+
+    // Login functionality
+    function handleLoginSubmit(event) {
+        event.preventDefault();
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        const loginButton = document.querySelector('.login-form button');
+        
+        if (!username || !password) {
+            showToast('Error', 'Please enter both username and password.', 'error');
+            return;
+        }
+        
+        // Show loading state
+        loginButton.textContent = 'Logging in...';
+        loginButton.disabled = true;
+        
+        // Make the login request to the PHP backend
+        fetch('api/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ username, password })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Server response was not OK');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                showToast('Login Successful', 'You have been logged in successfully.', 'success');
+                localStorage.setItem('csv-api-auth', 'true');
+                
+                // Delay before page refresh to show the toast
+                setTimeout(() => {
+                    window.location.reload();
+                }, 800);
+            } else {
+                showToast('Login Failed', 'Invalid username or password. Please try again.', 'error');
+                loginButton.textContent = 'Login';
+                loginButton.disabled = false;
+            }
+        })
+        .catch(error => {
+            console.error('Login error:', error);
+            showToast('Error', 'Error connecting to the server', 'error');
+            loginButton.textContent = 'Login';
+            loginButton.disabled = false;
+        });
+    }
+
+    // Add event listener to the login form
+    const loginForm = document.querySelector('.login-form');
+    if (loginForm) {
+        loginForm.addEventListener('submit', handleLoginSubmit);
+    }
 });

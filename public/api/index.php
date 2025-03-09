@@ -31,6 +31,10 @@ switch ($endpoint) {
     case 'login':
         // Handle login request
         $data = json_decode(file_get_contents('php://input'), true);
+        
+        // Log the received data for debugging
+        logApiRequest('login', 'attempt', "Login attempt: " . json_encode($data));
+        
         $username = isset($data['username']) ? $data['username'] : '';
         $password = isset($data['password']) ? $data['password'] : '';
         
@@ -45,7 +49,7 @@ switch ($endpoint) {
                 ]
             ]);
         } else {
-            logApiRequest('login', 'failed', "Invalid credentials attempt");
+            logApiRequest('login', 'failed', "Invalid credentials attempt: $username / $password");
             http_response_code(401);
             echo json_encode([
                 'success' => false,
