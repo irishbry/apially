@@ -1,361 +1,382 @@
-// Main JavaScript file for the API Ally application
 
-// DOM Elements
-document.addEventListener('DOMContentLoaded', function() {
-  // Login functionality
-  const loginForm = document.getElementById('login-btn');
-  const logoutBtn = document.getElementById('logout-btn');
+// Main application script
+
+// Function to show a toast message
+function showToast(message, type = 'info') {
+  const toastContainer = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type} p-4 mb-4 rounded shadow-md flex items-center justify-between animate-fade-in`;
+  
+  // Set the inner HTML of the toast
+  toast.innerHTML = `
+    <div class="flex items-center">
+      ${type === 'success' ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2 text-green-500"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>' : ''}
+      ${type === 'error' ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2 text-red-500"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>' : ''}
+      ${type === 'info' ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2 text-blue-500"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>' : ''}
+      <span>${message}</span>
+    </div>
+    <button class="text-gray-500 hover:text-gray-700 focus:outline-none">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+    </button>
+  `;
+  
+  // Add a click event to the close button
+  toast.querySelector('button').addEventListener('click', () => {
+    toast.classList.remove('animate-fade-in');
+    toast.classList.add('animate-fade-out');
+    setTimeout(() => toast.remove(), 300);
+  });
+  
+  // Auto-remove after 5 seconds
+  toastContainer.appendChild(toast);
+  setTimeout(() => {
+    if (toast.parentNode === toastContainer) {
+      toast.classList.remove('animate-fade-in');
+      toast.classList.add('animate-fade-out');
+      setTimeout(() => toast.remove(), 300);
+    }
+  }, 5000);
+}
+
+// Function to check if user is logged in
+function isLoggedIn() {
+  return localStorage.getItem('auth') === 'true';
+}
+
+// Function to set login state
+function setLoggedIn(state) {
+  localStorage.setItem('auth', state);
+  updateUIBasedOnAuth();
+}
+
+// Function to update UI based on authentication
+function updateUIBasedOnAuth() {
   const loginPage = document.getElementById('login-page');
   const mainApp = document.getElementById('main-app');
   
-  // Check if user is logged in
-  checkAuthStatus();
+  if (isLoggedIn()) {
+    loginPage.classList.add('hidden');
+    mainApp.classList.remove('hidden');
+  } else {
+    loginPage.classList.remove('hidden');
+    mainApp.classList.add('hidden');
+  }
+}
+
+// Function to handle login
+async function handleLogin() {
+  const username = document.getElementById('username').value;
+  const password = document.getElementById('password').value;
   
-  // Login button click
-  if (loginForm) {
-    loginForm.addEventListener('click', function() {
-      const username = document.getElementById('username').value;
-      const password = document.getElementById('password').value;
-      
-      if (!username || !password) {
-        showToast('Error', 'Please enter both username and password.', 'error');
-        return;
-      }
-      
-      // Show loading state
-      loginForm.textContent = 'Logging in...';
-      loginForm.disabled = true;
-      
-      // Send login request to PHP backend
-      fetch('api/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ username, password })
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          localStorage.setItem('csv-api-auth', 'true');
-          showToast('Success', 'You have been logged in successfully.', 'success');
-          checkAuthStatus();
-        } else {
-          showToast('Error', data.message || 'Invalid username or password.', 'error');
-          loginForm.textContent = 'Login';
-          loginForm.disabled = false;
-        }
-      })
-      .catch(error => {
-        console.error('Login error:', error);
-        showToast('Error', 'Unable to login. Please try again.', 'error');
-        loginForm.textContent = 'Login';
-        loginForm.disabled = false;
-      });
-    });
+  if (!username || !password) {
+    showToast('Please enter both username and password', 'error');
+    return;
   }
   
-  // Logout button click
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', function() {
-      localStorage.removeItem('csv-api-auth');
-      checkAuthStatus();
-      showToast('Success', 'You have been logged out successfully.', 'success');
+  try {
+    const response = await fetch('api/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ username, password })
     });
-  }
-  
-  // Check authentication status
-  function checkAuthStatus() {
-    const isAuthenticated = localStorage.getItem('csv-api-auth') === 'true';
     
-    if (isAuthenticated) {
-      if (loginPage) loginPage.classList.add('hidden');
-      if (mainApp) mainApp.classList.remove('hidden');
+    const data = await response.json();
+    
+    if (data.success) {
+      setLoggedIn(true);
+      showToast('Login successful!', 'success');
     } else {
-      if (loginPage) loginPage.classList.remove('hidden');
-      if (mainApp) mainApp.classList.add('hidden');
+      showToast(data.message || 'Invalid credentials', 'error');
     }
+  } catch (error) {
+    console.error('Login error:', error);
+    showToast('Error connecting to the server', 'error');
   }
+}
+
+// Function to handle logout
+function handleLogout() {
+  setLoggedIn(false);
+  showToast('You have been logged out', 'info');
+}
+
+// Tab switching functionality
+function setupTabs() {
+  const tabs = document.querySelectorAll('[data-tab]');
   
-  // Toast notification system
-  function showToast(title, message, type = 'info') {
-    const toastContainer = document.getElementById('toast-container');
-    
-    const toast = document.createElement('div');
-    toast.className = `toast ${type} animate-fade-in flex items-center p-4 mb-3 max-w-md rounded shadow-lg`;
-    
-    let bgColor, iconColor;
-    let icon = '';
-    
-    switch (type) {
-      case 'success':
-        bgColor = 'bg-green-50 border-l-4 border-green-500';
-        iconColor = 'text-green-500';
-        icon = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>';
-        break;
-      case 'error':
-        bgColor = 'bg-red-50 border-l-4 border-red-500';
-        iconColor = 'text-red-500';
-        icon = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>';
-        break;
-      default:
-        bgColor = 'bg-blue-50 border-l-4 border-blue-500';
-        iconColor = 'text-blue-500';
-        icon = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>';
-    }
-    
-    toast.className += ` ${bgColor}`;
-    
-    toast.innerHTML = `
-      <div class="${iconColor}">${icon}</div>
-      <div>
-        <div class="font-bold">${title}</div>
-        <div class="text-sm">${message}</div>
-      </div>
-      <button class="ml-auto text-gray-400 hover:text-gray-500">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-      </button>
-    `;
-    
-    toastContainer.appendChild(toast);
-    
-    // Add click listener to close button
-    const closeBtn = toast.querySelector('button');
-    closeBtn.addEventListener('click', () => {
-      toast.classList.add('animate-fade-out');
-      setTimeout(() => {
-        toastContainer.removeChild(toast);
-      }, 300);
-    });
-    
-    // Auto remove after 5 seconds
-    setTimeout(() => {
-      if (toastContainer.contains(toast)) {
-        toast.classList.add('animate-fade-out');
-        setTimeout(() => {
-          if (toastContainer.contains(toast)) {
-            toastContainer.removeChild(toast);
-          }
-        }, 300);
-      }
-    }, 5000);
-  }
-  
-  // API key management
-  const apiKeyInput = document.getElementById('api-key-input');
-  const generateApiKeyBtn = document.getElementById('generate-api-key');
-  const saveApiKeyBtn = document.getElementById('save-api-key');
-  const copyApiKeyBtn = document.getElementById('copy-api-key');
-  
-  // Load saved API key
-  let apiKey = localStorage.getItem('csv-api-key') || '';
-  if (apiKeyInput) {
-    apiKeyInput.value = apiKey;
-  }
-  
-  // Generate API key
-  if (generateApiKeyBtn) {
-    generateApiKeyBtn.addEventListener('click', function() {
-      apiKey = generateApiKey();
-      if (apiKeyInput) {
-        apiKeyInput.value = apiKey;
-      }
-    });
-  }
-  
-  // Save API key
-  if (saveApiKeyBtn) {
-    saveApiKeyBtn.addEventListener('click', function() {
-      apiKey = apiKeyInput ? apiKeyInput.value : '';
-      localStorage.setItem('csv-api-key', apiKey);
-      showToast('Success', 'API key saved successfully.', 'success');
-    });
-  }
-  
-  // Copy API key
-  if (copyApiKeyBtn) {
-    copyApiKeyBtn.addEventListener('click', function() {
-      apiKey = apiKeyInput ? apiKeyInput.value : '';
-      navigator.clipboard.writeText(apiKey)
-        .then(() => showToast('Success', 'API key copied to clipboard.', 'success'))
-        .catch(err => showToast('Error', 'Failed to copy API key.', 'error'));
-    });
-  }
-  
-  // Dropbox link management
-  const dropboxLinkInput = document.getElementById('dropbox-link-input');
-  const saveDropboxLinkBtn = document.getElementById('save-dropbox-link');
-  
-  // Load saved Dropbox link
-  let dropboxLink = localStorage.getItem('csv-dropbox-link') || '';
-  if (dropboxLinkInput) {
-    dropboxLinkInput.value = dropboxLink;
-  }
-  
-  // Save Dropbox link
-  if (saveDropboxLinkBtn) {
-    saveDropboxLinkBtn.addEventListener('click', function() {
-      dropboxLink = dropboxLinkInput ? dropboxLinkInput.value : '';
-      localStorage.setItem('csv-dropbox-link', dropboxLink);
-      showToast('Success', 'Dropbox link saved successfully.', 'success');
-    });
-  }
-  
-  // Data table refresh
-  const refreshDataBtn = document.getElementById('refresh-data-btn');
-  if (refreshDataBtn) {
-    refreshDataBtn.addEventListener('click', function() {
-      showToast('Info', 'Data table refreshed.', 'info');
-    });
-  }
-  
-  // Test API functionality
-  const testEndpointSelect = document.getElementById('test-endpoint');
-  const testDataContainer = document.getElementById('test-data-container');
-  const testDataTextarea = document.getElementById('test-data');
-  const testApiBtn = document.getElementById('test-api-btn');
-  const testResultDiv = document.getElementById('test-result');
-  const testResultContent = document.getElementById('test-result-content');
-  
-  // Toggle test data input
-  if (testEndpointSelect) {
-    testEndpointSelect.addEventListener('change', function() {
-      if (this.value === 'data') {
-        if (testDataContainer) testDataContainer.classList.remove('hidden');
-      } else {
-        if (testDataContainer) testDataContainer.classList.add('hidden');
-      }
-    });
-  }
-  
-  // Test API button click
-  if (testApiBtn) {
-    testApiBtn.addEventListener('click', function() {
-      const endpoint = testEndpointSelect ? testEndpointSelect.value : 'status';
-      let testData = {};
-      
-      if (endpoint === 'data') {
-        try {
-          testData = testDataTextarea ? JSON.parse(testDataTextarea.value) : {};
-        } catch (e) {
-          showToast('Error', 'Invalid JSON format.', 'error');
-          return;
-        }
-      }
-      
-      fetch(`api/${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': apiKey
-        },
-        body: JSON.stringify(testData)
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (testResultDiv) testResultDiv.classList.remove('hidden');
-        if (testResultContent) testResultContent.textContent = JSON.stringify(data, null, 2);
-      })
-      .catch(error => {
-        showToast('Error', 'API test failed.', 'error');
-        if (testResultDiv) testResultDiv.classList.remove('hidden');
-        if (testResultContent) testResultContent.textContent = error;
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      // Remove active class from all tabs
+      document.querySelectorAll('[data-tab]').forEach(t => {
+        t.classList.remove('border-blue-600', 'text-blue-600');
+        t.classList.add('border-transparent', 'text-gray-500');
       });
+      
+      // Add active class to current tab
+      tab.classList.remove('border-transparent', 'text-gray-500');
+      tab.classList.add('border-blue-600', 'text-blue-600');
+      
+      // Hide all tab content
+      document.querySelectorAll('.tab-pane').forEach(pane => {
+        pane.classList.remove('active');
+        pane.classList.add('hidden');
+      });
+      
+      // Show active tab content
+      const targetId = `${tab.dataset.tab}-tab-content`;
+      const targetPane = document.getElementById(targetId);
+      if (targetPane) {
+        targetPane.classList.remove('hidden');
+        targetPane.classList.add('active');
+      }
     });
-  }
-  
-  // Schema editor functionality
-  const newFieldInput = document.getElementById('new-field-input');
+  });
+}
+
+// Schema Editor functionality
+function setupSchemaEditor() {
   const addFieldBtn = document.getElementById('add-field-btn');
+  const newFieldInput = document.getElementById('new-field-input');
   const fieldsList = document.getElementById('fields-list');
   const saveSchemaBtn = document.getElementById('save-schema-btn');
   
-  let schemaFields = [];
+  // Load existing schema
+  let schema = JSON.parse(localStorage.getItem('schema') || '{"fields": [], "requiredFields": []}');
   
-  // Add field to schema
-  if (addFieldBtn) {
-    addFieldBtn.addEventListener('click', function() {
-      const fieldName = newFieldInput ? newFieldInput.value : '';
-      if (fieldName) {
-        schemaFields.push(fieldName);
-        renderSchemaFields();
-        if (newFieldInput) newFieldInput.value = '';
-      }
-    });
-  }
-  
-  // Render schema fields
-  function renderSchemaFields() {
+  function updateFieldsList() {
     if (!fieldsList) return;
     
-    fieldsList.innerHTML = '';
-    if (schemaFields.length === 0) {
+    if (schema.fields.length === 0) {
       fieldsList.innerHTML = '<p class="text-gray-500 text-center py-4">No fields added yet. Add your first field above.</p>';
       return;
     }
     
-    schemaFields.forEach(field => {
-      const fieldDiv = document.createElement('div');
-      fieldDiv.className = 'flex items-center justify-between py-2 px-4 bg-gray-50 rounded-md mb-2';
-      fieldDiv.innerHTML = `
-        <span class="text-gray-700">${field}</span>
-        <button class="text-red-500 hover:text-red-700">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-        </button>
+    fieldsList.innerHTML = '';
+    schema.fields.forEach(field => {
+      const fieldItem = document.createElement('div');
+      fieldItem.className = 'flex items-center justify-between bg-gray-50 p-2 rounded-md mb-2';
+      
+      const isRequired = schema.requiredFields.includes(field.name);
+      
+      fieldItem.innerHTML = `
+        <div class="flex items-center gap-2">
+          <input 
+            type="checkbox" 
+            ${isRequired ? 'checked' : ''}
+            class="rounded" 
+            data-field="${field.name}"
+          />
+          <span class="text-sm font-medium">${field.name}</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-gray-500 px-2 py-1 bg-gray-100 rounded">${field.type}</span>
+          <button 
+            class="text-gray-400 hover:text-red-500"
+            data-remove="${field.name}"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          </button>
+        </div>
       `;
       
-      const deleteBtn = fieldDiv.querySelector('button');
-      deleteBtn.addEventListener('click', () => {
-        schemaFields = schemaFields.filter(f => f !== field);
-        renderSchemaFields();
+      fieldsList.appendChild(fieldItem);
+      
+      // Add event listeners
+      fieldItem.querySelector(`[data-field="${field.name}"]`).addEventListener('change', (e) => {
+        if (e.target.checked) {
+          if (!schema.requiredFields.includes(field.name)) {
+            schema.requiredFields.push(field.name);
+          }
+        } else {
+          schema.requiredFields = schema.requiredFields.filter(f => f !== field.name);
+        }
       });
       
-      fieldsList.appendChild(fieldDiv);
+      fieldItem.querySelector(`[data-remove="${field.name}"]`).addEventListener('click', () => {
+        schema.fields = schema.fields.filter(f => f.name !== field.name);
+        schema.requiredFields = schema.requiredFields.filter(f => f !== field.name);
+        updateFieldsList();
+      });
     });
   }
   
-  // Save schema
+  if (addFieldBtn && newFieldInput) {
+    addFieldBtn.addEventListener('click', () => {
+      const fieldName = newFieldInput.value.trim();
+      if (!fieldName) {
+        showToast('Please enter a field name', 'error');
+        return;
+      }
+      
+      if (schema.fields.some(f => f.name === fieldName)) {
+        showToast('This field already exists', 'error');
+        return;
+      }
+      
+      schema.fields.push({
+        name: fieldName,
+        type: 'string'
+      });
+      
+      newFieldInput.value = '';
+      updateFieldsList();
+    });
+  }
+  
   if (saveSchemaBtn) {
-    saveSchemaBtn.addEventListener('click', function() {
-      localStorage.setItem('csv-data-schema', JSON.stringify(schemaFields));
-      showToast('Success', 'Schema saved successfully.', 'success');
+    saveSchemaBtn.addEventListener('click', () => {
+      localStorage.setItem('schema', JSON.stringify(schema));
+      showToast('Schema saved successfully', 'success');
     });
   }
   
-  // Helper function to generate API key
-  function generateApiKey() {
-    return Array.from(Array(32), () => Math.floor(Math.random() * 36).toString(36)).join('');
+  // Initialize fields list
+  updateFieldsList();
+}
+
+// Deployment Guide Setup
+function setupDeploymentGuide() {
+  const deploymentGuide = document.getElementById('deployment-guide');
+  if (!deploymentGuide) return;
+  
+  // Update deployment guide tabs
+  const deploymentTabs = document.querySelectorAll('[data-deploy-tab]');
+  if (deploymentTabs.length === 0) return;
+  
+  deploymentTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      // Remove active class from all tabs
+      deploymentTabs.forEach(t => {
+        t.classList.remove('bg-blue-100', 'text-blue-700');
+        t.classList.add('bg-gray-100', 'text-gray-700');
+      });
+      
+      // Add active class to current tab
+      tab.classList.remove('bg-gray-100', 'text-gray-700');
+      tab.classList.add('bg-blue-100', 'text-blue-700');
+      
+      // Hide all tab content
+      document.querySelectorAll('.deploy-tab-pane').forEach(pane => {
+        pane.classList.add('hidden');
+      });
+      
+      // Show active tab content
+      const targetId = `${tab.dataset.deployTab}-pane`;
+      const targetPane = document.getElementById(targetId);
+      if (targetPane) {
+        targetPane.classList.remove('hidden');
+      }
+    });
+  });
+}
+
+// Test API functionality
+function setupTestApi() {
+  const testEndpointSelect = document.getElementById('test-endpoint');
+  const testDataContainer = document.getElementById('test-data-container');
+  const testApiBtn = document.getElementById('test-api-btn');
+  const testResult = document.getElementById('test-result');
+  const testResultContent = document.getElementById('test-result-content');
+  
+  if (testEndpointSelect) {
+    testEndpointSelect.addEventListener('change', () => {
+      if (testEndpointSelect.value === 'data') {
+        testDataContainer.classList.remove('hidden');
+      } else {
+        testDataContainer.classList.add('hidden');
+      }
+    });
   }
   
-  // Tabs functionality
-  const basicTab = document.getElementById('basic-tab');
-  const schemaTab = document.getElementById('schema-tab');
-  const deploymentTab = document.getElementById('deployment-tab');
+  if (testApiBtn) {
+    testApiBtn.addEventListener('click', async () => {
+      const endpoint = testEndpointSelect.value;
+      const apiUrl = `api/${endpoint}`;
+      
+      try {
+        let response;
+        
+        if (endpoint === 'data') {
+          const testData = document.getElementById('test-data').value;
+          let jsonData;
+          
+          try {
+            jsonData = JSON.parse(testData);
+          } catch (error) {
+            showToast('Invalid JSON data', 'error');
+            return;
+          }
+          
+          response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-API-Key': localStorage.getItem('apiKey') || 'demo-key'
+            },
+            body: testData
+          });
+        } else {
+          response = await fetch(apiUrl);
+        }
+        
+        const data = await response.json();
+        
+        testResult.classList.remove('hidden');
+        testResultContent.textContent = JSON.stringify(data, null, 2);
+        
+        if (response.ok) {
+          showToast('API test completed successfully', 'success');
+        } else {
+          showToast('API returned an error', 'error');
+        }
+      } catch (error) {
+        console.error('API test error:', error);
+        testResult.classList.remove('hidden');
+        testResultContent.textContent = `Error: ${error.message}`;
+        showToast('Error connecting to the API', 'error');
+      }
+    });
+  }
+}
+
+// Document Ready Function
+document.addEventListener('DOMContentLoaded', function() {
+  // Update UI based on authentication
+  updateUIBasedOnAuth();
   
-  const basicTabContent = document.getElementById('basic-tab-content');
-  const schemaTabContent = document.getElementById('schema-tab-content');
-  const deploymentTabContent = document.getElementById('deployment-tab-content');
+  // Setup tab switching
+  setupTabs();
   
-  function showTab(tabId) {
-    // Hide all tab contents
-    basicTabContent.classList.add('hidden');
-    schemaTabContent.classList.add('hidden');
-    deploymentTabContent.classList.add('hidden');
-    
-    // Deactivate all tabs
-    basicTab.classList.remove('active', 'border-blue-600', 'text-blue-600');
-    schemaTab.classList.remove('active', 'border-blue-600', 'text-blue-600');
-    deploymentTab.classList.remove('active', 'border-blue-600', 'text-blue-600');
-    
-    // Show the selected tab content
-    document.getElementById(tabId + '-tab-content').classList.remove('hidden');
-    
-    // Activate the selected tab
-    document.getElementById(tabId + '-tab').classList.add('active', 'border-blue-600', 'text-blue-600');
+  // Setup Schema Editor
+  setupSchemaEditor();
+  
+  // Setup Deployment Guide
+  setupDeploymentGuide();
+  
+  // Setup Test API
+  setupTestApi();
+  
+  // Login button event
+  const loginBtn = document.getElementById('login-btn');
+  if (loginBtn) {
+    loginBtn.addEventListener('click', handleLogin);
   }
   
-  // Add click listeners to tabs
-  basicTab.addEventListener('click', () => showTab('basic'));
-  schemaTab.addEventListener('click', () => showTab('schema'));
-  deploymentTab.addEventListener('click', () => showTab('deployment'));
+  // Login form enter key event
+  const passwordInput = document.getElementById('password');
+  if (passwordInput) {
+    passwordInput.addEventListener('keyup', (event) => {
+      if (event.key === 'Enter') {
+        handleLogin();
+      }
+    });
+  }
+  
+  // Logout button event
+  const logoutBtn = document.getElementById('logout-btn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', handleLogout);
+  }
 });

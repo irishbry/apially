@@ -232,6 +232,26 @@
                           placeholder="Enter field name (e.g., customer_id)" 
                           class="flex-1 px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                         />
+                        <select 
+                          id="field-type" 
+                          class="px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                        >
+                          <option value="string">String</option>
+                          <option value="number">Number</option>
+                          <option value="boolean">Boolean</option>
+                          <option value="object">Object</option>
+                          <option value="array">Array</option>
+                        </select>
+                        <div class="flex items-center gap-2">
+                          <label class="text-sm flex items-center gap-2 cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              id="required-field"
+                              class="rounded"
+                            />
+                            <span>Required</span>
+                          </label>
+                        </div>
                         <button 
                           id="add-field-btn" 
                           class="py-2 px-4 bg-blue-600 text-white rounded hover:bg-blue-700 hover-lift"
@@ -240,15 +260,20 @@
                         </button>
                       </div>
                       
-                      <div id="fields-list" class="mt-4">
+                      <div id="fields-list" class="mt-4 space-y-2">
                         <p class="text-gray-500 text-center py-4">No fields added yet. Add your first field above.</p>
                       </div>
                       
-                      <div class="flex justify-end mt-4">
+                      <div class="flex justify-between items-center mt-4 pt-4 border-t border-gray-200">
+                        <div class="text-sm text-gray-500">
+                          <span id="fields-count">0</span> fields defined, 
+                          <span id="required-fields-count">0</span> required
+                        </div>
                         <button 
                           id="save-schema-btn" 
-                          class="py-2 px-4 bg-blue-600 text-white rounded hover:bg-blue-700 hover-lift"
+                          class="py-2 px-4 bg-blue-600 text-white rounded hover:bg-blue-700 hover-lift flex items-center"
                         >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
                           Save Schema
                         </button>
                       </div>
@@ -258,41 +283,157 @@
               </div>
               
               <div id="deployment-tab-content" class="tab-pane hidden">
-                <!-- Deployment guide will be rendered here -->
+                <!-- Deployment guide -->
                 <div id="deployment-guide">
                   <div class="shadow-sm hover:shadow-md transition-all duration-300 border border-gray-200 rounded-lg p-6">
-                    <h3 class="text-lg font-medium mb-4">Deployment Guide</h3>
-                    
-                    <div class="space-y-4">
-                      <div class="p-4 bg-blue-50 border border-blue-100 rounded-md">
-                        <p class="text-blue-800">
-                          Follow these steps to deploy the Data Consolidation API to your server:
-                        </p>
+                    <div class="flex justify-between items-center mb-4">
+                      <h3 class="text-lg font-medium flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2 text-blue-600"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+                        Deployment Guide
+                      </h3>
+                      
+                      <div class="flex gap-2">
+                        <a href="/installer" class="py-1 px-3 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 flex items-center">
+                          One-Click Installer
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ml-1"><line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline></svg>
+                        </a>
+                        <a href="/deploy" class="py-1 px-3 border border-gray-300 text-gray-700 text-sm rounded hover:bg-gray-50 flex items-center">
+                          Detailed Guide
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ml-1"><line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline></svg>
+                        </a>
                       </div>
-                      
-                      <ol class="list-decimal list-inside space-y-3 text-gray-700">
-                        <li class="p-3 bg-gray-50 rounded-md">
-                          <strong>Upload Files:</strong> Upload all files to your web server via FTP or your hosting control panel
-                        </li>
-                        <li class="p-3 bg-gray-50 rounded-md">
-                          <strong>Server Requirements:</strong> Ensure your server has PHP 7.0+ and mod_rewrite enabled
-                        </li>
-                        <li class="p-3 bg-gray-50 rounded-md">
-                          <strong>Configuration:</strong> Update the config.php file with your API key and allowed origins
-                        </li>
-                        <li class="p-3 bg-gray-50 rounded-md">
-                          <strong>Permissions:</strong> Make sure the data directory is writable (chmod 755 or 775)
-                        </li>
-                        <li class="p-3 bg-gray-50 rounded-md">
-                          <strong>Test Installation:</strong> Visit your-domain.com/api/test.php to verify everything is working
-                        </li>
-                      </ol>
-                      
-                      <div class="p-4 bg-gray-100 rounded-md">
-                        <h4 class="font-medium text-gray-800 mb-2">Need help?</h4>
-                        <p class="text-gray-700">
-                          Check out our detailed documentation or contact our support team for assistance with your deployment.
-                        </p>
+                    </div>
+                    
+                    <div class="p-4 mb-6 bg-amber-50 border border-amber-200 text-amber-800 rounded-md">
+                      <div class="flex items-start">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2 mt-1"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                        <div>
+                          <h4 class="font-medium mb-2">Important Installation Notes</h4>
+                          <ul class="list-disc list-inside space-y-1 text-sm">
+                            <li>The API requires PHP with mod_rewrite enabled</li>
+                            <li>Make sure your server has write permissions for the data directory</li>
+                            <li>Always use the test.php script to verify your installation</li>
+                            <li>If uploading to csvscrub.com/api, make sure all files are in that directory</li>
+                            <li><strong>Ensure the .htaccess file has proper RewriteBase setting</strong> (e.g., RewriteBase /api/)</li>
+                            <li><strong>The .htaccess file is critical but may be hidden in file managers</strong></li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div class="mb-6">
+                      <div class="mb-3">
+                        <div class="flex gap-2 mb-3">
+                          <button data-deploy-tab="siteground" class="py-2 px-4 bg-blue-100 text-blue-700 rounded-md text-sm font-medium">SiteGround</button>
+                          <button data-deploy-tab="netlify" class="py-2 px-4 bg-gray-100 text-gray-700 rounded-md text-sm font-medium">Netlify</button>
+                          <button data-deploy-tab="vercel" class="py-2 px-4 bg-gray-100 text-gray-700 rounded-md text-sm font-medium">Vercel</button>
+                          <button data-deploy-tab="manual" class="py-2 px-4 bg-gray-100 text-gray-700 rounded-md text-sm font-medium">Manual</button>
+                        </div>
+                        
+                        <div id="siteground-pane" class="deploy-tab-pane">
+                          <div class="space-y-2">
+                            <h4 class="text-sm font-medium">Deploy to SiteGround</h4>
+                            <ol class="list-decimal list-inside space-y-2 text-sm">
+                              <li>Login to your SiteGround account</li>
+                              <li>Go to Site Tools > Site > FTP</li>
+                              <li>Create an FTP account if you don't have one</li>
+                              <li>Download the installer from the "One-Click Installer" button above</li>
+                              <li>Upload all files to your desired directory (e.g., /public_html/api/)</li>
+                              <li>Visit your-domain.com/api/test.php to verify installation</li>
+                            </ol>
+                          </div>
+                        </div>
+                        
+                        <div id="netlify-pane" class="deploy-tab-pane hidden">
+                          <div class="space-y-2">
+                            <h4 class="text-sm font-medium">Deploy to Netlify</h4>
+                            <ol class="list-decimal list-inside space-y-2 text-sm">
+                              <li>Push this code to a GitHub repository</li>
+                              <li>Sign up for <a href="https://www.netlify.com/" class="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">Netlify</a></li>
+                              <li>Click "Add new site" → "Import an existing project"</li>
+                              <li>Connect to your GitHub repository</li>
+                              <li>Use these build settings:
+                                <ul class="list-disc list-inside ml-5 text-gray-600">
+                                  <li>Build command: <code class="bg-gray-100 px-1 py-0.5 rounded">npm run build</code></li>
+                                  <li>Publish directory: <code class="bg-gray-100 px-1 py-0.5 rounded">dist</code></li>
+                                </ul>
+                              </li>
+                              <li>Click "Deploy site"</li>
+                            </ol>
+                            
+                            <div class="mt-4">
+                              <a href="https://app.netlify.com/start" target="_blank" rel="noopener noreferrer" class="py-2 px-4 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 inline-flex items-center hover-lift">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                                Go to Netlify
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ml-1"><line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline></svg>
+                              </a>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div id="vercel-pane" class="deploy-tab-pane hidden">
+                          <div class="space-y-2">
+                            <h4 class="text-sm font-medium">Deploy to Vercel</h4>
+                            <ol class="list-decimal list-inside space-y-2 text-sm">
+                              <li>Push this code to a GitHub repository</li>
+                              <li>Sign up for <a href="https://vercel.com/" class="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">Vercel</a></li>
+                              <li>Click "Add New" → "Project"</li>
+                              <li>Import your GitHub repository</li>
+                              <li>Vercel will automatically detect it's a Vite project</li>
+                              <li>Click "Deploy"</li>
+                            </ol>
+                            
+                            <div class="mt-4">
+                              <a href="https://vercel.com/new" target="_blank" rel="noopener noreferrer" class="py-2 px-4 border border-gray-300 text-gray-700 rounded hover:bg-gray-50 inline-flex items-center hover-lift">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                                Go to Vercel
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ml-1"><line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline></svg>
+                              </a>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div id="manual-pane" class="deploy-tab-pane hidden">
+                          <div class="space-y-2">
+                            <h4 class="text-sm font-medium">Manual Deployment</h4>
+                            <ol class="list-decimal list-inside space-y-2 text-sm">
+                              <li>Download all files using the installer</li>
+                              <li>Upload files to your web server:
+                                <ul class="list-disc list-inside ml-5 text-gray-600">
+                                  <li>HTML, CSS, and JS files to your web root</li>
+                                  <li>PHP files to your API directory</li>
+                                </ul>
+                              </li>
+                              <li>Ensure proper file permissions:
+                                <pre class="bg-gray-100 p-2 rounded-md text-xs mt-1 overflow-x-auto">chmod 755 /path/to/api/data
+chmod 644 /path/to/api/*.php</pre>
+                              </li>
+                              <li>Update config.php with your domain and API key</li>
+                              <li>Test the installation by visiting your-domain.com/api/test.php</li>
+                            </ol>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div class="p-4 bg-blue-50 border border-blue-200 text-blue-800 rounded-md">
+                      <div class="flex items-start">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2 mt-0.5"><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"></path><path d="M8 15V5a2 2 0 0 1 2-2h9.172a2 2 0 0 1 1.414.586l2.828 2.828A2 2 0 0 1 24 7.828V17a2 2 0 0 1-2 2h-2"></path><path d="M8 7h1"></path><path d="M8 11h1"></path><path d="M8 15h1"></path></svg>
+                        <div>
+                          <h4 class="font-medium mb-2">Apache Configuration Note</h4>
+                          <p class="text-sm mb-2">If you're experiencing 404 errors, your Apache server might need additional configuration:</p>
+                          <ol class="list-decimal list-inside space-y-1 text-sm">
+                            <li>Check if mod_rewrite is enabled: <code>sudo a2enmod rewrite</code></li>
+                            <li>Edit your VirtualHost configuration file (often in /etc/apache2/sites-available/) to include:</li>
+                            <pre class="bg-blue-100/50 p-2 rounded-md text-xs mt-1 overflow-x-auto">
+&lt;Directory /path/to/your/api&gt;
+    Options Indexes FollowSymLinks
+    AllowOverride All
+    Require all granted
+&lt;/Directory&gt;</pre>
+                            <li>Restart Apache: <code>sudo systemctl restart apache2</code></li>
+                          </ol>
+                        </div>
                       </div>
                     </div>
                   </div>

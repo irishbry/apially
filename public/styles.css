@@ -96,3 +96,47 @@ body {
 .tab-pane.active {
   display: block;
 }
+
+/* Tab Styling */
+[data-tab], [data-deploy-tab] {
+  transition: all 0.2s ease;
+}
+
+/* Form Controls */
+input[type="checkbox"] {
+  cursor: pointer;
+}
+
+/* Code Blocks */
+pre {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* Deploy Tab Panes */
+.deploy-tab-pane {
+  transition: all 0.3s ease;
+}
+
+/* Field List Styling */
+#fields-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+#fields-list > div {
+  transition: all 0.2s ease;
+}
+
+#fields-list > div:hover {
+  background-color: #f5f5f5;
+}
+
+/* Deployment Tabs */
+[data-deploy-tab] {
+  transition: all 0.2s ease;
+}
+
+[data-deploy-tab]:hover {
+  transform: translateY(-1px);
+}
