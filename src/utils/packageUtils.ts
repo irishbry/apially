@@ -9,7 +9,7 @@ export const packageFrontendFiles = async (): Promise<void> => {
   try {
     const zip = new JSZip();
     
-    // Add HTML file
+    // Add HTML file with proper React setup
     zip.file("index.html", `<!DOCTYPE html>
 <html lang="en">
   <head>
@@ -17,309 +17,647 @@ export const packageFrontendFiles = async (): Promise<void> => {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Data Consolidation Tool</title>
     <link rel="stylesheet" href="./assets/style.css">
-    <script src="./assets/app.js" defer></script>
   </head>
   <body>
     <div id="root"></div>
+    <script src="./assets/react.production.min.js"></script>
+    <script src="./assets/react-dom.production.min.js"></script>
+    <script src="./assets/app.js" defer></script>
   </body>
 </html>`);
 
     // Create assets folder
     const assetsFolder = zip.folder("assets");
     
-    // Add CSS
-    assetsFolder.file("style.css", `/* Base styles */
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
+    // Add React libraries
+    assetsFolder.file("react.production.min.js", 
+      await fetchLibrary("https://unpkg.com/react@18.2.0/umd/react.production.min.js")
+    );
+    
+    assetsFolder.file("react-dom.production.min.js", 
+      await fetchLibrary("https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js")
+    );
+    
+    // Add CSS that matches our application styling
+    assetsFolder.file("style.css", `
+/* Base styles matching the application */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap');
+
+:root {
+  --background: rgb(241, 245, 249);
+  --foreground: rgb(15, 23, 42);
+  --primary: rgb(59, 130, 246);
+  --primary-foreground: rgb(255, 255, 255);
+  --secondary: rgb(226, 232, 240);
+  --secondary-foreground: rgb(15, 23, 42);
+  --muted: rgb(241, 245, 249);
+  --muted-foreground: rgb(100, 116, 139);
+  --border: rgb(226, 232, 240);
+  --input: rgb(226, 232, 240);
+  --radius: 0.75rem;
+}
+
+* {
   margin: 0;
   padding: 0;
-  color: #333;
-  background-color: #f8f9fa;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  color: var(--foreground);
+  background: linear-gradient(to bottom, var(--background), rgb(236, 241, 247));
+  min-height: 100vh;
 }
 
 .container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 20px;
+  padding: 1.25rem;
 }
 
-h1, h2, h3 {
-  margin-top: 0;
-  color: #2c3e50;
-}
-
-/* Form elements */
-input, select, button {
-  font-family: inherit;
-  font-size: 100%;
-  padding: 8px 12px;
-  margin: 8px 0;
-  box-sizing: border-box;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-}
-
-button {
-  background-color: #4361ee;
-  color: white;
-  border: none;
-  padding: 10px 15px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: background-color 0.2s;
-}
-
-button:hover {
-  background-color: #3a56d4;
-}
-
-/* Layout */
-.form-group {
-  margin-bottom: 15px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 5px;
-  font-weight: 500;
-}
-
+/* Card styles */
 .card {
   background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  margin-bottom: 20px;
-  padding: 20px;
-}
-
-.status-success {
-  color: #198754;
-  font-weight: bold;
-}
-
-.status-error {
-  color: #dc3545;
-  font-weight: bold;
-}
-
-/* Sources list */
-#sources-list {
-  list-style-type: none;
-  padding: 0;
-}
-
-#sources-list li {
-  padding: 10px;
-  margin: 5px 0;
-  background-color: #f1f3f5;
-  border-radius: 4px;
+  border-radius: var(--radius);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
 }
 
 /* Header */
 .header {
-  background-color: #4361ee;
-  color: white;
-  padding: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 2rem;
 }
 
 .header h1 {
-  margin: 0;
-  color: white;
+  font-size: 1.875rem;
+  font-weight: 600;
+  color: var(--foreground);
 }
 
-/* Footer */
-.footer {
-  text-align: center;
-  margin-top: 2rem;
-  padding: 1rem;
-  background-color: #f8f9fa;
-  border-top: 1px solid #e9ecef;
-  color: #6c757d;
-}`);
+/* Form elements */
+input, select, textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: white;
+  color: var(--foreground);
+  font-family: inherit;
+  font-size: 0.875rem;
+}
 
-    // Add JavaScript
-    assetsFolder.file("app.js", `// Main application JavaScript
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-group label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+}
+
+/* Button styles */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
+  font-weight: 500;
+  font-size: 0.875rem;
+  line-height: 1;
+  padding: 0.75rem 1rem;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.button-primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.button-primary:hover {
+  background: rgb(37, 99, 235);
+}
+
+.button-outline {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--foreground);
+}
+
+.button-outline:hover {
+  background: var(--muted);
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1.5rem;
+}
+
+.tab {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  font-weight: 500;
+}
+
+.tab.active {
+  border-bottom-color: var(--primary);
+  color: var(--primary);
+}
+
+/* Tables */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+th {
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+
+/* Helper classes */
+.space-y-4 > * + * {
+  margin-top: 1rem;
+}
+
+.grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .grid-cols-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Status indicators */
+.status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.status-success {
+  background: rgba(34, 197, 94, 0.1);
+  color: rgb(22, 163, 74);
+}
+
+.status-warning {
+  background: rgba(234, 179, 8, 0.1);
+  color: rgb(202, 138, 4);
+}
+
+.status-error {
+  background: rgba(239, 68, 68, 0.1);
+  color: rgb(220, 38, 38);
+}
+
+/* Animations */
+.animate-slide-up {
+  animation: slide-up 0.3s ease;
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Glass effect */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+`);
+    
+    // Add the JavaScript with a React component structure matching our app
+    assetsFolder.file("app.js", `// Utility function for localStorage
+const storage = {
+  get: (key, defaultValue = null) => {
+    try {
+      const value = localStorage.getItem(key);
+      return value ? JSON.parse(value) : defaultValue;
+    } catch (e) {
+      console.error("Error getting from storage:", e);
+      return defaultValue;
+    }
+  },
+  set: (key, value) => {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    } catch (e) {
+      console.error("Error setting to storage:", e);
+      return false;
+    }
+  }
+};
+
+// API Service simulating our actual service
+const ApiService = {
+  isAuthenticated: false,
+  apiKey: storage.get('apiKey', ''),
+  
+  login: function(username, password) {
+    // Simple mock login
+    if (username && password) {
+      this.isAuthenticated = true;
+      storage.set('isAuthenticated', true);
+      return true;
+    }
+    return false;
+  },
+  
+  logout: function() {
+    this.isAuthenticated = false;
+    storage.set('isAuthenticated', false);
+  },
+  
+  isUserAuthenticated: function() {
+    return this.isAuthenticated || storage.get('isAuthenticated', false);
+  },
+  
+  setApiKey: function(key) {
+    this.apiKey = key;
+    storage.set('apiKey', key);
+  },
+  
+  getApiUsage: function() {
+    // Mock data
+    return {
+      totalRequests: 1250,
+      successRate: 98.5,
+      averageResponseTime: 0.34,
+      lastUpdated: new Date().toISOString()
+    };
+  },
+  
+  getSources: function() {
+    return storage.get('sources', []);
+  },
+  
+  addSource: function(source) {
+    const sources = this.getSources();
+    sources.push({
+      id: Date.now().toString(),
+      ...source,
+      dateAdded: new Date().toISOString()
+    });
+    storage.set('sources', sources);
+    return true;
+  },
+  
+  removeSource: function(id) {
+    const sources = this.getSources();
+    const newSources = sources.filter(s => s.id !== id);
+    storage.set('sources', newSources);
+    return true;
+  }
+};
+
+// React Components
+const e = React.createElement;
+
+// LoginForm Component
+const LoginForm = () => {
+  const [username, setUsername] = React.useState('');
+  const [password, setPassword] = React.useState('');
+  const [error, setError] = React.useState('');
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    if (!username || !password) {
+      setError('Please enter both username and password');
+      return;
+    }
+    
+    const success = ApiService.login(username, password);
+    if (success) {
+      window.location.reload();
+    } else {
+      setError('Invalid credentials');
+    }
+  };
+
+  return e('div', { className: 'card glass animate-slide-up', style: { maxWidth: '400px', width: '100%' } },
+    e('h1', { className: 'text-center mb-6' }, 'Login'),
+    e('form', { onSubmit: handleSubmit, className: 'space-y-4' },
+      e('div', { className: 'form-group' },
+        e('label', { htmlFor: 'username' }, 'Username'),
+        e('input', { 
+          id: 'username', 
+          type: 'text', 
+          value: username, 
+          onChange: (e) => setUsername(e.target.value),
+          placeholder: 'Enter your username'
+        })
+      ),
+      e('div', { className: 'form-group' },
+        e('label', { htmlFor: 'password' }, 'Password'),
+        e('input', { 
+          id: 'password', 
+          type: 'password', 
+          value: password, 
+          onChange: (e) => setPassword(e.target.value),
+          placeholder: 'Enter your password'
+        })
+      ),
+      error && e('div', { className: 'status status-error' }, error),
+      e('button', { 
+        type: 'submit', 
+        className: 'button button-primary',
+        style: { width: '100%' }
+      }, 'Login')
+    ),
+    e('p', { style: { fontSize: '0.875rem', color: 'var(--muted-foreground)', marginTop: '1rem', textAlign: 'center' } },
+      'Demo credentials: any username and password will work'
+    )
+  );
+};
+
+// Header Component
+const Header = () => {
+  return e('div', { className: 'header' },
+    e('h1', null, 'Data Consolidation Tool'),
+    ApiService.isUserAuthenticated() && 
+      e('button', { 
+        className: 'button button-outline',
+        onClick: () => {
+          ApiService.logout();
+          window.location.reload();
+        }
+      }, 'Logout')
+  );
+};
+
+// ApiKeyForm Component
+const ApiKeyForm = () => {
+  const [apiKey, setApiKey] = React.useState(ApiService.apiKey || '');
+  const [saved, setSaved] = React.useState(false);
+
+  const saveApiKey = () => {
+    ApiService.setApiKey(apiKey);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+  };
+
+  return e('div', { className: 'card' },
+    e('h3', null, 'API Configuration'),
+    e('div', { className: 'form-group' },
+      e('label', { htmlFor: 'api-key' }, 'API Key'),
+      e('input', {
+        id: 'api-key',
+        type: 'text',
+        value: apiKey,
+        onChange: (e) => setApiKey(e.target.value),
+        placeholder: 'Enter your API key'
+      })
+    ),
+    e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+      e('button', {
+        className: 'button button-primary',
+        onClick: saveApiKey
+      }, 'Save API Key'),
+      saved && e('span', { className: 'status status-success' }, 'Saved!')
+    )
+  );
+};
+
+// SourcesManager Component
+const SourcesManager = () => {
+  const [sources, setSources] = React.useState(ApiService.getSources());
+  const [newSource, setNewSource] = React.useState({ name: '', url: '', type: 'csv' });
+  const [error, setError] = React.useState('');
+
+  const addSource = (e) => {
+    e.preventDefault();
+    if (!newSource.name || !newSource.url) {
+      setError('Please fill in all fields');
+      return;
+    }
+    
+    ApiService.addSource(newSource);
+    setSources(ApiService.getSources());
+    setNewSource({ name: '', url: '', type: 'csv' });
+    setError('');
+  };
+
+  const removeSource = (id) => {
+    ApiService.removeSource(id);
+    setSources(ApiService.getSources());
+  };
+
+  return e('div', { className: 'card' },
+    e('h3', null, 'Data Sources'),
+    e('form', { onSubmit: addSource, className: 'space-y-4' },
+      e('div', { className: 'grid grid-cols-2' },
+        e('div', { className: 'form-group' },
+          e('label', { htmlFor: 'source-name' }, 'Source Name'),
+          e('input', {
+            id: 'source-name',
+            type: 'text',
+            value: newSource.name,
+            onChange: (e) => setNewSource({...newSource, name: e.target.value}),
+            placeholder: 'e.g., Sales Data'
+          })
+        ),
+        e('div', { className: 'form-group' },
+          e('label', { htmlFor: 'source-type' }, 'Source Type'),
+          e('select', {
+            id: 'source-type',
+            value: newSource.type,
+            onChange: (e) => setNewSource({...newSource, type: e.target.value})
+          },
+            e('option', { value: 'csv' }, 'CSV'),
+            e('option', { value: 'json' }, 'JSON'),
+            e('option', { value: 'api' }, 'API Endpoint')
+          )
+        )
+      ),
+      e('div', { className: 'form-group' },
+        e('label', { htmlFor: 'source-url' }, 'Source URL'),
+        e('input', {
+          id: 'source-url',
+          type: 'text',
+          value: newSource.url,
+          onChange: (e) => setNewSource({...newSource, url: e.target.value}),
+          placeholder: 'https://example.com/data.csv'
+        })
+      ),
+      error && e('div', { className: 'status status-error' }, error),
+      e('button', { type: 'submit', className: 'button button-primary' }, 'Add Source')
+    ),
+    e('div', { style: { marginTop: '1.5rem' } },
+      sources.length === 0
+        ? e('p', null, 'No data sources added yet.')
+        : e('table', null,
+            e('thead', null,
+              e('tr', null,
+                e('th', null, 'Name'),
+                e('th', null, 'Type'),
+                e('th', null, 'URL'),
+                e('th', null, 'Actions')
+              )
+            ),
+            e('tbody', null,
+              sources.map(source => 
+                e('tr', { key: source.id },
+                  e('td', null, source.name),
+                  e('td', null, source.type.toUpperCase()),
+                  e('td', null, source.url),
+                  e('td', null,
+                    e('button', {
+                      className: 'button button-outline',
+                      style: { padding: '0.25rem 0.5rem' },
+                      onClick: () => removeSource(source.id)
+                    }, 'Remove')
+                  )
+                )
+              )
+            )
+          )
+    )
+  );
+};
+
+// ApiUsageStats Component
+const ApiUsageStats = () => {
+  const usage = ApiService.getApiUsage();
+  
+  return e('div', { className: 'card' },
+    e('h3', null, 'API Usage Statistics'),
+    e('div', { className: 'grid grid-cols-2', style: { marginTop: '1rem' } },
+      e('div', null,
+        e('p', { style: { fontSize: '0.875rem', color: 'var(--muted-foreground)' } }, 'Total Requests'),
+        e('p', { style: { fontSize: '1.5rem', fontWeight: '600' } }, usage.totalRequests)
+      ),
+      e('div', null,
+        e('p', { style: { fontSize: '0.875rem', color: 'var(--muted-foreground)' } }, 'Success Rate'),
+        e('p', { style: { fontSize: '1.5rem', fontWeight: '600' } }, \`\${usage.successRate}%\`)
+      ),
+      e('div', null,
+        e('p', { style: { fontSize: '0.875rem', color: 'var(--muted-foreground)' } }, 'Avg. Response Time'),
+        e('p', { style: { fontSize: '1.5rem', fontWeight: '600' } }, \`\${usage.averageResponseTime}s\`)
+      ),
+      e('div', null,
+        e('p', { style: { fontSize: '0.875rem', color: 'var(--muted-foreground)' } }, 'Last Updated'),
+        e('p', { style: { fontSize: '0.875rem' } }, new Date(usage.lastUpdated).toLocaleString())
+      )
+    )
+  );
+};
+
+// Main App Component
+const App = () => {
+  const [activeTab, setActiveTab] = React.useState('sources');
+  const isAuthenticated = ApiService.isUserAuthenticated();
+
+  if (!isAuthenticated) {
+    return e('div', { 
+      className: 'min-h-screen', 
+      style: { 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        padding: '1rem' 
+      } 
+    }, e(LoginForm));
+  }
+
+  return e('div', { className: 'min-h-screen' },
+    e('div', { className: 'container' },
+      e(Header),
+      e('div', { className: 'animate-slide-up' },
+        e(ApiUsageStats),
+        e('div', { className: 'tabs' },
+          e('div', { 
+            className: \`tab \${activeTab === 'sources' ? 'active' : ''}\`, 
+            onClick: () => setActiveTab('sources') 
+          }, 'Data Sources'),
+          e('div', { 
+            className: \`tab \${activeTab === 'config' ? 'active' : ''}\`, 
+            onClick: () => setActiveTab('config') 
+          }, 'Configuration')
+        ),
+        activeTab === 'sources' && e(SourcesManager),
+        activeTab === 'config' && e(ApiKeyForm)
+      )
+    )
+  );
+};
+
+// Helper function to fetch library files
+async function fetchLibrary(url) {
+  const response = await fetch(url);
+  return await response.text();
+}
+
+// Render the app
 document.addEventListener('DOMContentLoaded', function() {
   const root = document.getElementById('root');
-  
-  // Create app structure
-  root.innerHTML = \`
-    <div class="header">
-      <div class="container">
-        <h1>Data Consolidation Tool</h1>
-      </div>
-    </div>
-    <div class="container">
-      <div class="card">
-        <h2>API Status</h2>
-        <p>Connection: <span id="api-status">Checking...</span></p>
-      </div>
-      
-      <div class="card">
-        <h2>API Configuration</h2>
-        <div class="form-group">
-          <label for="api-key">API Key</label>
-          <input type="text" id="api-key" placeholder="Enter your API key" />
-          <button id="save-key">Save API Key</button>
-        </div>
-      </div>
-      
-      <div class="card">
-        <h2>Add Data Source</h2>
-        <form id="source-form">
-          <div class="form-group">
-            <label for="source-name">Source Name</label>
-            <input type="text" id="source-name" placeholder="e.g., Sales Data" required />
-          </div>
-          <div class="form-group">
-            <label for="source-url">Source URL</label>
-            <input type="text" id="source-url" placeholder="https://example.com/data.csv" required />
-          </div>
-          <div class="form-group">
-            <label for="source-type">Source Type</label>
-            <select id="source-type">
-              <option value="csv">CSV</option>
-              <option value="json">JSON</option>
-              <option value="api">API Endpoint</option>
-            </select>
-          </div>
-          <button type="submit">Add Source</button>
-        </form>
-      </div>
-      
-      <div class="card">
-        <h2>Data Sources</h2>
-        <ul id="sources-list"></ul>
-      </div>
-    </div>
-    <div class="footer">
-      <p>Data Consolidation Tool - v1.0</p>
-    </div>
-  \`;
-  
-  // Check API status
-  checkApiStatus();
-  
-  // Add event listeners
-  document.getElementById('save-key').addEventListener('click', saveApiKey);
-  document.getElementById('source-form').addEventListener('submit', addDataSource);
-  
-  // Load saved sources
-  loadSavedSources();
-});
-
-// Check API connection
-function checkApiStatus() {
-  const statusElement = document.getElementById('api-status');
-  
-  fetch('./api/status')
-    .then(response => response.json())
-    .then(data => {
-      if (data && data.status === 'ok') {
-        statusElement.textContent = 'Connected';
-        statusElement.className = 'status-success';
-      } else {
-        statusElement.textContent = 'Error';
-        statusElement.className = 'status-error';
-      }
-    })
-    .catch(error => {
-      console.error('API connection error:', error);
-      statusElement.textContent = 'Connection Error';
-      statusElement.className = 'status-error';
-    });
-}
-
-// Save API key to localStorage
-function saveApiKey() {
-  const apiKey = document.getElementById('api-key').value.trim();
-  
-  if (apiKey) {
-    localStorage.setItem('apiKey', apiKey);
-    alert('API Key saved successfully');
-  } else {
-    alert('Please enter a valid API key');
-  }
-}
-
-// Add a data source
-function addDataSource(event) {
-  event.preventDefault();
-  
-  const name = document.getElementById('source-name').value.trim();
-  const url = document.getElementById('source-url').value.trim();
-  const type = document.getElementById('source-type').value;
-  
-  if (!name || !url) {
-    alert('Please fill in all required fields');
-    return;
-  }
-  
-  // Get existing sources or initialize empty array
-  const sources = JSON.parse(localStorage.getItem('sources') || '[]');
-  
-  // Add new source
-  sources.push({
-    id: Date.now(), // Simple unique ID
-    name,
-    url,
-    type,
-    dateAdded: new Date().toISOString()
-  });
-  
-  // Save updated sources
-  localStorage.setItem('sources', JSON.stringify(sources));
-  
-  // Update UI
-  addSourceToList(name, url, type);
-  
-  // Clear form
-  document.getElementById('source-form').reset();
-}
-
-// Add source to the UI list
-function addSourceToList(name, url, sourceType) {
-  const sourcesList = document.getElementById('sources-list');
-  const li = document.createElement('li');
-  li.innerHTML = \`
-    <strong>\${name}</strong> (\${sourceType})
-    <br>
-    \${url}
-  \`;
-  sourcesList.appendChild(li);
-}
-
-// Load saved sources from localStorage
-function loadSavedSources() {
-  const sources = JSON.parse(localStorage.getItem('sources') || '[]');
-  
-  sources.forEach(source => {
-    addSourceToList(source.name, source.url, source.type);
-  });
-}`);
+  ReactDOM.render(e(App), root);
+});`);
 
     // Add README
-    zip.file("README.md", `# Frontend Files
+    zip.file("README.md", `# Data Consolidation Tool Frontend
 
-These are the basic frontend files for your Data Consolidation application.
+This package contains a standalone frontend for the Data Consolidation Tool that matches the UI you see in the preview.
 
-## File Structure
+## Features
 
-- index.html - Main HTML file
-- assets/style.css - Stylesheet
-- assets/app.js - JavaScript functionality
+- Clean, modern UI using custom CSS
+- Responsive design that works on all devices
+- Data source management
+- API key configuration
+- Login/authentication system
+- Usage statistics display
 
-## Installation
+## Getting Started
 
-1. Upload all files to your web server's root directory
-2. Make sure your API is installed in the /api directory
-3. Open your website in a browser
+1. Extract all files to your web server
+2. Open index.html in your browser
+3. Log in with any username and password (demo mode)
+4. Start adding data sources and configuring your API
+
+## Integration with Backend
+
+This frontend can work with the API backend. To connect them:
+
+1. Install the API backend on your server
+2. Update the API endpoints in app.js to point to your API installation
+3. Configure CORS on your API to allow requests from your frontend origin
 
 ## Customization
 
-You can modify these files or replace them with your own custom frontend.
+You can modify the CSS in style.css to match your branding and preferences.
 `);
 
     // Generate and download the ZIP file
