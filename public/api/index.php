@@ -31,8 +31,8 @@ switch ($endpoint) {
     case 'login':
         // Handle login request
         $data = json_decode(file_get_contents('php://input'), true);
-        $username = $data['username'] ?? '';
-        $password = $data['password'] ?? '';
+        $username = isset($data['username']) ? $data['username'] : '';
+        $password = isset($data['password']) ? $data['password'] : '';
         
         if ($username === $config['demo_user'] && $password === $config['demo_password']) {
             logApiRequest('login', 'success', "User: $username");
