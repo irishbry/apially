@@ -1,6 +1,21 @@
-
 import JSZip from 'jszip';
 import FileSaver from 'file-saver';
+
+/**
+ * Helper function to fetch library files
+ */
+const fetchLibrary = async (url: string): Promise<string> => {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch library from ${url}: ${response.status} ${response.statusText}`);
+    }
+    return await response.text();
+  } catch (error) {
+    console.error("Error fetching library:", error);
+    throw error;
+  }
+};
 
 /**
  * Creates and downloads a ZIP file containing the frontend application files
@@ -257,7 +272,7 @@ th {
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 `);
-    
+
     // Add the JavaScript with a React component structure matching our app
     assetsFolder.file("app.js", `// Utility function for localStorage
 const storage = {
