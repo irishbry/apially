@@ -1,0 +1,25 @@
+
+# Enable rewrite engine
+RewriteEngine On
+
+# Explicitly set the RewriteBase to match your installation directory
+RewriteBase /api/
+
+# If the request is for a real file or directory, skip rewrite rules
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Rewrite all other URLs to index.php
+RewriteRule ^(.*)$ index.php [QSA,L]
+
+# Add CORS headers
+<IfModule mod_headers.c>
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET, POST, OPTIONS"
+    Header set Access-Control-Allow-Headers "Content-Type, X-API-Key"
+</IfModule>
+
+# Protect data directory
+<IfModule mod_rewrite.c>
+    RewriteRule ^data/ - [F,L]
+</IfModule>
