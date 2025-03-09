@@ -218,14 +218,84 @@
               <div id="schema-tab-content" class="tab-pane hidden">
                 <!-- Schema editor will be rendered here -->
                 <div id="schema-editor">
-                  <!-- Will be dynamically populated -->
+                  <div class="shadow-sm hover:shadow-md transition-all duration-300 border border-gray-200 rounded-lg p-6">
+                    <h3 class="text-lg font-medium mb-4">Data Schema Configuration</h3>
+                    <p class="text-gray-500 mb-4">
+                      Define the structure of your data and how it should be processed.
+                    </p>
+                    
+                    <div class="space-y-4">
+                      <div class="flex gap-2">
+                        <input 
+                          type="text" 
+                          id="new-field-input" 
+                          placeholder="Enter field name (e.g., customer_id)" 
+                          class="flex-1 px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                        />
+                        <button 
+                          id="add-field-btn" 
+                          class="py-2 px-4 bg-blue-600 text-white rounded hover:bg-blue-700 hover-lift"
+                        >
+                          Add Field
+                        </button>
+                      </div>
+                      
+                      <div id="fields-list" class="mt-4">
+                        <p class="text-gray-500 text-center py-4">No fields added yet. Add your first field above.</p>
+                      </div>
+                      
+                      <div class="flex justify-end mt-4">
+                        <button 
+                          id="save-schema-btn" 
+                          class="py-2 px-4 bg-blue-600 text-white rounded hover:bg-blue-700 hover-lift"
+                        >
+                          Save Schema
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
               
               <div id="deployment-tab-content" class="tab-pane hidden">
                 <!-- Deployment guide will be rendered here -->
                 <div id="deployment-guide">
-                  <!-- Will be dynamically populated -->
+                  <div class="shadow-sm hover:shadow-md transition-all duration-300 border border-gray-200 rounded-lg p-6">
+                    <h3 class="text-lg font-medium mb-4">Deployment Guide</h3>
+                    
+                    <div class="space-y-4">
+                      <div class="p-4 bg-blue-50 border border-blue-100 rounded-md">
+                        <p class="text-blue-800">
+                          Follow these steps to deploy the Data Consolidation API to your server:
+                        </p>
+                      </div>
+                      
+                      <ol class="list-decimal list-inside space-y-3 text-gray-700">
+                        <li class="p-3 bg-gray-50 rounded-md">
+                          <strong>Upload Files:</strong> Upload all files to your web server via FTP or your hosting control panel
+                        </li>
+                        <li class="p-3 bg-gray-50 rounded-md">
+                          <strong>Server Requirements:</strong> Ensure your server has PHP 7.0+ and mod_rewrite enabled
+                        </li>
+                        <li class="p-3 bg-gray-50 rounded-md">
+                          <strong>Configuration:</strong> Update the config.php file with your API key and allowed origins
+                        </li>
+                        <li class="p-3 bg-gray-50 rounded-md">
+                          <strong>Permissions:</strong> Make sure the data directory is writable (chmod 755 or 775)
+                        </li>
+                        <li class="p-3 bg-gray-50 rounded-md">
+                          <strong>Test Installation:</strong> Visit your-domain.com/api/test.php to verify everything is working
+                        </li>
+                      </ol>
+                      
+                      <div class="p-4 bg-gray-100 rounded-md">
+                        <h4 class="font-medium text-gray-800 mb-2">Need help?</h4>
+                        <p class="text-gray-700">
+                          Check out our detailed documentation or contact our support team for assistance with your deployment.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -235,10 +305,96 @@
           <section class="space-y-6">
             <h2 class="text-xl font-medium mb-4">Manage & Test</h2>
             <div id="control-panel">
-              <!-- Control panel will be rendered here -->
+              <div class="shadow-sm hover:shadow-md transition-all duration-300 border border-gray-200 rounded-lg p-6">
+                <h3 class="text-lg font-medium mb-4">Test API Connection</h3>
+                <div class="space-y-4">
+                  <div>
+                    <label for="test-endpoint" class="block text-gray-700 mb-1">API Endpoint</label>
+                    <select 
+                      id="test-endpoint" 
+                      class="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                    >
+                      <option value="status">Status Check</option>
+                      <option value="data">Send Test Data</option>
+                    </select>
+                  </div>
+                  
+                  <div id="test-data-container" class="hidden">
+                    <label for="test-data" class="block text-gray-700 mb-1">Test Data (JSON)</label>
+                    <textarea 
+                      id="test-data" 
+                      rows="4" 
+                      class="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                      placeholder='{"name": "Test Data", "value": 123}'
+                    ></textarea>
+                  </div>
+                  
+                  <div class="flex justify-end">
+                    <button 
+                      id="test-api-btn" 
+                      class="py-2 px-4 bg-blue-600 text-white rounded hover:bg-blue-700 hover-lift"
+                    >
+                      Test API
+                    </button>
+                  </div>
+                  
+                  <div id="test-result" class="hidden p-4 bg-gray-50 border border-gray-200 rounded-md">
+                    <h4 class="font-medium text-gray-800 mb-2">Test Result:</h4>
+                    <pre id="test-result-content" class="bg-gray-100 p-3 rounded text-sm overflow-x-auto"></pre>
+                  </div>
+                </div>
+              </div>
             </div>
             <div id="data-table">
-              <!-- Data table will be rendered here -->
+              <div class="shadow-sm hover:shadow-md transition-all duration-300 border border-gray-200 rounded-lg p-6">
+                <div class="flex justify-between items-center mb-4">
+                  <h3 class="text-lg font-medium">Recent Data</h3>
+                  <button id="refresh-data-btn" class="py-2 px-4 border border-gray-300 rounded text-gray-700 hover:bg-gray-50 inline-flex items-center hover-lift">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
+                    Refresh
+                  </button>
+                </div>
+                
+                <div class="overflow-x-auto">
+                  <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                      <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                      <!-- This is demo data, would be populated from API in real app -->
+                      <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">1001</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Sales Data</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">2023-07-15</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                          <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Processed</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">1002</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Customer Data</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">2023-07-14</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                          <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Processed</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">1003</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Inventory Data</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">2023-07-13</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                          <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Pending</span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           </section>
           
@@ -246,7 +402,62 @@
           <section class="space-y-6 pb-10">
             <h2 class="text-xl font-medium mb-4">Documentation</h2>
             <div id="api-instructions">
-              <!-- API instructions will be rendered here -->
+              <div class="shadow-sm hover:shadow-md transition-all duration-300 border border-gray-200 rounded-lg p-6">
+                <h3 class="text-lg font-medium mb-4">API Usage Instructions</h3>
+                
+                <div class="space-y-6">
+                  <div>
+                    <h4 class="font-medium text-gray-800 mb-2">Endpoint URL</h4>
+                    <div class="p-3 bg-gray-100 rounded font-mono text-sm">
+                      https://your-domain.com/api/data
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 class="font-medium text-gray-800 mb-2">Authentication</h4>
+                    <p class="text-gray-700 mb-2">
+                      Include your API key in the request headers:
+                    </p>
+                    <div class="p-3 bg-gray-100 rounded font-mono text-sm">
+                      X-API-Key: your-api-key-here
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 class="font-medium text-gray-800 mb-2">Example Request</h4>
+                    <div class="p-3 bg-gray-100 rounded font-mono text-sm overflow-x-auto">
+<pre>fetch('https://your-domain.com/api/data', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-API-Key': 'your-api-key-here'
+  },
+  body: JSON.stringify({
+    "source": "sales-system",
+    "data": [
+      {"id": 1, "value": 123.45, "date": "2023-07-15"},
+      {"id": 2, "value": 67.89, "date": "2023-07-15"}
+    ]
+  })
+});</pre>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 class="font-medium text-gray-800 mb-2">Response Format</h4>
+                    <div class="p-3 bg-gray-100 rounded font-mono text-sm overflow-x-auto">
+<pre>{
+  "success": true,
+  "message": "Data received successfully",
+  "data": {
+    "source": "sales-system",
+    "data": [...]
+  }
+}</pre>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </section>
         </div>
