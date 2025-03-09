@@ -1,294 +1,73 @@
 
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
-import { Copy, Edit, KeyRound, Plus, Power, RefreshCw, Trash2 } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
-import ApiService, { Source } from "@/services/ApiService";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const SourcesManager: React.FC = () => {
-  const [sources, setSources] = useState<Source[]>([]);
-  const [newSourceName, setNewSourceName] = useState('');
-  const [editingSource, setEditingSource] = useState<Source | null>(null);
-  const [editName, setEditName] = useState('');
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const { toast } = useToast();
+  const [sourceName, setSourceName] = useState('');
+  const [sourceType, setSourceType] = useState('CSV');
+  const [sourceUrl, setSourceUrl] = useState('');
+  const [sources, setSources] = useState<any[]>([]);
 
-  useEffect(() => {
-    // Get initial sources
-    setSources(ApiService.getSources());
-    
-    // Subscribe to source changes
-    const unsubscribe = ApiService.subscribeToSources(newSources => {
-      setSources([...newSources]);
-    });
-    
-    return () => unsubscribe();
-  }, []);
-
-  const addSource = () => {
-    if (!newSourceName.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter a valid source name.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    ApiService.addSource(newSourceName);
-    setNewSourceName('');
-    setIsDialogOpen(false);
-    
-    toast({
-      title: "Source Added",
-      description: `Source "${newSourceName}" has been added successfully.`,
-    });
-  };
-
-  const startEditSource = (source: Source) => {
-    setEditingSource(source);
-    setEditName(source.name);
-    setIsEditDialogOpen(true);
-  };
-
-  const updateSource = () => {
-    if (!editingSource || !editName.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter a valid source name.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    ApiService.updateSourceName(editingSource.id, editName);
-    setEditingSource(null);
-    setIsEditDialogOpen(false);
-    
-    toast({
-      title: "Source Updated",
-      description: `Source name has been updated successfully.`,
-    });
-  };
-
-  const toggleSourceActive = (id: string, name: string, currentState: boolean) => {
-    const success = ApiService.toggleSourceActive(id);
-    if (success) {
-      toast({
-        title: currentState ? "Source Deactivated" : "Source Activated",
-        description: `Source "${name}" has been ${currentState ? "deactivated" : "activated"} successfully.`,
-      });
-    }
-  };
-
-  const regenerateApiKey = (id: string, name: string) => {
-    const newKey = ApiService.regenerateApiKey(id);
-    if (newKey) {
-      toast({
-        title: "API Key Regenerated",
-        description: `A new API key has been generated for source "${name}".`,
-      });
-    }
-  };
-
-  const deleteSource = (id: string, name: string) => {
-    if (window.confirm(`Are you sure you want to delete source "${name}"? All associated data will also be deleted.`)) {
-      const success = ApiService.deleteSource(id);
-      if (success) {
-        toast({
-          title: "Source Deleted",
-          description: `Source "${name}" has been deleted successfully.`,
-        });
-      }
-    }
-  };
-
-  const copyApiKey = (apiKey: string) => {
-    navigator.clipboard.writeText(apiKey).then(() => {
-      toast({
-        title: "Copied!",
-        description: "API key copied to clipboard.",
-      });
-    });
-  };
-
-  const formatDate = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleString();
-    } catch (e) {
-      return dateString;
+  const handleAddSource = () => {
+    if (sourceName && sourceUrl) {
+      setSources([...sources, { name: sourceName, type: sourceType, url: sourceUrl }]);
+      setSourceName('');
+      setSourceUrl('');
     }
   };
 
   return (
-    <Card className="w-full shadow-sm hover:shadow-md transition-all duration-300">
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <span className="text-xl font-medium">Data Sources</span>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" className="hover-lift">
-                <Plus className="h-4 w-4 mr-1" />
-                Add Source
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Data Source</DialogTitle>
-                <DialogDescription>
-                  Create a new data source and generate an API key for it.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="py-4">
-                <Input
-                  value={newSourceName}
-                  onChange={(e) => setNewSourceName(e.target.value)}
-                  placeholder="Enter source name (e.g., Factory Sensors)"
-                />
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-                <Button onClick={addSource}>Add Source</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </CardTitle>
-        <CardDescription>
-          Manage data sources and their API keys
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Source Name</TableHead>
-                <TableHead>API Key</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Data Points</TableHead>
-                <TableHead>Last Active</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sources.length > 0 ? (
-                sources.map((source) => (
-                  <TableRow key={source.id}>
-                    <TableCell className="font-medium">{source.name}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center">
-                        <code className="bg-muted px-1 py-0.5 rounded text-xs">
-                          {source.apiKey.substring(0, 8)}...
-                        </code>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => copyApiKey(source.apiKey)}
-                          title="Copy API key"
-                        >
-                          <Copy className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge 
-                        variant={source.active ? "default" : "outline"} 
-                        className={source.active ? "bg-green-500" : "text-muted-foreground"}
-                      >
-                        {source.active ? "Active" : "Inactive"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {source.dataCount > 0 ? (
-                        <Badge variant="outline">{source.dataCount}</Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-muted-foreground">0</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {source.lastActive ? formatDate(source.lastActive) : 'Never'}
-                    </TableCell>
-                    <TableCell>{formatDate(source.createdAt)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => toggleSourceActive(source.id, source.name, source.active)}
-                          title={source.active ? "Deactivate source" : "Activate source"}
-                        >
-                          <Power className={`h-4 w-4 ${source.active ? 'text-green-500' : 'text-gray-400'}`} />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => startEditSource(source)}
-                          title="Edit source"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => regenerateApiKey(source.id, source.name)}
-                          title="Regenerate API key"
-                        >
-                          <KeyRound className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => deleteSource(source.id, source.name)}
-                          title="Delete source"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center">
-                    No sources available
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
-
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Source</DialogTitle>
-            <DialogDescription>
-              Update the source name or manage its API key.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
+    <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+      <h2 className="text-xl font-medium mb-4">Data Sources</h2>
+      
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-gray-600 mb-2">Source Name</label>
             <Input
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              placeholder="Enter new source name"
+              placeholder="e.g., Sales Data"
+              value={sourceName}
+              onChange={(e) => setSourceName(e.target.value)}
             />
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
-            <Button onClick={updateSource}>Save Changes</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </Card>
+          
+          <div>
+            <label className="block text-gray-600 mb-2">Source Type</label>
+            <Select value={sourceType} onValueChange={setSourceType}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="CSV">CSV</SelectItem>
+                <SelectItem value="JSON">JSON</SelectItem>
+                <SelectItem value="XML">XML</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        
+        <div>
+          <label className="block text-gray-600 mb-2">Source URL</label>
+          <Input
+            placeholder="https://example.com/data.csv"
+            value={sourceUrl}
+            onChange={(e) => setSourceUrl(e.target.value)}
+          />
+        </div>
+        
+        <div>
+          <Button onClick={handleAddSource} className="bg-blue-500 hover:bg-blue-600">
+            Add Source
+          </Button>
+        </div>
+        
+        {sources.length === 0 && (
+          <p className="text-gray-500 mt-4">No data sources added yet.</p>
+        )}
+      </div>
+    </div>
   );
 };
 
