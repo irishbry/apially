@@ -6,10 +6,700 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CSV Consolidator Portal</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/public/styles.css">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   </head>
   <body>
-    <div id="root"></div>
-    <script src="https://cdn.gpteng.co/gptengineer.js" type="module"></script>
-    <script type="module" src="/src/main.tsx"></script>
+    <div id="app">
+      <!-- Login Form (shown initially) -->
+      <div id="login-container" class="flex min-h-screen items-center justify-center bg-gradient-to-b from-background to-background/95 p-4">
+        <div class="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-2xl border-2 border-primary">
+          <div class="text-center">
+            <h2 class="text-2xl font-bold text-gray-900">Login</h2>
+            <p class="mt-2 text-gray-600">Enter your credentials to access the dashboard</p>
+          </div>
+          
+          <form id="login-form" class="mt-8 space-y-6">
+            <div class="space-y-4">
+              <div class="relative">
+                <i class="fa fa-user absolute left-3 top-3 text-gray-400"></i>
+                <input
+                  id="username"
+                  name="username"
+                  type="text"
+                  required
+                  placeholder="Username"
+                  class="pl-10 w-full border border-gray-300 px-4 py-2 rounded"
+                />
+              </div>
+              
+              <div class="relative">
+                <i class="fa fa-lock absolute left-3 top-3 text-gray-400"></i>
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  required
+                  placeholder="Password"
+                  class="pl-10 w-full border border-gray-300 px-4 py-2 rounded"
+                />
+              </div>
+            </div>
+            
+            <button
+              type="submit"
+              class="w-full h-12 text-lg font-bold bg-primary text-white px-4 py-2 rounded hover:bg-primary-dark"
+            >
+              Login
+            </button>
+            
+            <div class="p-4 mt-4 bg-muted/30 rounded-md">
+              <p class="text-xs text-center text-muted-foreground">
+                For demo purposes, use: <br />
+                <span class="font-mono">Username: admin</span> <br />
+                <span class="font-mono">Password: password</span>
+              </p>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Main Dashboard (hidden initially) -->
+      <div id="dashboard-container" class="hidden min-h-screen bg-gradient-to-b from-background to-background/95">
+        <div class="absolute inset-0 overflow-hidden pointer-events-none opacity-5">
+          <div class="absolute -top-40 -right-40 w-96 h-96 bg-primary/5 rounded-full blur-3xl"></div>
+          <div class="absolute top-[20%] -left-40 w-96 h-96 bg-primary/5 rounded-full blur-3xl"></div>
+          <div class="absolute -bottom-40 right-[20%] w-96 h-96 bg-primary/5 rounded-full blur-3xl"></div>
+        </div>
+        
+        <div class="container max-w-7xl relative">
+          <div class="py-10 space-y-8 animate-slide-up">
+            <div class="flex justify-between items-center">
+              <!-- Header -->
+              <div class="space-y-4 py-4 animate-fade-in">
+                <div class="flex items-center gap-2">
+                  <div class="bg-primary/10 p-2 rounded-full">
+                    <i class="fa fa-database text-primary"></i>
+                  </div>
+                  <h1 class="text-3xl font-medium tracking-tight">ApiAlly</h1>
+                </div>
+                <p class="text-muted-foreground max-w-3xl">
+                  Easily collect real-time data through your API endpoint, automatically consolidate it into CSV files, 
+                  and export to your Dropbox at the end of each day.
+                </p>
+                <div class="flex items-center text-sm text-muted-foreground">
+                  <i class="fa fa-download mr-1"></i>
+                  <span>Configure your API key and Dropbox link below to get started</span>
+                </div>
+              </div>
+              
+              <!-- Logout Button -->
+              <button id="logout-button" class="bg-white border border-gray-300 px-4 py-2 rounded hover-lift flex items-center">
+                <i class="fa fa-sign-out-alt mr-2"></i>
+                Logout
+              </button>
+            </div>
+            
+            <hr class="border-t border-gray-200">
+            
+            <!-- Stats Section -->
+            <section id="api-usage-stats">
+              <div class="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-4">
+                <!-- Data Points Card -->
+                <div class="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
+                  <div class="flex items-center justify-between">
+                    <div class="flex flex-col">
+                      <span class="text-sm font-medium text-muted-foreground">Total Data Points</span>
+                      <span class="text-2xl font-bold mt-1" id="total-data-points">0</span>
+                    </div>
+                    <div class="bg-primary/10 p-3 rounded-full">
+                      <i class="fa fa-chart-line text-primary"></i>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Active Sources Card -->
+                <div class="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
+                  <div class="flex items-center justify-between">
+                    <div class="flex flex-col">
+                      <span class="text-sm font-medium text-muted-foreground">Active Sources</span>
+                      <span class="text-2xl font-bold mt-1" id="active-sources">0/0</span>
+                    </div>
+                    <div class="bg-primary/10 p-3 rounded-full">
+                      <i class="fa fa-users text-primary"></i>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Unique Sources Card -->
+                <div class="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
+                  <div class="flex items-center justify-between">
+                    <div class="flex flex-col">
+                      <span class="text-sm font-medium text-muted-foreground">Unique Sources</span>
+                      <span class="text-2xl font-bold mt-1" id="unique-sources">0</span>
+                    </div>
+                    <div class="bg-primary/10 p-3 rounded-full">
+                      <i class="fa fa-database text-primary"></i>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Last Received Card -->
+                <div class="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
+                  <div class="flex items-center justify-between">
+                    <div class="flex flex-col">
+                      <span class="text-sm font-medium text-muted-foreground">Last Received</span>
+                      <span class="text-2xl font-bold mt-1" id="last-received">No data</span>
+                    </div>
+                    <div class="bg-primary/10 p-3 rounded-full">
+                      <i class="fa fa-clock text-primary"></i>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Data Types Card -->
+                <div class="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
+                  <div class="flex items-center justify-between">
+                    <div class="flex flex-col">
+                      <span class="text-sm font-medium text-muted-foreground">Data Types</span>
+                      <span class="text-2xl font-bold mt-1" id="data-types-count">0</span>
+                    </div>
+                    <div class="bg-primary/10 p-3 rounded-full">
+                      <i class="fa fa-layer-group text-primary"></i>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+            
+            <!-- Sources Manager Section -->
+            <section id="sources-manager-section">
+              <div class="bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
+                <div class="p-6">
+                  <div class="flex items-center justify-between">
+                    <h2 class="text-xl font-medium">Data Sources</h2>
+                    <button id="add-source-btn" class="bg-primary text-white px-4 py-2 rounded hover-lift flex items-center">
+                      <i class="fa fa-plus mr-1"></i>
+                      Add Source
+                    </button>
+                  </div>
+                  <p class="text-muted-foreground text-sm">Manage data sources and their API keys</p>
+                </div>
+                
+                <div id="sources-error" class="hidden mx-6 mb-4 p-4 bg-red-100 text-red-700 rounded-md">
+                  <i class="fa fa-triangle-exclamation"></i>
+                  <span id="sources-error-message"></span>
+                </div>
+                
+                <div class="p-6 pt-0">
+                  <div class="rounded-md border">
+                    <table class="w-full">
+                      <thead>
+                        <tr class="bg-muted/50">
+                          <th class="text-left p-3">Source Name</th>
+                          <th class="text-left p-3">API Key</th>
+                          <th class="text-left p-3">Status</th>
+                          <th class="text-left p-3">Data Points</th>
+                          <th class="text-left p-3">Last Active</th>
+                          <th class="text-left p-3">Created</th>
+                          <th class="text-right p-3">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody id="sources-table-body">
+                        <!-- Sources will be populated by JavaScript -->
+                        <tr>
+                          <td colspan="7" class="h-24 text-center">
+                            Loading sources...
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </section>
+            
+            <!-- Configuration Section -->
+            <section>
+              <h2 class="text-xl font-medium mb-4">Configuration</h2>
+              <div class="mb-4 border-b border-gray-200">
+                <ul class="flex flex-wrap -mb-px" id="config-tabs">
+                  <li class="mr-2">
+                    <a href="#" data-tab="basic" class="inline-block p-4 border-b-2 border-primary text-primary">Basic Setup</a>
+                  </li>
+                  <li class="mr-2">
+                    <a href="#" data-tab="schema" class="inline-block p-4 border-b-2 border-transparent hover:border-gray-300">Data Schema</a>
+                  </li>
+                  <li>
+                    <a href="#" data-tab="deployment" class="inline-block p-4 border-b-2 border-transparent hover:border-gray-300">Deployment</a>
+                  </li>
+                </ul>
+              </div>
+              
+              <!-- Basic Setup Tab -->
+              <div id="basic-tab" class="tab-pane active">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <!-- API Key Form -->
+                  <div class="bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
+                    <div class="p-6">
+                      <div class="flex items-center gap-2 text-xl font-medium">
+                        <i class="fa fa-key text-primary"></i>
+                        API Authentication
+                      </div>
+                      <p class="text-sm text-muted-foreground">
+                        Create and manage the API key for secure data transmission
+                      </p>
+                    </div>
+                    <div class="px-6 pb-6">
+                      <div class="space-y-4">
+                        <div class="space-y-2">
+                          <div class="relative">
+                            <input
+                              type="text"
+                              id="api-key-input"
+                              placeholder="Enter API Key"
+                              class="pr-10 w-full border border-gray-300 px-4 py-2 rounded"
+                            />
+                            <button 
+                              id="copy-api-key-btn"
+                              class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-primary transition-colors"
+                              title="Copy to clipboard"
+                            >
+                              <i class="fa fa-copy"></i>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="px-6 pb-6 flex justify-between">
+                      <button
+                        id="generate-api-key-btn"
+                        class="border border-gray-300 bg-white px-4 py-2 rounded hover-lift"
+                      >
+                        Generate New Key
+                      </button>
+                      <button id="save-api-key-btn" class="bg-primary text-white px-4 py-2 rounded hover-lift">Save Key</button>
+                    </div>
+                  </div>
+                  
+                  <!-- Dropbox Link Form -->
+                  <div class="bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
+                    <div class="p-6">
+                      <div class="flex items-center gap-2 text-xl font-medium">
+                        <i class="fa fa-cloud text-primary"></i>
+                        Dropbox Configuration
+                      </div>
+                      <p class="text-sm text-muted-foreground">
+                        Configure where your daily CSV exports will be stored
+                      </p>
+                    </div>
+                    <div class="px-6 pb-6">
+                      <div class="space-y-4">
+                        <div class="space-y-2">
+                          <input
+                            type="text"
+                            id="dropbox-link-input"
+                            placeholder="https://www.dropbox.com/scl/fo/your-shared-folder"
+                            class="w-full border border-gray-300 px-4 py-2 rounded"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div class="px-6 pb-6 flex justify-end">
+                      <button id="save-dropbox-link-btn" class="bg-primary text-white px-4 py-2 rounded hover-lift">
+                        <i class="fa fa-check mr-2"></i>
+                        Save Link
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Schema Tab -->
+              <div id="schema-tab" class="tab-pane">
+                <div class="bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
+                  <div class="p-6">
+                    <div class="flex items-center gap-2 text-xl font-medium">
+                      <i class="fa fa-file-code text-primary"></i>
+                      Data Schema Editor
+                    </div>
+                    <p class="text-sm text-muted-foreground">
+                      Define the expected data structure for incoming API requests
+                    </p>
+                  </div>
+                  <div class="px-6 pb-6">
+                    <div class="space-y-6">
+                      <div class="space-y-3">
+                        <h3 class="text-sm font-medium">Add New Field</h3>
+                        <div class="flex flex-wrap gap-2 items-end">
+                          <div class="grow-[2] min-w-[150px]">
+                            <label class="text-xs text-muted-foreground">Field Name</label>
+                            <input
+                              type="text"
+                              id="new-field-name"
+                              placeholder="e.g. temperature"
+                              class="w-full border border-gray-300 px-4 py-2 rounded"
+                            />
+                          </div>
+                          <div class="grow min-w-[120px]">
+                            <label class="text-xs text-muted-foreground">Data Type</label>
+                            <select id="new-field-type" class="w-full border border-gray-300 px-4 py-2 rounded">
+                              <option value="string">String</option>
+                              <option value="number">Number</option>
+                              <option value="boolean">Boolean</option>
+                              <option value="object">Object</option>
+                            </select>
+                          </div>
+                          <div class="flex items-center gap-2 h-10">
+                            <label class="text-xs flex items-center gap-2 cursor-pointer">
+                              <input 
+                                type="checkbox" 
+                                id="new-field-required"
+                                class="rounded"
+                              />
+                              <span>Required</span>
+                            </label>
+                            <button 
+                              id="add-field-btn"
+                              class="bg-primary text-white px-2 py-1 rounded ml-2"
+                            >
+                              <i class="fa fa-plus"></i>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div class="space-y-3">
+                        <h3 class="text-sm font-medium">Current Schema</h3>
+                        <div id="fields-list" class="space-y-2">
+                          <!-- Fields will be populated by JavaScript -->
+                          <p class="text-sm text-muted-foreground">No fields defined yet. Add your first field above.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="px-6 pb-6 flex justify-between">
+                    <div id="schema-stats" class="text-xs text-muted-foreground">
+                      0 fields defined, 0 required
+                    </div>
+                    <button id="save-schema-btn" class="bg-primary text-white px-4 py-2 rounded hover-lift">
+                      <i class="fa fa-save mr-2"></i>
+                      Save Schema
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Deployment Tab -->
+              <div id="deployment-tab" class="tab-pane">
+                <!-- Deployment guide content will be loaded from PHP -->
+                <div id="deployment-guide-container">
+                  Loading deployment guide...
+                </div>
+              </div>
+            </section>
+            
+            <!-- Manage & Test Section -->
+            <section class="space-y-6">
+              <h2 class="text-xl font-medium mb-4">Manage & Test</h2>
+              
+              <!-- Control Panel -->
+              <div class="bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
+                <div class="p-6">
+                  <h2 class="text-xl font-medium">Control Panel</h2>
+                  <p class="text-sm text-muted-foreground">
+                    Test API functionality and trigger operations
+                  </p>
+                </div>
+                <div class="px-6 pb-6">
+                  <div class="space-y-6">
+                    <div class="space-y-3">
+                      <h3 class="text-sm font-medium">Test Data Submission</h3>
+                      <div class="flex flex-col gap-3">
+                        <div class="flex flex-col gap-2">
+                          <label for="source-select" class="text-sm text-muted-foreground">
+                            Select Source for Test Data
+                          </label>
+                          <select id="source-select" class="w-full border border-gray-300 px-4 py-2 rounded">
+                            <option value="" disabled selected>Select a source</option>
+                            <!-- Sources will be populated by JavaScript -->
+                          </select>
+                        </div>
+                        
+                        <button 
+                          id="send-test-data-btn" 
+                          class="bg-primary text-white px-4 py-2 rounded hover-lift"
+                          disabled
+                        >
+                          <i class="fa fa-paper-plane mr-2"></i>
+                          Send Test Data
+                        </button>
+                        
+                        <div id="test-result" class="mt-2 text-sm hidden">
+                          <!-- Test results will be populated by JavaScript -->
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div class="space-y-3">
+                      <h3 class="text-sm font-medium">Manual Operations</h3>
+                      <div class="flex flex-wrap gap-2">
+                        <button
+                          id="trigger-export-btn"
+                          class="border border-gray-300 bg-white px-4 py-2 rounded hover-lift"
+                        >
+                          <i class="fa fa-clock mr-2"></i>
+                          Trigger CSV Export Now
+                        </button>
+                        
+                        <button
+                          id="clear-data-btn"
+                          class="border border-gray-300 bg-white px-4 py-2 rounded hover-lift"
+                        >
+                          <i class="fa fa-database mr-2"></i>
+                          Clear All Data
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Data Table -->
+              <div class="bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
+                <div class="p-6">
+                  <div class="flex items-center justify-between">
+                    <h2 class="text-xl font-medium">Received Data</h2>
+                    <div class="flex gap-2">
+                      <button 
+                        id="clear-table-btn" 
+                        class="border border-gray-300 bg-white px-4 py-2 rounded hover-lift"
+                      >
+                        <i class="fa fa-trash mr-1"></i>
+                        Clear
+                      </button>
+                      <button 
+                        id="export-csv-btn"
+                        class="bg-primary text-white px-4 py-2 rounded hover-lift"
+                        disabled
+                      >
+                        <i class="fa fa-download mr-1"></i>
+                        Export CSV
+                      </button>
+                    </div>
+                  </div>
+                  <p class="text-sm text-muted-foreground">
+                    View and manage data received from your API
+                  </p>
+                  
+                  <div id="data-error" class="hidden mt-2 p-4 bg-red-100 text-red-700 rounded-md">
+                    <i class="fa fa-triangle-exclamation"></i>
+                    <span id="data-error-message"></span>
+                  </div>
+                  
+                  <div class="flex flex-col gap-2 sm:flex-row mt-4">
+                    <div class="relative flex-1">
+                      <i class="fa fa-search absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground"></i>
+                      <input
+                        id="data-search"
+                        placeholder="Search data..."
+                        class="pl-8 w-full border border-gray-300 px-4 py-2 rounded"
+                      />
+                    </div>
+                    <div class="w-full sm:w-48">
+                      <select id="data-source-filter" class="w-full border border-gray-300 px-4 py-2 rounded">
+                        <option value="all">All Sources</option>
+                        <!-- Sources will be populated by JavaScript -->
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="rounded-md border mx-6 mb-6">
+                  <div class="relative overflow-auto max-h-[400px]">
+                    <table class="w-full">
+                      <thead id="data-table-header" class="sticky top-0 bg-muted/50">
+                        <tr>
+                          <!-- Headers will be populated by JavaScript -->
+                          <th class="p-3 text-left">Loading...</th>
+                        </tr>
+                      </thead>
+                      <tbody id="data-table-body">
+                        <!-- Data will be populated by JavaScript -->
+                        <tr>
+                          <td class="h-24 text-center">Loading data...</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                
+                <div class="px-6 pb-3 text-sm text-muted-foreground" id="data-table-stats">
+                  Showing 0 of 0 entries
+                </div>
+              </div>
+            </section>
+            
+            <!-- Documentation Section -->
+            <section class="space-y-6 pb-10">
+              <h2 class="text-xl font-medium mb-4">Documentation</h2>
+              
+              <!-- API Instructions -->
+              <div class="bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
+                <div class="p-6">
+                  <div class="flex items-center gap-2 text-xl font-medium">
+                    <i class="fa fa-file-code text-primary"></i>
+                    API Integration Guide
+                  </div>
+                  <p class="text-sm text-muted-foreground">
+                    Instructions for integrating with your data consolidation API
+                  </p>
+                </div>
+                <div class="px-6 pb-6">
+                  <div class="space-y-6">
+                    <div class="space-y-2">
+                      <h3 class="text-sm font-medium">Endpoint and Authentication</h3>
+                      <p class="text-sm text-muted-foreground">
+                        Send your data to the following endpoint using your API key for authentication:
+                      </p>
+                      <div class="flex items-center justify-between bg-muted/50 p-3 rounded-md">
+                        <code id="api-endpoint" class="text-xs sm:text-sm break-all"></code>
+                        <button 
+                          id="copy-endpoint-btn" 
+                          class="bg-transparent hover:bg-muted/70 h-8 px-2 rounded"
+                        >
+                          <i class="fa fa-copy"></i>
+                        </button>
+                      </div>
+                      <p class="text-xs text-muted-foreground mt-2">
+                        <span class="font-medium flex items-center gap-1">
+                          <i class="fa fa-globe"></i> Note:
+                        </span> 
+                        This endpoint will automatically use your domain name. After deployment to SiteGround, this will reflect your actual server address.
+                      </p>
+                    </div>
+                    
+                    <div class="space-y-3">
+                      <h3 class="text-sm font-medium">Request Format</h3>
+                      <div class="mb-2 border-b border-gray-200">
+                        <ul class="flex flex-wrap -mb-px" id="api-example-tabs">
+                          <li class="mr-2">
+                            <a href="#" data-tab="curl" class="inline-block p-4 border-b-2 border-primary text-primary">cURL</a>
+                          </li>
+                          <li class="mr-2">
+                            <a href="#" data-tab="js" class="inline-block p-4 border-b-2 border-transparent hover:border-gray-300">JavaScript</a>
+                          </li>
+                          <li>
+                            <a href="#" data-tab="python" class="inline-block p-4 border-b-2 border-transparent hover:border-gray-300">Python</a>
+                          </li>
+                        </ul>
+                      </div>
+                      
+                      <div id="curl-example" class="example-tab-pane active relative">
+                        <div class="bg-muted/50 p-3 rounded-md overflow-x-auto">
+                          <pre id="curl-code" class="text-xs sm:text-sm whitespace-pre-wrap"></pre>
+                        </div>
+                        <button 
+                          data-copy-target="curl-code"
+                          class="copy-code-btn absolute top-2 right-2 h-8 w-8 p-0 bg-transparent hover:bg-muted/70 rounded"
+                        >
+                          <i class="fa fa-copy"></i>
+                        </button>
+                      </div>
+                      
+                      <div id="js-example" class="example-tab-pane hidden relative">
+                        <div class="bg-muted/50 p-3 rounded-md overflow-x-auto">
+                          <pre id="js-code" class="text-xs sm:text-sm whitespace-pre-wrap"></pre>
+                        </div>
+                        <button 
+                          data-copy-target="js-code"
+                          class="copy-code-btn absolute top-2 right-2 h-8 w-8 p-0 bg-transparent hover:bg-muted/70 rounded"
+                        >
+                          <i class="fa fa-copy"></i>
+                        </button>
+                      </div>
+                      
+                      <div id="python-example" class="example-tab-pane hidden relative">
+                        <div class="bg-muted/50 p-3 rounded-md overflow-x-auto">
+                          <pre id="python-code" class="text-xs sm:text-sm whitespace-pre-wrap"></pre>
+                        </div>
+                        <button 
+                          data-copy-target="python-code"
+                          class="copy-code-btn absolute top-2 right-2 h-8 w-8 p-0 bg-transparent hover:bg-muted/70 rounded"
+                        >
+                          <i class="fa fa-copy"></i>
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div class="space-y-2">
+                      <h3 class="text-sm font-medium">CSV Export Schedule</h3>
+                      <p class="text-sm text-muted-foreground">
+                        All data received throughout the day will be automatically consolidated into a CSV file and exported 
+                        to your configured Dropbox location at midnight UTC. You can also trigger manual exports from the Control Panel.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Toast Notifications -->
+      <div id="toast-container" class="fixed top-4 right-4 z-50"></div>
+      
+      <!-- Modals -->
+      <!-- Add Source Modal -->
+      <div id="add-source-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+          <div class="p-6 border-b border-gray-200">
+            <h3 class="text-xl font-semibold">Add New Data Source</h3>
+            <p class="text-sm text-gray-500">Create a new data source and generate an API key for it.</p>
+          </div>
+          <div class="p-6">
+            <input
+              id="new-source-name"
+              type="text"
+              class="w-full border border-gray-300 rounded px-4 py-2"
+              placeholder="Enter source name (e.g., Factory Sensors)"
+            />
+          </div>
+          <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+            <button id="cancel-add-source" class="px-4 py-2 border border-gray-300 rounded">Cancel</button>
+            <button id="confirm-add-source" class="px-4 py-2 bg-primary text-white rounded">Add Source</button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Edit Source Modal -->
+      <div id="edit-source-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+          <div class="p-6 border-b border-gray-200">
+            <h3 class="text-xl font-semibold">Edit Source</h3>
+            <p class="text-sm text-gray-500">Update the source name or manage its API key.</p>
+          </div>
+          <div class="p-6">
+            <input
+              id="edit-source-name"
+              type="text"
+              class="w-full border border-gray-300 rounded px-4 py-2"
+              placeholder="Enter new source name"
+            />
+            <input id="edit-source-id" type="hidden" />
+          </div>
+          <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+            <button id="cancel-edit-source" class="px-4 py-2 border border-gray-300 rounded">Cancel</button>
+            <button id="confirm-edit-source" class="px-4 py-2 bg-primary text-white rounded">Save Changes</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Main JavaScript -->
+    <script src="/app.js"></script>
   </body>
 </html>
