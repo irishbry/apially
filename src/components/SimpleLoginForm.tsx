@@ -26,6 +26,7 @@ const SimpleLoginForm: React.FC = () => {
     setIsLoggingIn(true);
     
     try {
+      // Make a direct fetch call to the login endpoint
       const response = await fetch('/api/login', {
         method: 'POST',
         headers: {
@@ -35,20 +36,19 @@ const SimpleLoginForm: React.FC = () => {
       });
       
       const data = await response.json();
+      console.log("Login response:", data);
       
       if (response.ok && data.success) {
         // Set auth in local storage
         localStorage.setItem('csv-api-auth', 'true');
         
-        // Dispatch auth change event
-        window.dispatchEvent(new Event('auth-change'));
-        
+        // Display success message
         toast({
           title: "Login Successful",
           description: "You have been logged in successfully.",
         });
         
-        // Force reload to ensure the app fully refreshes with new auth state
+        // Wait a brief moment then reload the page to refresh with new auth
         setTimeout(() => {
           window.location.reload();
         }, 1000);
