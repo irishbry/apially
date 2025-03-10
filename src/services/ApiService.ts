@@ -1,3 +1,4 @@
+
 import { toast } from "@/components/ui/use-toast";
 
 // Type for incoming data
@@ -44,14 +45,16 @@ class ApiService {
     // Initialize with demo data
     this.generateDemoData();
     
-    // Initialize with demo sources
-    this.loadSources();
+    // Check if user is authenticated
+    this.checkAuthentication();
+    
+    // Only load sources if authenticated
+    if (this.isAuthenticated) {
+      this.loadSources();
+    }
     
     // Load saved API key
     this.loadApiKey();
-    
-    // Check if user is authenticated
-    this.checkAuthentication();
     
     // Simulate scheduled daily export
     this.scheduleExport();
@@ -66,6 +69,14 @@ class ApiService {
         pressure: 'number'
       }
     };
+
+    // Listen for auth changes
+    window.addEventListener('auth-change', () => {
+      this.checkAuthentication();
+      if (this.isAuthenticated) {
+        this.loadSources();
+      }
+    });
   }
 
   // Singleton pattern
@@ -194,6 +205,8 @@ class ApiService {
       ];
       this.saveSources();
     }
+    // Notify subscribers of sources
+    this.notifySourceSubscribers();
   }
 
   // Save sources to localStorage
@@ -203,11 +216,19 @@ class ApiService {
 
   // Get all sources
   public getSources(): Source[] {
+    // Only return sources if authenticated
+    if (!this.isAuthenticated) {
+      return [];
+    }
     return [...this.sources];
   }
 
   // Add a new source
   public addSource(name: string): Source {
+    if (!this.isAuthenticated) {
+      throw new Error("Authentication required");
+    }
+    
     const id = `source-${Date.now()}`;
     const apiKey = this.generateApiKey();
     
@@ -229,6 +250,10 @@ class ApiService {
 
   // Update a source name
   public updateSourceName(id: string, name: string): boolean {
+    if (!this.isAuthenticated) {
+      throw new Error("Authentication required");
+    }
+    
     const sourceIndex = this.sources.findIndex(s => s.id === id);
     if (sourceIndex === -1) return false;
     
@@ -241,6 +266,10 @@ class ApiService {
 
   // Toggle source active state
   public toggleSourceActive(id: string): boolean {
+    if (!this.isAuthenticated) {
+      throw new Error("Authentication required");
+    }
+    
     const sourceIndex = this.sources.findIndex(s => s.id === id);
     if (sourceIndex === -1) return false;
     
@@ -253,6 +282,10 @@ class ApiService {
 
   // Generate a new API key for a source
   public regenerateApiKey(id: string): string | null {
+    if (!this.isAuthenticated) {
+      throw new Error("Authentication required");
+    }
+    
     const sourceIndex = this.sources.findIndex(s => s.id === id);
     if (sourceIndex === -1) return null;
     
@@ -266,6 +299,10 @@ class ApiService {
 
   // Delete a source
   public deleteSource(id: string): boolean {
+    if (!this.isAuthenticated) {
+      throw new Error("Authentication required");
+    }
+    
     const initialLength = this.sources.length;
     this.sources = this.sources.filter(s => s.id !== id);
     
@@ -438,6 +475,10 @@ class ApiService {
 
   // Clear all data
   public clearData(): void {
+    if (!this.isAuthenticated) {
+      throw new Error("Authentication required");
+    }
+    
     this.data = [];
     
     // Reset data counts for all sources
@@ -455,6 +496,10 @@ class ApiService {
 
   // Export data to CSV (simulated)
   public exportToCsv(): void {
+    if (!this.isAuthenticated) {
+      throw new Error("Authentication required");
+    }
+    
     toast({
       title: "CSV Export Initiated",
       description: "Your data is being exported to CSV and will be available in your Dropbox shortly.",
@@ -474,7 +519,9 @@ class ApiService {
     // This is just for demo purposes
     setInterval(() => {
       console.log("Daily export triggered");
-      this.exportToCsv();
+      if (this.isAuthenticated) {
+        this.exportToCsv();
+      }
     }, 86400000); // 24 hours
   }
 

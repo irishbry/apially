@@ -5,7 +5,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, Filter, Search, Trash2 } from "lucide-react";
+import { AlertTriangle, Download, Filter, Search, Trash2 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import ApiService, { DataEntry, Source } from "@/services/ApiService";
 import { downloadCSV } from "@/utils/csvUtils";
 
@@ -16,26 +17,33 @@ const DataTable: React.FC = () => {
   const [selectedSource, setSelectedSource] = useState<string>('all');
   const [visibleData, setVisibleData] = useState<DataEntry[]>([]);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Get initial data
-    setData(ApiService.getData());
-    setSources(ApiService.getSources());
-    
-    // Subscribe to data changes
-    const unsubscribeData = ApiService.subscribe(newData => {
-      setData([...newData]);
-    });
-    
-    // Subscribe to source changes
-    const unsubscribeSources = ApiService.subscribeToSources(newSources => {
-      setSources([...newSources]);
-    });
-    
-    return () => {
-      unsubscribeData();
-      unsubscribeSources();
-    };
+    try {
+      // Get initial data
+      setData(ApiService.getData());
+      setSources(ApiService.getSources());
+      setError(null);
+      
+      // Subscribe to data changes
+      const unsubscribeData = ApiService.subscribe(newData => {
+        setData([...newData]);
+      });
+      
+      // Subscribe to source changes
+      const unsubscribeSources = ApiService.subscribeToSources(newSources => {
+        setSources([...newSources]);
+      });
+      
+      return () => {
+        unsubscribeData();
+        unsubscribeSources();
+      };
+    } catch (err) {
+      console.error('Error loading data:', err);
+      setError('Error loading data. Please ensure you are logged in.');
+    }
   }, []);
   
   useEffect(() => {
@@ -63,16 +71,25 @@ const DataTable: React.FC = () => {
   }, [data, searchTerm, selectedSource]);
 
   const handleExportCSV = () => {
-    setIsDownloading(true);
-    setTimeout(() => {
-      // Export only filtered data
-      downloadCSV(visibleData);
+    try {
+      setIsDownloading(true);
+      setTimeout(() => {
+        // Export only filtered data
+        downloadCSV(visibleData);
+        setIsDownloading(false);
+      }, 500);
+    } catch (err) {
+      setError('Error exporting data. Please ensure you are logged in.');
       setIsDownloading(false);
-    }, 500);
+    }
   };
 
   const handleClearData = () => {
-    ApiService.clearData();
+    try {
+      ApiService.clearData();
+    } catch (err) {
+      setError('Error clearing data. Please ensure you are logged in.');
+    }
   };
 
   // Get source name from ID
@@ -149,6 +166,14 @@ const DataTable: React.FC = () => {
         <CardDescription>
           View and manage data received from your API
         </CardDescription>
+        {error && (
+          <Alert variant="destructive" className="mt-2">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              {error}
+            </AlertDescription>
+          </Alert>
+        )}
         <div className="flex flex-col gap-2 sm:flex-row mt-2">
           <div className="relative flex-1">
             <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -203,7 +228,7 @@ const DataTable: React.FC = () => {
                 ) : (
                   <TableRow>
                     <TableCell colSpan={columns.length} className="h-24 text-center">
-                      No data available
+                      {error ? 'Authentication required to view data' : 'No data available'}
                     </TableCell>
                   </TableRow>
                 )}

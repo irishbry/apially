@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Edit, KeyRound, Plus, Power, RefreshCw, Trash2 } from "lucide-react";
+import { AlertTriangle, Copy, Edit, KeyRound, Plus, Power, RefreshCw, Trash2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import ApiService, { Source } from "@/services/ApiService";
 
 const SourcesManager: React.FC = () => {
@@ -17,18 +18,26 @@ const SourcesManager: React.FC = () => {
   const [editName, setEditName] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
-    // Get initial sources
-    setSources(ApiService.getSources());
-    
-    // Subscribe to source changes
-    const unsubscribe = ApiService.subscribeToSources(newSources => {
-      setSources([...newSources]);
-    });
-    
-    return () => unsubscribe();
+    try {
+      // Get initial sources
+      setSources(ApiService.getSources());
+      setError(null);
+      
+      // Subscribe to source changes
+      const unsubscribe = ApiService.subscribeToSources(newSources => {
+        setSources([...newSources]);
+        setError(null);
+      });
+      
+      return () => unsubscribe();
+    } catch (err) {
+      console.error('Error loading sources:', err);
+      setError('Error loading sources. Please ensure you are logged in.');
+    }
   }, []);
 
   const addSource = () => {
@@ -41,14 +50,22 @@ const SourcesManager: React.FC = () => {
       return;
     }
     
-    ApiService.addSource(newSourceName);
-    setNewSourceName('');
-    setIsDialogOpen(false);
-    
-    toast({
-      title: "Source Added",
-      description: `Source "${newSourceName}" has been added successfully.`,
-    });
+    try {
+      ApiService.addSource(newSourceName);
+      setNewSourceName('');
+      setIsDialogOpen(false);
+      
+      toast({
+        title: "Source Added",
+        description: `Source "${newSourceName}" has been added successfully.`,
+      });
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "Failed to add source. Please ensure you are logged in.",
+        variant: "destructive",
+      });
+    }
   };
 
   const startEditSource = (source: Source) => {
@@ -67,43 +84,75 @@ const SourcesManager: React.FC = () => {
       return;
     }
     
-    ApiService.updateSourceName(editingSource.id, editName);
-    setEditingSource(null);
-    setIsEditDialogOpen(false);
-    
-    toast({
-      title: "Source Updated",
-      description: `Source name has been updated successfully.`,
-    });
+    try {
+      ApiService.updateSourceName(editingSource.id, editName);
+      setEditingSource(null);
+      setIsEditDialogOpen(false);
+      
+      toast({
+        title: "Source Updated",
+        description: `Source name has been updated successfully.`,
+      });
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "Failed to update source. Please ensure you are logged in.",
+        variant: "destructive",
+      });
+    }
   };
 
   const toggleSourceActive = (id: string, name: string, currentState: boolean) => {
-    const success = ApiService.toggleSourceActive(id);
-    if (success) {
+    try {
+      const success = ApiService.toggleSourceActive(id);
+      if (success) {
+        toast({
+          title: currentState ? "Source Deactivated" : "Source Activated",
+          description: `Source "${name}" has been ${currentState ? "deactivated" : "activated"} successfully.`,
+        });
+      }
+    } catch (err) {
       toast({
-        title: currentState ? "Source Deactivated" : "Source Activated",
-        description: `Source "${name}" has been ${currentState ? "deactivated" : "activated"} successfully.`,
+        title: "Error",
+        description: "Failed to toggle source state. Please ensure you are logged in.",
+        variant: "destructive",
       });
     }
   };
 
   const regenerateApiKey = (id: string, name: string) => {
-    const newKey = ApiService.regenerateApiKey(id);
-    if (newKey) {
+    try {
+      const newKey = ApiService.regenerateApiKey(id);
+      if (newKey) {
+        toast({
+          title: "API Key Regenerated",
+          description: `A new API key has been generated for source "${name}".`,
+        });
+      }
+    } catch (err) {
       toast({
-        title: "API Key Regenerated",
-        description: `A new API key has been generated for source "${name}".`,
+        title: "Error",
+        description: "Failed to regenerate API key. Please ensure you are logged in.",
+        variant: "destructive",
       });
     }
   };
 
   const deleteSource = (id: string, name: string) => {
     if (window.confirm(`Are you sure you want to delete source "${name}"? All associated data will also be deleted.`)) {
-      const success = ApiService.deleteSource(id);
-      if (success) {
+      try {
+        const success = ApiService.deleteSource(id);
+        if (success) {
+          toast({
+            title: "Source Deleted",
+            description: `Source "${name}" has been deleted successfully.`,
+          });
+        }
+      } catch (err) {
         toast({
-          title: "Source Deleted",
-          description: `Source "${name}" has been deleted successfully.`,
+          title: "Error",
+          description: "Failed to delete source. Please ensure you are logged in.",
+          variant: "destructive",
         });
       }
     }
@@ -165,6 +214,14 @@ const SourcesManager: React.FC = () => {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {error && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              {error}
+            </AlertDescription>
+          </Alert>
+        )}
         <div className="rounded-md border">
           <Table>
             <TableHeader>
@@ -258,7 +315,7 @@ const SourcesManager: React.FC = () => {
               ) : (
                 <TableRow>
                   <TableCell colSpan={7} className="h-24 text-center">
-                    No sources available
+                    {error ? 'Authentication required to view sources' : 'No sources available'}
                   </TableCell>
                 </TableRow>
               )}
