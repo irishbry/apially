@@ -106,13 +106,14 @@ function handleDataEndpoint() {
 
 // Helper function to validate API key against sources
 function validateApiKey($apiKey) {
-    // In a production app, this would check against a database of sources
-    // For this implementation, we'll check against sources stored in files
+    // In a production system, this would check against a secure database
     $sourcesDir = dirname(__DIR__) . '/data/sources';
     if (!file_exists($sourcesDir)) {
         return false;
     }
     
+    // Production implementation should use prepared statements if using SQL
+    // For file-based storage, we implement proper validation and security
     $files = glob($sourcesDir . '/*.json');
     foreach ($files as $file) {
         $source = json_decode(file_get_contents($file), true);
@@ -164,6 +165,9 @@ function validateDataAgainstSchema($data) {
             }
         }
     }
+    
+    // Additional business validation rules can be added here
+    // For example: range validation, format validation, etc.
     
     return [
         'valid' => $valid,
@@ -217,6 +221,15 @@ function addMetadata($data, $sourceId) {
     $data['clientIp'] = anonymizeIp($_SERVER['REMOTE_ADDR']);
     $data['userAgent'] = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
     
+    // Add additional business metadata
+    $data['processingVersion'] = '1.0.0';
+    $data['dataHash'] = hash('sha256', json_encode($data));
+    
+    // Add location data if available
+    if (isset($_SERVER['GEOIP_COUNTRY_CODE'])) {
+        $data['geoCountry'] = $_SERVER['GEOIP_COUNTRY_CODE'];
+    }
+    
     return $data;
 }
 
@@ -255,6 +268,29 @@ function updateSourceStats($sourceId) {
         $source = json_decode(file_get_contents($sourceFile), true);
         $source['dataCount'] = ($source['dataCount'] ?? 0) + 1;
         $source['lastActive'] = date('Y-m-d\TH:i:s\Z');
+        
+        // Calculate and update data rate (submissions per hour)
+        $now = time();
+        $lastHour = $now - 3600;
+        
+        if (!isset($source['recentSubmissions'])) {
+            $source['recentSubmissions'] = [];
+        }
+        
+        // Add this submission timestamp
+        $source['recentSubmissions'][] = $now;
+        
+        // Keep only submissions from the last hour
+        $source['recentSubmissions'] = array_filter($source['recentSubmissions'], 
+            function($timestamp) use ($lastHour) {
+                return $timestamp >= $lastHour;
+            }
+        );
+        
+        // Calculate rate (submissions per hour)
+        $source['submissionRate'] = count($source['recentSubmissions']);
+        
+        // Save updated source
         file_put_contents($sourceFile, json_encode($source, JSON_PRETTY_PRINT));
     }
 }
