@@ -51,8 +51,14 @@ const LoginForm: React.FC = () => {
           description: "You have been logged in successfully.",
         });
         
-        // Use React Router for navigation
-        navigate('/');
+        console.log("Login successful, navigating to home...");
+        
+        // Force a small delay to ensure state updates before navigation
+        setTimeout(() => {
+          navigate('/');
+          // Force reload to ensure the app fully refreshes with new auth state
+          window.location.reload();
+        }, 100);
       } else {
         setError(data.message || 'Login failed. Please check your credentials.');
         toast({

@@ -5,7 +5,7 @@
 function handleLoginEndpoint() {
     global $config;
     
-    // Set content type
+    // Set content type and CORS headers
     header('Content-Type: application/json');
     
     // Handle login request
@@ -33,6 +33,7 @@ function handleLoginEndpoint() {
         // Validate credentials
         if ($username === $config['demo_user'] && $password === $config['demo_password']) {
             logApiRequest('login', 'success', "User: $username");
+            http_response_code(200); // Ensure 200 status code for successful login
             echo json_encode([
                 'success' => true,
                 'message' => 'Login successful',
