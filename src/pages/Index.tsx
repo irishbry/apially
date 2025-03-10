@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { Separator } from "@/components/ui/separator";
 import ApiKeyForm from "@/components/ApiKeyForm";
@@ -10,13 +11,13 @@ import Header from "@/components/Header";
 import SchemaEditor from "@/components/SchemaEditor";
 import DeploymentGuide from "@/components/DeploymentGuide";
 import SourcesManager from "@/components/SourcesManager";
-import LoginForm from "@/components/LoginForm";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 import ApiService from "@/services/ApiService";
 import { useToast } from "@/components/ui/use-toast";
 import { useNavigate } from "react-router-dom";
+import SimpleLoginForm from "@/components/SimpleLoginForm";
 
 const Index = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -53,17 +54,15 @@ const Index = () => {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <div className="w-full max-w-md mx-auto z-[9999] my-10">
-          <LoginForm />
-        </div>
+      <div className="flex min-h-screen items-center justify-center">
+        <SimpleLoginForm />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-background/95">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-5">
         <div className="absolute -top-40 -right-40 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
         <div className="absolute top-[20%] -left-40 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
         <div className="absolute -bottom-40 right-[20%] w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
