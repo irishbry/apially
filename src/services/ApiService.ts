@@ -1,4 +1,3 @@
-
 import { toast } from "@/components/ui/use-toast";
 
 // Type for incoming data
@@ -45,12 +44,15 @@ class ApiService {
     // Initialize with demo data
     this.generateDemoData();
     
-    // Check if user is authenticated
+    // Check if user is authenticated from local storage
     this.checkAuthentication();
     
     // Only load sources if authenticated
     if (this.isAuthenticated) {
+      console.log("User is authenticated on init, loading sources...");
       this.loadSources();
+    } else {
+      console.log("User is not authenticated on init, sources will not be loaded");
     }
     
     // Load saved API key
@@ -72,8 +74,10 @@ class ApiService {
 
     // Listen for auth changes
     window.addEventListener('auth-change', () => {
+      console.log("Auth change event detected");
       this.checkAuthentication();
       if (this.isAuthenticated) {
+        console.log("Loading sources after authentication change");
         this.loadSources();
       }
     });
@@ -113,6 +117,7 @@ class ApiService {
   // Check if user is authenticated
   private checkAuthentication(): void {
     const authStatus = localStorage.getItem('csv-api-auth');
+    console.log("Checking auth status:", authStatus);
     this.isAuthenticated = authStatus === 'true';
   }
 
@@ -126,6 +131,7 @@ class ApiService {
       
       // Dispatch auth change event
       window.dispatchEvent(new Event('auth-change'));
+      console.log("Login successful, auth state updated");
       
       return true;
     }
@@ -137,13 +143,18 @@ class ApiService {
     this.isAuthenticated = false;
     localStorage.removeItem('csv-api-auth');
     
+    // Clear sources on logout for security
+    this.sources = [];
+    
     // Dispatch auth change event
     window.dispatchEvent(new Event('auth-change'));
+    console.log("Logout successful, auth state updated");
   }
 
   // Check if user is authenticated
   public isUserAuthenticated(): boolean {
-    return this.isAuthenticated;
+    const authStatus = localStorage.getItem('csv-api-auth') === 'true';
+    return authStatus;
   }
 
   // Generate some demo data
@@ -169,9 +180,18 @@ class ApiService {
 
   // Load saved sources or create demo sources
   private loadSources() {
+    if (!this.isAuthenticated) {
+      console.log("Cannot load sources: Not authenticated");
+      this.sources = [];
+      this.notifySourceSubscribers();
+      return;
+    }
+    
+    console.log("Loading sources for authenticated user");
     const savedSources = localStorage.getItem('csv-api-sources');
     if (savedSources) {
       this.sources = JSON.parse(savedSources);
+      console.log("Loaded saved sources:", this.sources.length);
     } else {
       // Create demo sources
       this.sources = [
@@ -204,6 +224,7 @@ class ApiService {
         }
       ];
       this.saveSources();
+      console.log("Created demo sources");
     }
     // Notify subscribers of sources
     this.notifySourceSubscribers();
@@ -218,6 +239,7 @@ class ApiService {
   public getSources(): Source[] {
     // Only return sources if authenticated
     if (!this.isAuthenticated) {
+      console.log("Cannot get sources: Not authenticated");
       return [];
     }
     return [...this.sources];

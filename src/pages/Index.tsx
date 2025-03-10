@@ -57,13 +57,16 @@ const Index = () => {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-background to-background/95 flex items-center justify-center p-4">
-        <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-50">
+      <div className="min-h-screen bg-gradient-to-b from-background to-background/95 flex items-center justify-center p-4 overflow-auto">
+        {/* Reduced opacity and blur for background decorations */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-20">
           <div className="absolute -top-40 -right-40 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
           <div className="absolute top-[20%] -left-40 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
           <div className="absolute -bottom-40 right-[20%] w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
         </div>
-        <LoginForm />
+        <div className="w-full max-w-md mx-auto relative z-30 my-10">
+          <LoginForm />
+        </div>
       </div>
     );
   }

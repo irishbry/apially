@@ -20,24 +20,52 @@ const SourcesManager: React.FC = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    try {
-      // Get initial sources
-      setSources(ApiService.getSources());
-      setError(null);
-      
-      // Subscribe to source changes
-      const unsubscribe = ApiService.subscribeToSources(newSources => {
-        setSources([...newSources]);
+    // Check authentication first
+    const authStatus = ApiService.isUserAuthenticated();
+    setIsAuthenticated(authStatus);
+
+    if (authStatus) {
+      try {
+        // Get initial sources only if authenticated
+        setSources(ApiService.getSources());
         setError(null);
-      });
-      
-      return () => unsubscribe();
-    } catch (err) {
-      console.error('Error loading sources:', err);
-      setError('Error loading sources. Please ensure you are logged in.');
+        
+        // Subscribe to source changes
+        const unsubscribe = ApiService.subscribeToSources(newSources => {
+          setSources([...newSources]);
+          setError(null);
+        });
+        
+        return () => unsubscribe();
+      } catch (err) {
+        console.error('Error loading sources:', err);
+        setError('Error loading sources. Please ensure you are logged in.');
+      }
     }
+
+    // Listen for auth changes
+    const handleAuthChange = () => {
+      const newAuthStatus = ApiService.isUserAuthenticated();
+      setIsAuthenticated(newAuthStatus);
+      
+      if (newAuthStatus) {
+        try {
+          setSources(ApiService.getSources());
+          setError(null);
+        } catch (err) {
+          console.error('Error loading sources after auth change:', err);
+          setError('Error loading sources. Please try refreshing the page.');
+        }
+      }
+    };
+    
+    window.addEventListener('auth-change', handleAuthChange);
+    return () => {
+      window.removeEventListener('auth-change', handleAuthChange);
+    };
   }, []);
 
   const addSource = () => {
@@ -214,7 +242,7 @@ const SourcesManager: React.FC = () => {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {error && (
+        {error && isAuthenticated && (
           <Alert variant="destructive" className="mb-4">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
@@ -315,7 +343,9 @@ const SourcesManager: React.FC = () => {
               ) : (
                 <TableRow>
                   <TableCell colSpan={7} className="h-24 text-center">
-                    {error ? 'Authentication required to view sources' : 'No sources available'}
+                    {!isAuthenticated 
+                      ? 'Authentication required to view sources' 
+                      : 'No sources available'}
                   </TableCell>
                 </TableRow>
               )}

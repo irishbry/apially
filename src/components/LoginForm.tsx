@@ -61,7 +61,7 @@ const LoginForm: React.FC = () => {
           navigate('/');
           // Reload the page to ensure the app fully refreshes with new auth state
           window.location.reload();
-        }, 500); // Increased delay to ensure everything updates
+        }, 1000); // Further increased delay to ensure everything updates
       } else {
         setError(data.message || 'Login failed. Please check your credentials.');
         toast({
@@ -84,7 +84,7 @@ const LoginForm: React.FC = () => {
   };
 
   return (
-    <Card className="w-full max-w-md mx-auto shadow-lg relative z-10">
+    <Card className="w-full max-w-md mx-auto shadow-lg relative z-20">
       <CardHeader className="space-y-1">
         <CardTitle className="text-2xl font-bold text-center">Login</CardTitle>
         <CardDescription className="text-center">
@@ -131,9 +131,9 @@ const LoginForm: React.FC = () => {
           </div>
         </div>
       </CardContent>
-      <CardFooter className="flex flex-col space-y-4">
+      <CardFooter className="flex flex-col space-y-4 pb-6">
         <Button 
-          className="w-full relative z-20" 
+          className="w-full relative z-20 h-12 text-lg" 
           onClick={handleLogin}
           disabled={isLoggingIn}
         >
