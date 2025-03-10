@@ -1,22 +1,21 @@
 
 <?php
-// Enable error reporting for troubleshooting
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+// Production configuration settings
+error_reporting(0);  // Disable error reporting in production
+ini_set('display_errors', 0);  // Don't display errors to users
 
-// Simple configuration file for Data Consolidation API
-
+// Database configuration would go here if needed
 $config = [
-    // Allowed origins for CORS
-    'allowed_origins' => ['*'], // Replace with your frontend domain in production
+    // Allowed origins for CORS - update this with your production domain
+    'allowed_origins' => ['https://yourdomain.com'], 
     
     // Path to data storage directory
     'storage_path' => __DIR__ . '/data',
     
-    // API key (change this in production)
+    // API key for production (change this to a secure value)
     'api_key' => 'your-secure-api-key-here',
     
-    // Demo credentials (remove in production)
+    // Production credentials (change these)
     'demo_user' => 'admin',
     'demo_password' => 'password'
 ];
@@ -35,22 +34,28 @@ function logApiRequest($endpoint, $status, $message = '') {
     file_put_contents($logFile, $logEntry, FILE_APPEND);
 }
 
-// Set CORS headers for all requests
+// Set CORS headers for production
 function setCorsHeaders() {
-    // Allow requests from any origin for development
-    header('Access-Control-Allow-Origin: *');
-    header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type, X-API-Key, Authorization');
-    header('Access-Control-Max-Age: 86400'); // 24 hours
+    global $config;
+    $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
     
-    // Handle preflight OPTIONS requests
+    // Only allow specified origins
+    if (in_array($origin, $config['allowed_origins'])) {
+        header("Access-Control-Allow-Origin: $origin");
+        header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+        header('Access-Control-Allow-Headers: Content-Type, X-API-Key, Authorization');
+        header('Access-Control-Max-Age: 86400'); // 24 hours cache
+    }
+    
+    // Handle preflight requests
     if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
         http_response_code(200);
         exit(0);
     }
 }
 
-// Extract json request value
+// Secure way to extract JSON request values
 function getJsonRequestValue($data, $key, $default = null) {
     return isset($data[$key]) ? $data[$key] : $default;
 }
+

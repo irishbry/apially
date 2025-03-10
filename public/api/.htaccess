@@ -12,14 +12,40 @@ RewriteCond %{REQUEST_FILENAME} !-d
 # Rewrite all other URLs to index.php
 RewriteRule ^(.*)$ index.php [QSA,L]
 
-# Add CORS headers
+# Security headers
 <IfModule mod_headers.c>
+    # Prevent clickjacking
+    Header set X-Frame-Options "SAMEORIGIN"
+    
+    # XSS protection
+    Header set X-XSS-Protection "1; mode=block"
+    
+    # Content type protection
+    Header set X-Content-Type-Options "nosniff"
+    
+    # CORS headers (make sure to update the domain)
     Header set Access-Control-Allow-Origin "*"
     Header set Access-Control-Allow-Methods "GET, POST, OPTIONS"
     Header set Access-Control-Allow-Headers "Content-Type, X-API-Key"
 </IfModule>
 
+# Protect sensitive files
+<FilesMatch "^\.">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
 # Protect data directory
 <IfModule mod_rewrite.c>
     RewriteRule ^data/ - [F,L]
 </IfModule>
+
+# Disable directory listing
+Options -Indexes
+
+# PHP configuration
+php_flag display_errors off
+php_value error_reporting 0
+php_flag log_errors on
+php_value error_log "error_log.txt"
+
