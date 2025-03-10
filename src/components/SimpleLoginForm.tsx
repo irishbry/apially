@@ -42,16 +42,17 @@ const SimpleLoginForm: React.FC = () => {
         // Set auth in local storage
         localStorage.setItem('csv-api-auth', 'true');
         
+        // Dispatch auth change event
+        window.dispatchEvent(new Event('auth-change'));
+        
         // Display success message
         toast({
           title: "Login Successful",
           description: "You have been logged in successfully.",
         });
         
-        // Wait a brief moment then reload the page to refresh with new auth
-        setTimeout(() => {
-          window.location.reload();
-        }, 1000);
+        // Reload the page to refresh with new auth
+        window.location.reload();
       } else {
         toast({
           title: "Login Failed",

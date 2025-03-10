@@ -25,20 +25,29 @@ const Index = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const authStatus = ApiService.isUserAuthenticated();
-    console.log("Auth status on page load:", authStatus);
-    setIsAuthenticated(authStatus);
-    
-    const handleAuthChange = () => {
-      const newAuthStatus = ApiService.isUserAuthenticated();
-      console.log("Auth status changed to:", newAuthStatus);
-      setIsAuthenticated(newAuthStatus);
+    // Check auth status on component mount
+    const checkAuth = () => {
+      const authStatus = ApiService.isUserAuthenticated();
+      console.log("Auth status check:", authStatus);
+      setIsAuthenticated(authStatus);
     };
     
-    window.addEventListener('auth-change', handleAuthChange);
+    // Initial check
+    checkAuth();
+    
+    // Set up event listener for auth changes
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'csv-api-auth') {
+        checkAuth();
+      }
+    });
+    
+    // Custom auth-change event listener for direct updates
+    window.addEventListener('auth-change', checkAuth);
     
     return () => {
-      window.removeEventListener('auth-change', handleAuthChange);
+      window.removeEventListener('storage', checkAuth);
+      window.removeEventListener('auth-change', checkAuth);
     };
   }, []);
 
@@ -54,7 +63,7 @@ const Index = () => {
 
   if (!isAuthenticated) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background to-background/95 p-4">
         <SimpleLoginForm />
       </div>
     );
