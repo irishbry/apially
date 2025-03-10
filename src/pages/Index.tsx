@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { Separator } from "@/components/ui/separator";
 import ApiKeyForm from "@/components/ApiKeyForm";
@@ -25,12 +24,10 @@ const Index = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check authentication status when component mounts
     const authStatus = ApiService.isUserAuthenticated();
     console.log("Auth status on page load:", authStatus);
     setIsAuthenticated(authStatus);
     
-    // Add event listener for auth changes
     const handleAuthChange = () => {
       const newAuthStatus = ApiService.isUserAuthenticated();
       console.log("Auth status changed to:", newAuthStatus);
@@ -51,20 +48,13 @@ const Index = () => {
       title: "Logged Out",
       description: "You have been logged out successfully.",
     });
-    // Redirect to home after logout
     navigate('/');
   };
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-background to-background/95 flex items-center justify-center p-4 overflow-auto">
-        {/* Background decorations with much lower opacity */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-5">
-          <div className="absolute -top-40 -right-40 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
-          <div className="absolute top-[20%] -left-40 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
-          <div className="absolute -bottom-40 right-[20%] w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
-        </div>
-        <div className="w-full max-w-md mx-auto relative z-50 my-10">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="w-full max-w-md mx-auto z-[9999] my-10">
           <LoginForm />
         </div>
       </div>
@@ -73,7 +63,6 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-background/95">
-      {/* Subtle background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
         <div className="absolute top-[20%] -left-40 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
@@ -82,7 +71,6 @@ const Index = () => {
       
       <div className="container max-w-7xl relative">
         <div className="py-10 space-y-8 animate-slide-up">
-          {/* Header with Logout Button */}
           <div className="flex justify-between items-center">
             <Header />
             <Button variant="outline" onClick={handleLogout} className="hover-lift">
@@ -93,17 +81,14 @@ const Index = () => {
           
           <Separator />
           
-          {/* API Usage Stats */}
           <section>
             <ApiUsageStats />
           </section>
           
-          {/* Sources Management */}
           <section>
             <SourcesManager />
           </section>
           
-          {/* Configuration */}
           <section>
             <h2 className="text-xl font-medium mb-4">Configuration</h2>
             <Tabs defaultValue="basic" className="w-full">
@@ -130,14 +115,12 @@ const Index = () => {
             </Tabs>
           </section>
           
-          {/* Control and Data View */}
           <section className="space-y-6">
             <h2 className="text-xl font-medium mb-4">Manage & Test</h2>
             <ControlPanel />
             <DataTable />
           </section>
           
-          {/* API Documentation */}
           <section className="space-y-6 pb-10">
             <h2 className="text-xl font-medium mb-4">Documentation</h2>
             <ApiInstructions />
