@@ -5,17 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Lock, User } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import ApiService from "@/services/ApiService";
 import { useNavigate } from "react-router-dom";
 
 const LoginForm: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [error, setError] = useState('');
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
       toast({
         title: "Error",
@@ -26,28 +26,52 @@ const LoginForm: React.FC = () => {
     }
     
     setIsLoggingIn(true);
+    setError('');
     
-    // Simulate a slight delay for better UX
-    setTimeout(() => {
-      const success = ApiService.login(username, password);
+    try {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password }),
+      });
       
-      if (success) {
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        // Set auth in local storage
+        localStorage.setItem('csv-api-auth', 'true');
+        
+        // Dispatch auth change event
+        window.dispatchEvent(new Event('auth-change'));
+        
         toast({
           title: "Login Successful",
           description: "You have been logged in successfully.",
         });
-        // Use React Router for navigation instead of page reload
+        
+        // Use React Router for navigation
         navigate('/');
       } else {
+        setError(data.message || 'Login failed. Please check your credentials.');
         toast({
           title: "Login Failed",
-          description: "Invalid username or password. Please try again.",
+          description: data.message || "Invalid username or password. Please try again.",
           variant: "destructive",
         });
       }
-      
+    } catch (err) {
+      console.error('Login error:', err);
+      setError('Error connecting to the server. Please try again later.');
+      toast({
+        title: "Connection Error",
+        description: "Could not connect to the authentication server. Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
       setIsLoggingIn(false);
-    }, 800);
+    }
   };
 
   return (
@@ -59,6 +83,11 @@ const LoginForm: React.FC = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {error && (
+          <div className="bg-destructive/15 text-destructive text-sm p-3 rounded-md">
+            {error}
+          </div>
+        )}
         <div className="space-y-2">
           <div className="relative">
             <span className="absolute left-3 top-3 text-gray-400">
