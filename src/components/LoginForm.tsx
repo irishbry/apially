@@ -29,6 +29,8 @@ const LoginForm: React.FC = () => {
     setError('');
     
     try {
+      console.log("Attempting login with:", { username });
+      
       const response = await fetch('/api/login', {
         method: 'POST',
         headers: {
@@ -38,6 +40,7 @@ const LoginForm: React.FC = () => {
       });
       
       const data = await response.json();
+      console.log("Login response:", data);
       
       if (response.ok && data.success) {
         // Set auth in local storage
@@ -56,9 +59,9 @@ const LoginForm: React.FC = () => {
         // Force a small delay to ensure state updates before navigation
         setTimeout(() => {
           navigate('/');
-          // Force reload to ensure the app fully refreshes with new auth state
+          // Reload the page to ensure the app fully refreshes with new auth state
           window.location.reload();
-        }, 100);
+        }, 500); // Increased delay to ensure everything updates
       } else {
         setError(data.message || 'Login failed. Please check your credentials.');
         toast({
@@ -81,7 +84,7 @@ const LoginForm: React.FC = () => {
   };
 
   return (
-    <Card className="w-full max-w-md mx-auto shadow-lg hover:shadow-xl transition-all duration-300">
+    <Card className="w-full max-w-md mx-auto shadow-lg relative z-10">
       <CardHeader className="space-y-1">
         <CardTitle className="text-2xl font-bold text-center">Login</CardTitle>
         <CardDescription className="text-center">
@@ -128,22 +131,22 @@ const LoginForm: React.FC = () => {
           </div>
         </div>
       </CardContent>
-      <CardFooter>
+      <CardFooter className="flex flex-col space-y-4">
         <Button 
-          className="w-full hover-lift" 
+          className="w-full relative z-20" 
           onClick={handleLogin}
           disabled={isLoggingIn}
         >
           {isLoggingIn ? 'Logging in...' : 'Login'}
         </Button>
+        <div className="w-full p-4 bg-muted/30 rounded-md">
+          <p className="text-xs text-center text-muted-foreground">
+            For demo purposes, use: <br />
+            <span className="font-mono">Username: admin</span> <br />
+            <span className="font-mono">Password: password</span>
+          </p>
+        </div>
       </CardFooter>
-      <div className="p-4 bg-muted/30 rounded-b-lg">
-        <p className="text-xs text-center text-muted-foreground">
-          For demo purposes, use: <br />
-          <span className="font-mono">Username: admin</span> <br />
-          <span className="font-mono">Password: password</span>
-        </p>
-      </div>
     </Card>
   );
 };

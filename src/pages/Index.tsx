@@ -27,11 +27,14 @@ const Index = () => {
   useEffect(() => {
     // Check authentication status when component mounts
     const authStatus = ApiService.isUserAuthenticated();
+    console.log("Auth status on page load:", authStatus);
     setIsAuthenticated(authStatus);
     
     // Add event listener for auth changes
     const handleAuthChange = () => {
-      setIsAuthenticated(ApiService.isUserAuthenticated());
+      const newAuthStatus = ApiService.isUserAuthenticated();
+      console.log("Auth status changed to:", newAuthStatus);
+      setIsAuthenticated(newAuthStatus);
     };
     
     window.addEventListener('auth-change', handleAuthChange);
@@ -55,7 +58,7 @@ const Index = () => {
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-background to-background/95 flex items-center justify-center p-4">
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-50">
           <div className="absolute -top-40 -right-40 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
           <div className="absolute top-[20%] -left-40 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
           <div className="absolute -bottom-40 right-[20%] w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
