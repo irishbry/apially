@@ -22,6 +22,9 @@ const AutoInstaller: React.FC = () => {
       
       const apiDir = zip.folder("api");
       const dataDir = apiDir.folder("data");
+      const logsDir = apiDir.folder("logs");
+      const endpointsDir = apiDir.folder("endpoints");
+      const utilsDir = apiDir.folder("utils");
       const assetsDir = zip.folder("assets");
       
       zip.file("install.php", createInstallerPHP());
@@ -315,108 +318,144 @@ function loadSavedSources() {
 }
 `);
 
+      // Add main index.php to api directory
       apiDir.file("index.php", `<?php
 // Main API entry point
-header("Content-Type: application/json");
+require_once 'utils/error_handler.php';
+require_once 'config.php';
+require_once 'utils/api_utils.php';
+require_once 'endpoints/status_endpoint.php';
+require_once 'endpoints/login_endpoint.php';
+require_once 'endpoints/data_endpoint.php';
+require_once 'endpoints/sources_endpoint.php';
+require_once 'endpoints/schema_endpoint.php';
+require_once 'endpoints/api_key_endpoint.php';
+
+// Set content type and CORS headers
+header('Content-Type: application/json');
+setCorsHeaders();
 
 // Check for actual path
-$requestPath = parse_url($_SERVER["REQUEST_URI"], PHP_URL_PATH);
-$basePath = dirname($_SERVER["SCRIPT_NAME"]);
-$endpoint = str_replace($basePath, "", $requestPath);
-$endpoint = trim($endpoint, "/");
-
-// Include configuration
-require_once "config.php";
+$requestPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$basePath = dirname($_SERVER['SCRIPT_NAME']);
+$endpoint = str_replace($basePath, '', $requestPath);
+$endpoint = trim($endpoint, '/');
 
 // Simple routing
-switch ($endpoint) {
-    case "status":
-        echo json_encode([
-            "status" => "ok",
-            "version" => "1.0.0",
-            "timestamp" => date("c")
-        ]);
-        break;
-        
-    case "test":
-        include "test.php";
-        break;
-        
-    case "sources":
-        // GET: List all sources, POST: Add a new source
-        handleSources();
-        break;
-        
-    case "":
-        echo json_encode([
-            "name" => "Data Consolidation API",
-            "version" => "1.0.0",
-            "endpoints" => ["/status", "/test", "/sources"]
-        ]);
-        break;
-        
-    default:
-        header("HTTP/1.1 404 Not Found");
-        echo json_encode(["error" => "Endpoint not found"]);
-}
-
-// Handle sources endpoint
-function handleSources() {
-    global $config;
-    
-    // Check request method
-    $method = $_SERVER["REQUEST_METHOD"];
-    
-    if ($method === "GET") {
-        // List all sources
-        $sourcesFile = $config["storage_path"] . "/sources.json";
-        
-        if (file_exists($sourcesFile)) {
-            $sources = json_decode(file_get_contents($sourcesFile), true) ?: [];
-            echo json_encode(["sources" => $sources]);
-        } else {
-            echo json_encode(["sources" => []]);
-        }
-    } 
-    else if ($method === "POST") {
-        // Add a new source
-        $data = json_decode(file_get_contents("php://input"), true);
-        
-        if (!$data || !isset($data["name"]) || !isset($data["url"])) {
-            header("HTTP/1.1 400 Bad Request");
-            echo json_encode(["error" => "Invalid request data"]);
-            return;
-        }
-        
-        // Get existing sources
-        $sourcesFile = $config["storage_path"] . "/sources.json";
-        $sources = [];
-        
-        if (file_exists($sourcesFile)) {
-            $sources = json_decode(file_get_contents($sourcesFile), true) ?: [];
-        }
-        
-        // Add the new source
-        $sources[] = [
-            "id" => uniqid(),
-            "name" => $data["name"],
-            "url" => $data["url"],
-            "type" => $data["type"] ?? "unknown",
-            "dateAdded" => date("c")
-        ];
-        
-        // Save updated sources
-        file_put_contents($sourcesFile, json_encode($sources, JSON_PRETTY_PRINT));
-        
-        echo json_encode(["success" => true]);
+try {
+    switch ($endpoint) {
+        case 'status':
+            handleStatusEndpoint();
+            break;
+            
+        case 'test':
+            include 'test.php';
+            break;
+            
+        case 'login':
+            handleLoginEndpoint();
+            break;
+            
+        case 'data':
+            handleDataEndpoint();
+            break;
+            
+        case 'sources':
+            handleSourcesEndpoint();
+            break;
+            
+        case 'schema':
+            handleSchemaEndpoint();
+            break;
+            
+        case 'api-key':
+            handleApiKeyEndpoint();
+            break;
+            
+        case '':
+            echo json_encode([
+                'name' => 'Data Consolidation API',
+                'version' => '1.0.0',
+                'endpoints' => ['/status', '/test', '/login', '/data', '/sources', '/schema', '/api-key']
+            ]);
+            break;
+            
+        default:
+            header('HTTP/1.1 404 Not Found');
+            echo json_encode(['error' => 'Endpoint not found']);
+            logApiRequest($endpoint, 'error', 'Endpoint not found');
     }
-    else {
-        header("HTTP/1.1 405 Method Not Allowed");
-        echo json_encode(["error" => "Method not allowed"]);
-    }
+} catch (Exception $e) {
+    // Log the error and return a generic message
+    logApiRequest($endpoint, 'error', $e->getMessage());
+    header('HTTP/1.1 500 Internal Server Error');
+    echo json_encode(['error' => 'An internal server error occurred']);
 }
 `);
 
+      // Add config.php to api directory
+      apiDir.file("config.php", `<?php
+// Production configuration settings
+error_reporting(0);  // Disable error reporting in production
+ini_set('display_errors', 0);  // Don't display errors to users
+
+// Database configuration would go here if needed
+$config = [
+    // Allowed origins for CORS - update this with your production domain
+    'allowed_origins' => ['https://yourdomain.com'], 
+    
+    // Path to data storage directory
+    'storage_path' => __DIR__ . '/data',
+    
+    // API key for production (change this to a secure value)
+    'api_key' => 'your-secure-api-key-here',
+    
+    // Production credentials (change these)
+    'demo_user' => 'admin',
+    'demo_password' => 'password'
+];
+
+// Create storage directory if it doesn't exist
+if (!file_exists($config['storage_path'])) {
+    mkdir($config['storage_path'], 0755, true);
+}
+
+// Helper function to log API requests
+function logApiRequest($endpoint, $status, $message = '') {
+    global $config;
+    $logFile = $config['storage_path'] . '/api_log.txt';
+    $timestamp = date('Y-m-d H:i:s');
+    $logEntry = "[$timestamp] $endpoint - Status: $status" . ($message ? " - $message" : "") . PHP_EOL;
+    file_put_contents($logFile, $logEntry, FILE_APPEND);
+}
+
+// Set CORS headers for production
+function setCorsHeaders() {
+    global $config;
+    $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+    
+    // Only allow specified origins
+    if (in_array($origin, $config['allowed_origins'])) {
+        header("Access-Control-Allow-Origin: $origin");
+        header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+        header('Access-Control-Allow-Headers: Content-Type, X-API-Key, Authorization');
+        header('Access-Control-Max-Age: 86400'); // 24 hours cache
+    }
+    
+    // Handle preflight requests
+    if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+        http_response_code(200);
+        exit(0);
+    }
+}
+
+// Secure way to extract JSON request values
+function getJsonRequestValue($data, $key, $default = null) {
+    return isset($data[$key]) ? $data[$key] : $default;
+}
+`);
+
+      // Add .htaccess file
       apiDir.file(".htaccess", `# Enable rewrite engine
 RewriteEngine On
 
@@ -430,38 +469,45 @@ RewriteCond %{REQUEST_FILENAME} !-d
 # Rewrite all other URLs to index.php
 RewriteRule ^(.*)$ index.php [QSA,L]
 
-# Add CORS headers
+# Security headers
 <IfModule mod_headers.c>
+    # Prevent clickjacking
+    Header set X-Frame-Options "SAMEORIGIN"
+    
+    # XSS protection
+    Header set X-XSS-Protection "1; mode=block"
+    
+    # Content type protection
+    Header set X-Content-Type-Options "nosniff"
+    
+    # CORS headers (make sure to update the domain)
     Header set Access-Control-Allow-Origin "*"
     Header set Access-Control-Allow-Methods "GET, POST, OPTIONS"
     Header set Access-Control-Allow-Headers "Content-Type, X-API-Key"
 </IfModule>
 
+# Protect sensitive files
+<FilesMatch "^\.">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
 # Protect data directory
 <IfModule mod_rewrite.c>
     RewriteRule ^data/ - [F,L]
-</IfModule>`);
+</IfModule>
 
-      apiDir.file("config.php", `<?php
-// Configuration file for Data Consolidation API
+# Disable directory listing
+Options -Indexes
 
-$config = [
-    // Allowed origins for CORS
-    "allowed_origins" => ["*"], // Replace with your frontend domain in production
-    
-    // Path to data storage directory
-    "storage_path" => __DIR__ . "/data",
-    
-    // API key (change this in production)
-    "api_key" => "your-secure-api-key-here"
-];
-
-// Create storage directory if it doesn't exist
-if (!file_exists($config["storage_path"])) {
-    mkdir($config["storage_path"], 0755, true);
-}
+# PHP configuration
+php_flag display_errors off
+php_value error_reporting 0
+php_flag log_errors on
+php_value error_log "error_log.txt"
 `);
 
+      // Add test.php
       apiDir.file("test.php", `<?php
 // Simple test script to verify API installation
 header("Content-Type: text/html; charset=utf-8");
@@ -525,7 +571,7 @@ header("Content-Type: text/html; charset=utf-8");
         <h3>File Permissions</h3>
         <?php
         // Check if data directory exists
-        $dataDir = "../data";
+        $dataDir = "./data";
         if (file_exists($dataDir)) {
             if (is_writable($dataDir)) {
                 echo "<p><span class=\"success\">Success!</span> Data directory exists and is writable.</p>";
@@ -538,12 +584,41 @@ header("Content-Type: text/html; charset=utf-8");
             echo "<p>How to fix: Create the data directory with <code>mkdir data</code> and set permissions with <code>chmod 755 data</code>.</p>";
         }
         
+        // Check if logs directory exists
+        $logsDir = "./logs";
+        if (file_exists($logsDir)) {
+            if (is_writable($logsDir)) {
+                echo "<p><span class=\"success\">Success!</span> Logs directory exists and is writable.</p>";
+            } else {
+                echo "<p><span class=\"warning\">Warning</span> Logs directory exists but is not writable.</p>";
+                echo "<p>How to fix: Run <code>chmod 755 logs</code> to set correct permissions.</p>";
+            }
+        } else {
+            echo "<p><span class=\"warning\">Warning</span> Logs directory does not exist.</p>";
+            echo "<p>How to fix: Create the logs directory with <code>mkdir logs</code> and set permissions with <code>chmod 755 logs</code>.</p>";
+        }
+        
         // Check if .htaccess file exists
-        if (file_exists("../.htaccess")) {
+        if (file_exists("./.htaccess")) {
             echo "<p><span class=\"success\">Success!</span> .htaccess file exists.</p>";
         } else {
             echo "<p><span class=\"error\">Error</span> .htaccess file does not exist.</p>";
             echo "<p>How to fix: Make sure you have uploaded the .htaccess file to your server.</p>";
+        }
+        ?>
+    </div>
+    
+    <div class="test">
+        <h3>PHP Modules</h3>
+        <?php
+        $requiredModules = ['json', 'curl'];
+        foreach ($requiredModules as $module) {
+            if (extension_loaded($module)) {
+                echo "<p><span class=\"success\">Success!</span> {$module} module is loaded.</p>";
+            } else {
+                echo "<p><span class=\"error\">Error</span> {$module} module is not loaded.</p>";
+                echo "<p>How to fix: Enable the {$module} extension in your PHP configuration.</p>";
+            }
         }
         ?>
     </div>
@@ -571,7 +646,318 @@ header("Content-Type: text/html; charset=utf-8");
 </body>
 </html>`);
 
-      dataDir.file(".gitkeep", "");
+      // Add utils directory files
+      utilsDir.file("error_handler.php", `<?php
+// Production error handler
+function productionErrorHandler($errno, $errstr, $errfile, $errline) {
+    // Log error details to file
+    $errorLog = dirname(__DIR__) . '/logs/error.log';
+    $timestamp = date('Y-m-d H:i:s');
+    $errorMessage = "[$timestamp] Error ($errno): $errstr in $errfile on line $errline\n";
+    error_log($errorMessage, 3, $errorLog);
+    
+    // Return a generic error message to the user
+    header('Content-Type: application/json');
+    http_response_code(500);
+    echo json_encode(['error' => 'An internal server error occurred']);
+    exit;
+}
+
+// Set the error handler
+set_error_handler('productionErrorHandler');
+
+// Handle uncaught exceptions
+set_exception_handler(function($exception) {
+    productionErrorHandler(
+        E_ERROR,
+        $exception->getMessage(),
+        $exception->getFile(),
+        $exception->getLine()
+    );
+});
+
+// Ensure all errors are caught
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+ini_set('error_log', dirname(__DIR__) . '/logs/error.log');
+`);
+
+      utilsDir.file("api_utils.php", `<?php
+// General API utility functions
+
+/**
+ * Safely gets a value from a JSON request body
+ */
+function getJsonRequestValue($data, $key, $default = null) {
+    return isset($data[$key]) ? $data[$key] : $default;
+}
+
+/**
+ * Sends a JSON response
+ */
+function sendJsonResponse($data, $statusCode = 200) {
+    http_response_code($statusCode);
+    echo json_encode($data);
+    exit;
+}
+
+/**
+ * Sends an error response
+ */
+function sendErrorResponse($message, $statusCode = 400) {
+    http_response_code($statusCode);
+    echo json_encode(['error' => $message]);
+    exit;
+}
+
+/**
+ * Loads a JSON file or returns a default value if not found
+ */
+function loadJsonFile($filePath, $default = []) {
+    if (file_exists($filePath)) {
+        $data = json_decode(file_get_contents($filePath), true);
+        return ($data !== null) ? $data : $default;
+    }
+    return $default;
+}
+
+/**
+ * Saves data to a JSON file
+ */
+function saveJsonFile($filePath, $data) {
+    return file_put_contents($filePath, json_encode($data, JSON_PRETTY_PRINT));
+}
+`);
+
+      // Add endpoint files
+      endpointsDir.file("status_endpoint.php", `<?php
+// Status endpoint handler
+
+function handleStatusEndpoint() {
+    echo json_encode([
+        'status' => 'ok',
+        'version' => '1.0.0',
+        'timestamp' => date('c')
+    ]);
+    logApiRequest('status', 'success');
+}
+`);
+
+      endpointsDir.file("login_endpoint.php", `<?php
+// Login endpoint handler
+
+function handleLoginEndpoint() {
+    global $config;
+    
+    // Set content type and CORS headers
+    header('Content-Type: application/json');
+    
+    // Handle login request
+    try {
+        $input = file_get_contents('php://input');
+        $data = json_decode($input, true);
+        
+        // Log the received data for debugging
+        logApiRequest('login', 'attempt', "Login attempt: " . json_encode($data));
+        
+        // Check if JSON was valid
+        if ($data === null && json_last_error() !== JSON_ERROR_NONE) {
+            logApiRequest('login', 'error', "Invalid JSON: " . json_last_error_msg());
+            http_response_code(400);
+            echo json_encode([
+                'success' => false,
+                'message' => 'Invalid request format'
+            ]);
+            return;
+        }
+        
+        $username = isset($data['username']) ? $data['username'] : '';
+        $password = isset($data['password']) ? $data['password'] : '';
+        
+        // Validate credentials
+        if ($username === $config['demo_user'] && $password === $config['demo_password']) {
+            logApiRequest('login', 'success', "User: $username");
+            http_response_code(200); // Ensure 200 status code for successful login
+            echo json_encode([
+                'success' => true,
+                'message' => 'Login successful',
+                'user' => [
+                    'username' => $username,
+                    'role' => 'admin'
+                ]
+            ]);
+        } else {
+            logApiRequest('login', 'failed', "Invalid credentials attempt: $username");
+            http_response_code(401);
+            echo json_encode([
+                'success' => false,
+                'message' => 'Invalid username or password'
+            ]);
+        }
+    } catch (Exception $e) {
+        logApiRequest('login', 'error', "Exception: " . $e->getMessage());
+        http_response_code(500);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Server error occurred'
+        ]);
+    }
+}
+`);
+
+      endpointsDir.file("data_endpoint.php", `<?php
+// Data endpoint handler
+
+function handleDataEndpoint() {
+    global $config;
+    
+    // Handle data submission
+    $apiKey = $_SERVER['HTTP_X_API_KEY'] ?? '';
+    if (empty($apiKey)) {
+        http_response_code(401);
+        echo json_encode(['error' => 'API key is required']);
+        logApiRequest('data', 'error', 'Missing API key');
+        return;
+    }
+    
+    // For demo, we'll accept any data with a valid structure
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Invalid JSON format']);
+        logApiRequest('data', 'error', 'Invalid JSON: ' . json_last_error_msg());
+        return;
+    }
+    
+    // Store the data (in a real app, you would do more processing here)
+    $dataFile = $config['storage_path'] . '/data_' . date('Ymd_His') . '.json';
+    file_put_contents($dataFile, json_encode($data, JSON_PRETTY_PRINT));
+    
+    logApiRequest('data', 'success', 'Data stored in ' . basename($dataFile));
+    
+    echo json_encode([
+        'success' => true,
+        'message' => 'Data received successfully',
+        'data' => $data
+    ]);
+}
+`);
+
+      endpointsDir.file("sources_endpoint.php", `<?php
+// Sources endpoint handler
+
+function handleSourcesEndpoint() {
+    global $config;
+    
+    // Handle sources data
+    $method = $_SERVER['REQUEST_METHOD'];
+    $sourcesFile = $config['storage_path'] . '/sources.json';
+    
+    // Get sources
+    if ($method === 'GET') {
+        $sources = loadJsonFile($sourcesFile, []);
+        echo json_encode(['sources' => $sources]);
+        logApiRequest('sources', 'success', 'Retrieved sources list');
+    } 
+    // Add or update source
+    else if ($method === 'POST') {
+        $data = json_decode(file_get_contents('php://input'), true);
+        
+        if (!$data || !isset($data['name']) || !isset($data['url'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid request data']);
+            logApiRequest('sources', 'error', 'Invalid source data');
+            return;
+        }
+        
+        // Get existing sources
+        $sources = loadJsonFile($sourcesFile, []);
+        
+        // Add the new source with unique ID
+        $sources[] = [
+            'id' => uniqid(),
+            'name' => $data['name'],
+            'url' => $data['url'],
+            'type' => $data['type'] ?? 'csv',
+            'dateAdded' => date('c')
+        ];
+        
+        // Save updated sources
+        saveJsonFile($sourcesFile, $sources);
+        
+        logApiRequest('sources', 'success', 'Added new source: ' . $data['name']);
+        echo json_encode(['success' => true]);
+    }
+}
+`);
+
+      endpointsDir.file("schema_endpoint.php", `<?php
+// Schema endpoint handler
+
+function handleSchemaEndpoint() {
+    global $config;
+    
+    // Handle schema management
+    $method = $_SERVER['REQUEST_METHOD'];
+    $schemaFile = $config['storage_path'] . '/schema.json';
+    
+    // Get schema
+    if ($method === 'GET') {
+        $schema = loadJsonFile($schemaFile, ['fields' => [], 'mappings' => []]);
+        echo json_encode(['schema' => $schema]);
+        logApiRequest('schema', 'success', 'Retrieved schema');
+    } 
+    // Update schema
+    else if ($method === 'POST') {
+        $data = json_decode(file_get_contents('php://input'), true);
+        
+        if (!$data) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid schema data']);
+            logApiRequest('schema', 'error', 'Invalid schema data');
+            return;
+        }
+        
+        // Save schema
+        saveJsonFile($schemaFile, $data);
+        
+        logApiRequest('schema', 'success', 'Updated schema');
+        echo json_encode(['success' => true]);
+    }
+}
+`);
+
+      endpointsDir.file("api_key_endpoint.php", `<?php
+// API Key endpoint handler
+
+function handleApiKeyEndpoint() {
+    // Update API key (would require authentication in production)
+    $method = $_SERVER['REQUEST_METHOD'];
+    
+    if ($method === 'POST') {
+        $data = json_decode(file_get_contents('php://input'), true);
+        
+        if (!$data || !isset($data['apiKey'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid API key data']);
+            return;
+        }
+        
+        // In a real app, you would update the API key in a secure way
+        // For demo purposes, we'll just return success
+        echo json_encode([
+            'success' => true,
+            'message' => 'API key updated successfully'
+        ]);
+        logApiRequest('api-key', 'success', 'API key updated');
+    }
+}
+`);
+
+      // Add placeholder files in data and logs directories
+      dataDir.file(".gitkeep", "# Data directory - this is where application data is stored");
+      logsDir.file(".gitkeep", "# Logs directory - application logs will be stored here");
       
       const zipContent = await zip.generateAsync({ type: "blob" });
       
@@ -658,8 +1044,11 @@ header("Content-Type: text/html; charset=utf-8");
                 <li><strong>install.php</strong> - Main installer script</li>
                 <li><strong>index.html</strong> - Frontend interface</li>
                 <li><strong>assets/</strong> - CSS and JavaScript files</li>
-                <li><strong>api/</strong> - Backend PHP API</li>
+                <li><strong>api/</strong> - Backend PHP API with all endpoints</li>
+                <li><strong>api/endpoints/</strong> - API endpoint handlers</li>
+                <li><strong>api/utils/</strong> - Utility functions and error handling</li>
                 <li><strong>api/data/</strong> - Data storage directory</li>
+                <li><strong>api/logs/</strong> - Error and request logs</li>
                 <li><strong>README.md</strong> - Installation instructions</li>
               </ul>
             </div>
