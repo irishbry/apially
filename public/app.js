@@ -1,807 +1,735 @@
 
-// Main JavaScript for CSV Consolidator Portal
+// Main JavaScript file for the application
+document.addEventListener('DOMContentLoaded', function() {
+  // Only initialize if user is authenticated (dashboard is showing)
+  if (document.querySelector('#api-usage-stats-section')) {
+    initializeApp();
+  }
+});
 
 // Global state
-const state = {
-  isAuthenticated: false,
-  apiKey: '',
-  dropboxLink: '',
+const appState = {
+  apiKey: localStorage.getItem('csv-api-auth-key') || '',
+  dropboxLink: localStorage.getItem('csv-api-dropbox-link') || '',
   schema: {
     requiredFields: [],
     fieldTypes: {}
   },
   sources: [],
   data: [],
-  visibleData: [],
-  domainName: window.location.origin || 'https://your-domain.com',
-  selectedSource: '',
-  selectedSourceFilter: 'all',
-  searchTerm: '',
-  activeConfigTab: 'basic',
-  activeApiExampleTab: 'curl',
-  isSendingTestData: false,
-  isDownloadingCSV: false
+  selectedSource: 'all'
 };
 
-// DOM Elements
-let elements = {};
-
-// Initialize the application
-document.addEventListener('DOMContentLoaded', function() {
-  initializeElements();
-  initializeEventListeners();
-  checkAuthentication();
-});
-
-// Initialize element references
-function initializeElements() {
-  // Login elements
-  elements.loginContainer = document.getElementById('login-container');
-  elements.loginForm = document.getElementById('login-form');
-  elements.username = document.getElementById('username');
-  elements.password = document.getElementById('password');
+// Main initialization function
+function initializeApp() {
+  // Initialize all components
+  initializeTabs();
+  initializeApiKeyForm();
+  initializeDropboxLinkForm();
+  initializeToasts();
+  initializeSourcesManager();
+  initializeSchemaEditor();
+  initializeControlPanel();
+  initializeDataTable();
+  initializeApiInstructions();
   
-  // Dashboard elements
-  elements.dashboardContainer = document.getElementById('dashboard-container');
-  elements.logoutButton = document.getElementById('logout-button');
-  
-  // API Key elements
-  elements.apiKeyInput = document.getElementById('api-key-input');
-  elements.generateApiKeyBtn = document.getElementById('generate-api-key-btn');
-  elements.saveApiKeyBtn = document.getElementById('save-api-key-btn');
-  elements.copyApiKeyBtn = document.getElementById('copy-api-key-btn');
-  
-  // Dropbox elements
-  elements.dropboxLinkInput = document.getElementById('dropbox-link-input');
-  elements.saveDropboxLinkBtn = document.getElementById('save-dropbox-link-btn');
-  
-  // Schema elements
-  elements.newFieldName = document.getElementById('new-field-name');
-  elements.newFieldType = document.getElementById('new-field-type');
-  elements.newFieldRequired = document.getElementById('new-field-required');
-  elements.addFieldBtn = document.getElementById('add-field-btn');
-  elements.fieldsList = document.getElementById('fields-list');
-  elements.schemaStats = document.getElementById('schema-stats');
-  elements.saveSchemaBtn = document.getElementById('save-schema-btn');
-  
-  // Sources elements
-  elements.sourcesTableBody = document.getElementById('sources-table-body');
-  elements.addSourceBtn = document.getElementById('add-source-btn');
-  elements.sourcesError = document.getElementById('sources-error');
-  elements.sourcesErrorMessage = document.getElementById('sources-error-message');
-  
-  // Source modals
-  elements.addSourceModal = document.getElementById('add-source-modal');
-  elements.newSourceName = document.getElementById('new-source-name');
-  elements.cancelAddSource = document.getElementById('cancel-add-source');
-  elements.confirmAddSource = document.getElementById('confirm-add-source');
-  
-  elements.editSourceModal = document.getElementById('edit-source-modal');
-  elements.editSourceName = document.getElementById('edit-source-name');
-  elements.editSourceId = document.getElementById('edit-source-id');
-  elements.cancelEditSource = document.getElementById('cancel-edit-source');
-  elements.confirmEditSource = document.getElementById('confirm-edit-source');
-  
-  // Test data elements
-  elements.sourceSelect = document.getElementById('source-select');
-  elements.sendTestDataBtn = document.getElementById('send-test-data-btn');
-  elements.testResult = document.getElementById('test-result');
-  elements.triggerExportBtn = document.getElementById('trigger-export-btn');
-  elements.clearDataBtn = document.getElementById('clear-data-btn');
-  
-  // Data table elements
-  elements.dataSearch = document.getElementById('data-search');
-  elements.dataSourceFilter = document.getElementById('data-source-filter');
-  elements.dataTableHeader = document.getElementById('data-table-header');
-  elements.dataTableBody = document.getElementById('data-table-body');
-  elements.dataTableStats = document.getElementById('data-table-stats');
-  elements.clearTableBtn = document.getElementById('clear-table-btn');
-  elements.exportCsvBtn = document.getElementById('export-csv-btn');
-  elements.dataError = document.getElementById('data-error');
-  elements.dataErrorMessage = document.getElementById('data-error-message');
-  
-  // API documentation elements
-  elements.apiEndpoint = document.getElementById('api-endpoint');
-  elements.copyEndpointBtn = document.getElementById('copy-endpoint-btn');
-  elements.curlCode = document.getElementById('curl-code');
-  elements.jsCode = document.getElementById('js-code');
-  elements.pythonCode = document.getElementById('python-code');
-  
-  // Stats elements
-  elements.totalDataPoints = document.getElementById('total-data-points');
-  elements.activeSources = document.getElementById('active-sources');
-  elements.uniqueSources = document.getElementById('unique-sources');
-  elements.lastReceived = document.getElementById('last-received');
-  elements.dataTypesCount = document.getElementById('data-types-count');
-  
-  // Tab elements
-  elements.configTabs = document.getElementById('config-tabs').querySelectorAll('[data-tab]');
-  elements.apiExampleTabs = document.getElementById('api-example-tabs').querySelectorAll('[data-tab]');
-  
-  // Tab panes
-  elements.basicTab = document.getElementById('basic-tab');
-  elements.schemaTab = document.getElementById('schema-tab');
-  elements.deploymentTab = document.getElementById('deployment-tab');
-  
-  elements.curlExample = document.getElementById('curl-example');
-  elements.jsExample = document.getElementById('js-example');
-  elements.pythonExample = document.getElementById('python-example');
-  
-  // Toast container
-  elements.toastContainer = document.getElementById('toast-container');
-  
-  // Deployment guide
-  elements.deploymentGuideContainer = document.getElementById('deployment-guide-container');
-}
-
-// Initialize event listeners
-function initializeEventListeners() {
-  // Login form
-  elements.loginForm.addEventListener('submit', handleLogin);
-  
-  // Logout button
-  elements.logoutButton.addEventListener('click', handleLogout);
-  
-  // API Key
-  elements.generateApiKeyBtn.addEventListener('click', generateApiKey);
-  elements.saveApiKeyBtn.addEventListener('click', saveApiKey);
-  elements.copyApiKeyBtn.addEventListener('click', () => copyToClipboard(elements.apiKeyInput.value, 'API key copied!'));
-  
-  // Dropbox
-  elements.saveDropboxLinkBtn.addEventListener('click', saveDropboxLink);
-  
-  // Schema
-  elements.addFieldBtn.addEventListener('click', addField);
-  elements.saveSchemaBtn.addEventListener('click', saveSchema);
-  
-  // Sources
-  elements.addSourceBtn.addEventListener('click', () => showModal(elements.addSourceModal));
-  elements.cancelAddSource.addEventListener('click', () => hideModal(elements.addSourceModal));
-  elements.confirmAddSource.addEventListener('click', addSource);
-  
-  elements.cancelEditSource.addEventListener('click', () => hideModal(elements.editSourceModal));
-  elements.confirmEditSource.addEventListener('click', updateSource);
-  
-  // Test data
-  elements.sourceSelect.addEventListener('change', updateTestDataButton);
-  elements.sendTestDataBtn.addEventListener('click', sendTestData);
-  elements.triggerExportBtn.addEventListener('click', triggerExport);
-  elements.clearDataBtn.addEventListener('click', clearAllData);
-  
-  // Data table
-  elements.dataSearch.addEventListener('input', filterData);
-  elements.dataSourceFilter.addEventListener('change', filterData);
-  elements.clearTableBtn.addEventListener('click', clearAllData);
-  elements.exportCsvBtn.addEventListener('click', exportCsv);
-  
-  // API documentation
-  elements.copyEndpointBtn.addEventListener('click', () => copyToClipboard(elements.apiEndpoint.textContent, 'API endpoint copied!'));
-  document.querySelectorAll('.copy-code-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-      const targetId = this.getAttribute('data-copy-target');
-      copyToClipboard(document.getElementById(targetId).textContent, 'Code example copied!');
-    });
-  });
-  
-  // Tabs
-  elements.configTabs.forEach(tab => {
-    tab.addEventListener('click', function(e) {
-      e.preventDefault();
-      switchConfigTab(this.getAttribute('data-tab'));
-    });
-  });
-  
-  elements.apiExampleTabs.forEach(tab => {
-    tab.addEventListener('click', function(e) {
-      e.preventDefault();
-      switchApiExampleTab(this.getAttribute('data-tab'));
-    });
-  });
-  
-  // Load deployment guide
-  loadDeploymentGuide();
-}
-
-// Authentication functions
-function checkAuthentication() {
-  const auth = localStorage.getItem('csv-api-auth');
-  state.isAuthenticated = auth === 'true';
-  
-  if (state.isAuthenticated) {
-    showDashboard();
-    loadInitialData();
-  } else {
-    showLoginForm();
-  }
-}
-
-function handleLogin(e) {
-  e.preventDefault();
-  
-  const username = elements.username.value;
-  const password = elements.password.value;
-  
-  if (!username || !password) {
-    showToast('Please enter both username and password.', 'error');
-    return;
-  }
-  
-  // Disable form
-  toggleLoginForm(true);
-  
-  // Make API request
-  fetch('/api/login', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ username, password }),
-  })
-  .then(response => response.json())
-  .then(data => {
-    console.log("Login response:", data);
-    
-    if (data.success) {
-      // Set auth in local storage
-      localStorage.setItem('csv-api-auth', 'true');
-      
-      showToast('Login successful!', 'success');
-      
-      // Show dashboard and load data
-      showDashboard();
-      loadInitialData();
-    } else {
-      showToast(data.message || 'Invalid username or password. Please try again.', 'error');
-      toggleLoginForm(false);
-    }
-  })
-  .catch(err => {
-    console.error('Login error:', err);
-    showToast('Could not connect to the authentication server. Please try again later.', 'error');
-    toggleLoginForm(false);
-  });
-}
-
-function handleLogout() {
-  // Clear auth from local storage
-  localStorage.removeItem('csv-api-auth');
-  state.isAuthenticated = false;
-  
-  // Reset state
-  resetState();
-  
-  // Show login form
-  showLoginForm();
-  
-  showToast('You have been logged out successfully.', 'success');
-}
-
-function toggleLoginForm(isLoading) {
-  const submitBtn = elements.loginForm.querySelector('button[type="submit"]');
-  
-  if (isLoading) {
-    submitBtn.textContent = 'Logging in...';
-    submitBtn.disabled = true;
-  } else {
-    submitBtn.textContent = 'Login';
-    submitBtn.disabled = false;
-  }
-}
-
-function showLoginForm() {
-  elements.dashboardContainer.classList.add('hidden');
-  elements.loginContainer.classList.remove('hidden');
-}
-
-function showDashboard() {
-  elements.loginContainer.classList.add('hidden');
-  elements.dashboardContainer.classList.remove('hidden');
-}
-
-// Initial data loading
-function loadInitialData() {
-  loadApiKey();
-  loadDropboxLink();
-  loadSchema();
-  loadSources();
+  // Load initial data
   loadData();
-  updateApiDocumentation();
-  updateStats();
+  loadSources();
+  loadSchema();
+  updateApiUsageStats();
 }
 
-// API Key functions
-function loadApiKey() {
-  const apiKey = localStorage.getItem('api-key');
-  if (apiKey) {
-    state.apiKey = apiKey;
-    elements.apiKeyInput.value = apiKey;
-  }
-}
-
-function generateApiKey() {
-  // Generate a random string for the API key
-  const key = Array.from(Array(32), () => Math.floor(Math.random() * 36).toString(36)).join('');
-  elements.apiKeyInput.value = key;
-}
-
-function saveApiKey() {
-  const apiKey = elements.apiKeyInput.value;
+// Initialize tab functionality
+function initializeTabs() {
+  const tabButtons = document.querySelectorAll('.tab-button');
   
-  if (!apiKey.trim()) {
-    showToast('Please enter a valid API key.', 'error');
-    return;
-  }
-  
-  state.apiKey = apiKey;
-  localStorage.setItem('api-key', apiKey);
-  updateApiDocumentation();
-  
-  showToast('API key saved successfully!', 'success');
-}
-
-// Dropbox functions
-function loadDropboxLink() {
-  const dropboxLink = localStorage.getItem('dropbox-link');
-  if (dropboxLink) {
-    state.dropboxLink = dropboxLink;
-    elements.dropboxLinkInput.value = dropboxLink;
-  }
-}
-
-function saveDropboxLink() {
-  const dropboxLink = elements.dropboxLinkInput.value;
-  state.dropboxLink = dropboxLink;
-  localStorage.setItem('dropbox-link', dropboxLink);
-  
-  showToast('Dropbox link saved successfully!', 'success');
-}
-
-// Schema functions
-function loadSchema() {
-  const schema = localStorage.getItem('schema');
-  if (schema) {
-    try {
-      state.schema = JSON.parse(schema);
-      updateSchemaUI();
-    } catch (e) {
-      console.error('Error parsing schema:', e);
-    }
-  }
-}
-
-function updateSchemaUI() {
-  // Update fields list
-  const fields = state.schema.fieldTypes;
-  const requiredFields = state.schema.requiredFields;
-  
-  if (Object.keys(fields).length > 0) {
-    elements.fieldsList.innerHTML = '';
-    
-    Object.entries(fields).forEach(([field, type]) => {
-      const isRequired = requiredFields.includes(field);
+  tabButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      const tabId = button.getAttribute('data-tab');
       
-      const fieldItem = document.createElement('div');
-      fieldItem.className = 'flex items-center justify-between bg-secondary/50 p-2 rounded-md';
-      fieldItem.innerHTML = `
-        <div class="flex items-center gap-2">
-          <input
-            type="checkbox"
-            ${isRequired ? 'checked' : ''}
-            data-field="${field}"
-            class="field-required-checkbox rounded"
-          />
-          <span class="text-sm font-medium">${field}</span>
-        </div>
-        <div class="flex items-center gap-2">
-          <span class="text-xs text-muted-foreground px-2 py-1 bg-secondary rounded">${type}</span>
-          <button 
-            data-field="${field}"
-            class="remove-field-btn h-8 w-8 p-0 text-gray-500 hover:text-red-500"
-          >
-            <i class="fa fa-minus"></i>
-          </button>
-        </div>
-      `;
+      // Remove active class from all buttons and panes
+      document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
       
-      elements.fieldsList.appendChild(fieldItem);
+      // Add active class to clicked button and corresponding pane
+      button.classList.add('active');
+      document.getElementById(`${tabId}-tab`).classList.add('active');
     });
+  });
+}
+
+// API Key Form
+function initializeApiKeyForm() {
+  const apiKeyInput = document.getElementById('api-key-input');
+  const generateButton = document.getElementById('generate-api-key-btn');
+  const saveButton = document.getElementById('save-api-key-btn');
+  const copyButton = document.getElementById('copy-api-key-btn');
+  
+  // Set initial value
+  if (appState.apiKey) {
+    apiKeyInput.value = appState.apiKey;
+  }
+  
+  // Generate new API key
+  generateButton.addEventListener('click', () => {
+    generateButton.innerHTML = '<svg class="animate-spin mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg> Generating...';
+    generateButton.disabled = true;
     
-    // Add event listeners to checkboxes and remove buttons
-    document.querySelectorAll('.field-required-checkbox').forEach(checkbox => {
-      checkbox.addEventListener('change', function() {
-        const field = this.getAttribute('data-field');
-        toggleRequired(field);
-      });
-    });
-    
-    document.querySelectorAll('.remove-field-btn').forEach(btn => {
-      btn.addEventListener('click', function() {
-        const field = this.getAttribute('data-field');
-        removeField(field);
-      });
-    });
-  } else {
-    elements.fieldsList.innerHTML = '<p class="text-sm text-muted-foreground">No fields defined yet. Add your first field above.</p>';
-  }
-  
-  // Update schema stats
-  elements.schemaStats.textContent = `${Object.keys(fields).length} fields defined, ${requiredFields.length} required`;
-  
-  // Update data types count in stats
-  elements.dataTypesCount.textContent = Object.keys(fields).length;
-}
-
-function addField() {
-  const name = elements.newFieldName.value.trim();
-  const type = elements.newFieldType.value;
-  const isRequired = elements.newFieldRequired.checked;
-  
-  if (!name) {
-    showToast('Please enter a field name.', 'error');
-    return;
-  }
-  
-  if (state.schema.fieldTypes[name]) {
-    showToast('This field already exists.', 'error');
-    return;
-  }
-  
-  // Add to field types
-  state.schema.fieldTypes[name] = type;
-  
-  // Add to required fields if checked
-  if (isRequired) {
-    state.schema.requiredFields.push(name);
-  }
-  
-  // Update UI and reset form
-  updateSchemaUI();
-  elements.newFieldName.value = '';
-  elements.newFieldType.value = 'string';
-  elements.newFieldRequired.checked = false;
-  
-  // Show success message
-  showToast(`Field "${name}" added successfully!`, 'success');
-}
-
-function removeField(field) {
-  // Remove from field types
-  delete state.schema.fieldTypes[field];
-  
-  // Remove from required fields if present
-  state.schema.requiredFields = state.schema.requiredFields.filter(f => f !== field);
-  
-  // Update UI
-  updateSchemaUI();
-  
-  // Show success message
-  showToast(`Field "${field}" removed successfully!`, 'success');
-}
-
-function toggleRequired(field) {
-  if (state.schema.requiredFields.includes(field)) {
-    state.schema.requiredFields = state.schema.requiredFields.filter(f => f !== field);
-  } else {
-    state.schema.requiredFields.push(field);
-  }
-  
-  // Update schema stats
-  elements.schemaStats.textContent = `${Object.keys(state.schema.fieldTypes).length} fields defined, ${state.schema.requiredFields.length} required`;
-}
-
-function saveSchema() {
-  localStorage.setItem('schema', JSON.stringify(state.schema));
-  showToast('Schema saved successfully!', 'success');
-}
-
-// Sources functions
-function loadSources() {
-  try {
-    const sources = localStorage.getItem('sources');
-    if (sources) {
-      state.sources = JSON.parse(sources);
-    } else {
-      // Initialize with empty array if not found
-      state.sources = [];
-      localStorage.setItem('sources', JSON.stringify(state.sources));
-    }
-    
-    updateSourcesUI();
-    updateSourcesInSelects();
-    elements.sourcesError.classList.add('hidden');
-  } catch (err) {
-    console.error('Error loading sources:', err);
-    elements.sourcesErrorMessage.textContent = 'Error loading sources data.';
-    elements.sourcesError.classList.remove('hidden');
-  }
-}
-
-function updateSourcesUI() {
-  if (state.sources.length > 0) {
-    elements.sourcesTableBody.innerHTML = '';
-    
-    state.sources.forEach(source => {
-      const row = document.createElement('tr');
-      row.innerHTML = `
-        <td class="p-3 font-medium">${source.name}</td>
-        <td class="p-3">
-          <div class="flex items-center">
-            <code class="bg-muted px-1 py-0.5 rounded text-xs">
-              ${source.apiKey.substring(0, 8)}...
-            </code>
-            <button
-              class="copy-api-key-btn ml-1 text-gray-500 hover:text-primary"
-              data-api-key="${source.apiKey}"
-              title="Copy API key"
-            >
-              <i class="fa fa-copy"></i>
-            </button>
-          </div>
-        </td>
-        <td class="p-3">
-          <span class="px-2 py-1 rounded text-xs ${source.active ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-700'}">
-            ${source.active ? 'Active' : 'Inactive'}
-          </span>
-        </td>
-        <td class="p-3">
-          <span class="px-2 py-1 rounded text-xs bg-gray-200 text-gray-700">
-            ${source.dataCount || 0}
-          </span>
-        </td>
-        <td class="p-3">
-          ${source.lastActive ? formatDate(source.lastActive) : 'Never'}
-        </td>
-        <td class="p-3">
-          ${formatDate(source.createdAt)}
-        </td>
-        <td class="p-3 text-right">
-          <div class="flex items-center justify-end gap-1">
-            <button
-              class="toggle-source-btn p-1 text-gray-500 hover:text-primary"
-              data-source-id="${source.id}"
-              data-active="${source.active}"
-              title="${source.active ? 'Deactivate source' : 'Activate source'}"
-            >
-              <i class="fa fa-power-off ${source.active ? 'text-green-500' : 'text-gray-400'}"></i>
-            </button>
-            <button
-              class="edit-source-btn p-1 text-gray-500 hover:text-primary"
-              data-source-id="${source.id}"
-              data-name="${source.name}"
-              title="Edit source"
-            >
-              <i class="fa fa-edit"></i>
-            </button>
-            <button
-              class="regenerate-api-key-btn p-1 text-gray-500 hover:text-primary"
-              data-source-id="${source.id}"
-              title="Regenerate API key"
-            >
-              <i class="fa fa-key"></i>
-            </button>
-            <button
-              class="delete-source-btn p-1 text-gray-500 hover:text-red-500"
-              data-source-id="${source.id}"
-              data-name="${source.name}"
-              title="Delete source"
-            >
-              <i class="fa fa-trash"></i>
-            </button>
-          </div>
-        </td>
-      `;
+    // Simulate API key generation (random string)
+    setTimeout(() => {
+      const key = Array.from(Array(32), () => Math.floor(Math.random() * 36).toString(36)).join('');
+      apiKeyInput.value = key;
+      appState.apiKey = key;
+      localStorage.setItem('csv-api-auth-key', key);
       
-      elements.sourcesTableBody.appendChild(row);
-    });
-    
-    // Add event listeners to buttons
-    document.querySelectorAll('.copy-api-key-btn').forEach(btn => {
-      btn.addEventListener('click', function() {
-        const apiKey = this.getAttribute('data-api-key');
-        copyToClipboard(apiKey, 'API key copied!');
-      });
-    });
-    
-    document.querySelectorAll('.toggle-source-btn').forEach(btn => {
-      btn.addEventListener('click', function() {
-        const id = this.getAttribute('data-source-id');
-        const active = this.getAttribute('data-active') === 'true';
-        toggleSourceActive(id, !active);
-      });
-    });
-    
-    document.querySelectorAll('.edit-source-btn').forEach(btn => {
-      btn.addEventListener('click', function() {
-        const id = this.getAttribute('data-source-id');
-        const name = this.getAttribute('data-name');
-        showEditSourceModal(id, name);
-      });
-    });
-    
-    document.querySelectorAll('.regenerate-api-key-btn').forEach(btn => {
-      btn.addEventListener('click', function() {
-        const id = this.getAttribute('data-source-id');
-        regenerateApiKey(id);
-      });
-    });
-    
-    document.querySelectorAll('.delete-source-btn').forEach(btn => {
-      btn.addEventListener('click', function() {
-        const id = this.getAttribute('data-source-id');
-        const name = this.getAttribute('data-name');
-        deleteSource(id, name);
-      });
-    });
-  } else {
-    elements.sourcesTableBody.innerHTML = `
-      <tr>
-        <td colspan="7" class="h-24 text-center">
-          No sources available
-        </td>
-      </tr>
-    `;
-  }
-  
-  // Update stats
-  updateStats();
-}
-
-function updateSourcesInSelects() {
-  // Update source select in test data form
-  elements.sourceSelect.innerHTML = '<option value="" disabled selected>Select a source</option>';
-  
-  state.sources.forEach(source => {
-    if (source.active) {
-      const option = document.createElement('option');
-      option.value = source.id;
-      option.textContent = source.name;
-      elements.sourceSelect.appendChild(option);
-    }
+      generateButton.innerHTML = 'Generate New Key';
+      generateButton.disabled = false;
+      showToast('API key generated successfully', 'success');
+    }, 600);
   });
   
-  // Enable/disable send test data button
-  updateTestDataButton();
+  // Save API key
+  saveButton.addEventListener('click', () => {
+    const key = apiKeyInput.value.trim();
+    if (!key) {
+      showToast('Please enter a valid API key', 'error');
+      return;
+    }
+    
+    appState.apiKey = key;
+    localStorage.setItem('csv-api-auth-key', key);
+    showToast('API key saved successfully', 'success');
+    
+    // Update API instructions
+    updateApiInstructions();
+  });
   
-  // Update source filter in data table
-  elements.dataSourceFilter.innerHTML = '<option value="all">All Sources</option>';
+  // Copy to clipboard
+  copyButton.addEventListener('click', () => {
+    if (!apiKeyInput.value) return;
+    
+    navigator.clipboard.writeText(apiKeyInput.value)
+      .then(() => {
+        showToast('API key copied to clipboard', 'success');
+      })
+      .catch(err => {
+        console.error('Could not copy API key: ', err);
+        showToast('Failed to copy API key', 'error');
+      });
+  });
+}
+
+// Dropbox Link Form
+function initializeDropboxLinkForm() {
+  const dropboxLinkInput = document.getElementById('dropbox-link-input');
+  const saveButton = document.getElementById('save-dropbox-link-btn');
   
-  state.sources.forEach(source => {
-    const option = document.createElement('option');
-    option.value = source.id;
-    option.textContent = source.name;
-    elements.dataSourceFilter.appendChild(option);
+  // Set initial value
+  if (appState.dropboxLink) {
+    dropboxLinkInput.value = appState.dropboxLink;
+  }
+  
+  // Save dropbox link
+  saveButton.addEventListener('click', () => {
+    const link = dropboxLinkInput.value.trim();
+    appState.dropboxLink = link;
+    localStorage.setItem('csv-api-dropbox-link', link);
+    showToast('Dropbox link saved successfully', 'success');
+  });
+}
+
+// Toast notification system
+function initializeToasts() {
+  if (!document.getElementById('toast-container')) {
+    const toastContainer = document.createElement('div');
+    toastContainer.id = 'toast-container';
+    document.body.appendChild(toastContainer);
+  }
+}
+
+function showToast(message, type = 'info') {
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type} animate-fade-in`;
+  
+  let icon = '';
+  switch(type) {
+    case 'success':
+      icon = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>';
+      break;
+    case 'error':
+      icon = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>';
+      break;
+    default:
+      icon = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>';
+  }
+  
+  toast.innerHTML = `
+    <div class="flex items-center">
+      ${icon}
+      <span>${message}</span>
+    </div>
+    <button class="toast-close" onclick="this.parentElement.remove();">&times;</button>
+  `;
+  
+  const toastContainer = document.getElementById('toast-container');
+  toastContainer.appendChild(toast);
+  
+  // Auto-remove after 5 seconds
+  setTimeout(() => {
+    if (toast.parentNode) {
+      toast.classList.remove('animate-fade-in');
+      toast.classList.add('animate-fade-out');
+      setTimeout(() => toast.remove(), 300);
+    }
+  }, 5000);
+}
+
+// Sources Manager
+function initializeSourcesManager() {
+  const container = document.getElementById('sources-manager-container');
+  if (!container) return;
+
+  // Initial render
+  renderSourcesManager();
+  
+  // Fetch sources from API
+  fetch('/public/api/sources')
+    .then(response => response.json())
+    .then(data => {
+      if (data.sources) {
+        appState.sources = data.sources;
+        renderSourcesManager();
+        updateSourcesDropdown();
+      }
+    })
+    .catch(error => {
+      console.error('Error fetching sources:', error);
+    });
+}
+
+function renderSourcesManager() {
+  const container = document.getElementById('sources-manager-container');
+  if (!container) return;
+  
+  // Create sources manager HTML
+  const html = `
+    <div class="card shadow-sm hover:shadow-md transition-all duration-300">
+      <div class="card-header">
+        <h2 class="flex items-center gap-2 text-xl font-medium">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary"><path d="M20 11.08V8l-6-6H6a2 2 0 0 0-2 2v16c0 1.1.9 2 2 2h6"></path><path d="M14 3v5h5M18 21v-6M15 18h6"></path></svg>
+          Data Sources
+        </h2>
+        <p class="card-description">
+          Add and manage your data sources
+        </p>
+      </div>
+      <div class="card-content">
+        <div class="flex flex-col gap-4">
+          <div class="flex flex-wrap gap-3">
+            <input type="text" id="source-name-input" placeholder="Source Name" class="input flex-grow" />
+            <input type="text" id="source-url-input" placeholder="URL or Identifier" class="input flex-grow" />
+            <select id="source-type-select" class="select">
+              <option value="csv">CSV</option>
+              <option value="json">JSON</option>
+              <option value="api">API</option>
+            </select>
+            <button id="add-source-btn" class="button primary">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><path d="M12 5v14M5 12h14"></path></svg>
+              Add Source
+            </button>
+          </div>
+          
+          <div id="sources-list" class="mt-4 space-y-2">
+            ${appState.sources.length === 0
+              ? '<div class="text-center p-4 text-muted-foreground">No sources added yet</div>'
+              : appState.sources.map(source => `
+                <div class="bg-secondary/50 p-3 rounded-md flex items-center justify-between">
+                  <div>
+                    <div class="font-medium">${source.name}</div>
+                    <div class="text-sm text-muted-foreground flex items-center gap-2">
+                      <span>${source.url}</span>
+                      <span class="badge ${source.type === 'csv' ? 'bg-blue-100 text-blue-800' : source.type === 'json' ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'}">${source.type}</span>
+                    </div>
+                  </div>
+                  <button class="button icon" data-source-id="${source.id}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                  </button>
+                </div>
+              `).join('')
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  container.innerHTML = html;
+  
+  // Add event listeners
+  const addSourceBtn = document.getElementById('add-source-btn');
+  if (addSourceBtn) {
+    addSourceBtn.addEventListener('click', addSource);
+  }
+  
+  // Add event listeners to delete buttons
+  document.querySelectorAll('#sources-list button[data-source-id]').forEach(button => {
+    button.addEventListener('click', (e) => {
+      const sourceId = e.currentTarget.getAttribute('data-source-id');
+      deleteSource(sourceId);
+    });
   });
 }
 
 function addSource() {
-  const name = elements.newSourceName.value.trim();
+  const nameInput = document.getElementById('source-name-input');
+  const urlInput = document.getElementById('source-url-input');
+  const typeSelect = document.getElementById('source-type-select');
   
-  if (!name) {
-    showToast('Please enter a valid source name.', 'error');
+  const name = nameInput.value.trim();
+  const url = urlInput.value.trim();
+  const type = typeSelect.value;
+  
+  if (!name || !url) {
+    showToast('Please enter both name and URL', 'error');
     return;
   }
   
-  const id = generateId();
-  const apiKey = generateId() + generateId(); // Longer API key
-  
+  // Create new source object
   const newSource = {
-    id,
+    id: 'src_' + Date.now(),
     name,
-    apiKey,
-    active: true,
-    dataCount: 0,
-    createdAt: new Date().toISOString(),
-    lastActive: null
+    url,
+    type,
+    dateAdded: new Date().toISOString(),
+    apiKey: Math.random().toString(36).substring(2, 15) // Generate random API key
   };
   
-  state.sources.push(newSource);
-  localStorage.setItem('sources', JSON.stringify(state.sources));
+  // Add to local state
+  appState.sources.push(newSource);
   
-  hideModal(elements.addSourceModal);
-  elements.newSourceName.value = '';
-  
-  updateSourcesUI();
-  updateSourcesInSelects();
-  
-  showToast(`Source "${name}" has been added successfully.`, 'success');
+  // Send to server
+  fetch('/public/api/sources', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      name,
+      url,
+      type
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      showToast('Source added successfully', 'success');
+      
+      // Clear inputs
+      nameInput.value = '';
+      urlInput.value = '';
+      
+      // Re-render sources
+      renderSourcesManager();
+      updateSourcesDropdown();
+      updateApiUsageStats();
+    }
+  })
+  .catch(error => {
+    console.error('Error adding source:', error);
+    showToast('Failed to add source', 'error');
+  });
 }
 
-function showEditSourceModal(id, name) {
-  elements.editSourceId.value = id;
-  elements.editSourceName.value = name;
-  showModal(elements.editSourceModal);
+function deleteSource(sourceId) {
+  // Remove from local state
+  appState.sources = appState.sources.filter(source => source.id !== sourceId);
+  
+  // Re-render sources
+  renderSourcesManager();
+  updateSourcesDropdown();
+  updateApiUsageStats();
+  
+  showToast('Source deleted successfully', 'success');
 }
 
-function updateSource() {
-  const id = elements.editSourceId.value;
-  const name = elements.editSourceName.value.trim();
+function updateSourcesDropdown() {
+  // Update sources in control panel dropdown
+  const sourceSelect = document.getElementById('source-select');
+  if (sourceSelect) {
+    const html = `
+      <option value="all">All Sources</option>
+      ${appState.sources.map(source => `
+        <option value="${source.id}">${source.name}</option>
+      `).join('')}
+    `;
+    sourceSelect.innerHTML = html;
+  }
+}
+
+// Schema Editor
+function initializeSchemaEditor() {
+  const container = document.getElementById('schema-editor-container');
+  if (!container) return;
+
+  // Render initial schema editor
+  renderSchemaEditor();
   
-  if (!name) {
-    showToast('Please enter a valid source name.', 'error');
+  // Fetch schema from API
+  fetch('/public/api/schema')
+    .then(response => response.json())
+    .then(data => {
+      if (data.schema) {
+        appState.schema = data.schema;
+        renderSchemaEditor();
+        updateApiUsageStats();
+      }
+    })
+    .catch(error => {
+      console.error('Error fetching schema:', error);
+    });
+}
+
+function renderSchemaEditor() {
+  const container = document.getElementById('schema-editor-container');
+  if (!container) return;
+  
+  // Create schema editor HTML
+  const html = `
+    <div class="card shadow-sm hover:shadow-md transition-all duration-300">
+      <div class="card-header">
+        <div class="flex items-center gap-2 text-xl font-medium">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M10 12a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1v-1a1 1 0 0 1 1-1h1z"></path><path d="M14 12a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1a1 1 0 0 1 1-1h1z"></path><path d="M10 17a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1v-1a1 1 0 0 1 1-1h1z"></path><path d="M14 17a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1a1 1 0 0 1 1-1h1z"></path></svg>
+          Data Schema Editor
+        </div>
+        <p class="card-description">
+          Define the expected data structure for incoming API requests
+        </p>
+      </div>
+      <div class="card-content">
+        <div class="space-y-6">
+          <div class="space-y-3">
+            <h3 class="text-sm font-medium">Add New Field</h3>
+            <div class="flex flex-wrap gap-2 items-end">
+              <div class="grow-[2] min-w-[150px]">
+                <label class="text-xs text-muted-foreground">Field Name</label>
+                <input
+                  type="text"
+                  id="new-field-input"
+                  placeholder="e.g. temperature"
+                  class="input"
+                />
+              </div>
+              <div class="grow min-w-[120px]">
+                <label class="text-xs text-muted-foreground">Data Type</label>
+                <select id="new-type-select" class="select">
+                  <option value="string">String</option>
+                  <option value="number">Number</option>
+                  <option value="boolean">Boolean</option>
+                  <option value="object">Object</option>
+                </select>
+              </div>
+              <div class="flex items-center gap-2 h-10">
+                <label class="text-xs flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    id="is-required-checkbox"
+                    class="rounded"
+                  />
+                  <span>Required</span>
+                </label>
+                <button 
+                  id="add-field-btn"
+                  class="button primary ml-2"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"></path></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <div class="space-y-3">
+            <h3 class="text-sm font-medium">Current Schema</h3>
+            <div id="fields-list" class="space-y-2">
+              ${Object.keys(appState.schema.fieldTypes).length === 0
+                ? '<p class="text-sm text-muted-foreground">No fields defined yet. Add your first field above.</p>'
+                : Object.entries(appState.schema.fieldTypes).map(([field, type]) => `
+                  <div class="flex items-center justify-between bg-secondary/50 p-2 rounded-md">
+                    <div class="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        ${appState.schema.requiredFields.includes(field) ? 'checked' : ''}
+                        data-field="${field}"
+                        class="field-required-checkbox rounded"
+                      />
+                      <span class="text-sm font-medium">${field}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs text-muted-foreground px-2 py-1 bg-secondary rounded">${type}</span>
+                      <button 
+                        class="button icon"
+                        data-field="${field}"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path></svg>
+                      </button>
+                    </div>
+                  </div>
+                `).join('')
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card-footer flex justify-between">
+        <div class="text-xs text-muted-foreground">
+          ${Object.keys(appState.schema.fieldTypes).length} fields defined, ${appState.schema.requiredFields.length} required
+        </div>
+        <button id="save-schema-btn" class="button primary hover-lift">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+          Save Schema
+        </button>
+      </div>
+    </div>
+  `;
+  
+  container.innerHTML = html;
+  
+  // Add event listeners
+  const addFieldBtn = document.getElementById('add-field-btn');
+  if (addFieldBtn) {
+    addFieldBtn.addEventListener('click', addField);
+  }
+  
+  const saveSchemaBtn = document.getElementById('save-schema-btn');
+  if (saveSchemaBtn) {
+    saveSchemaBtn.addEventListener('click', saveSchema);
+  }
+  
+  // Add event listeners to remove field buttons
+  document.querySelectorAll('#fields-list button[data-field]').forEach(button => {
+    button.addEventListener('click', (e) => {
+      const field = e.currentTarget.getAttribute('data-field');
+      removeField(field);
+    });
+  });
+  
+  // Add event listeners to field required checkboxes
+  document.querySelectorAll('.field-required-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', (e) => {
+      const field = e.currentTarget.getAttribute('data-field');
+      toggleRequired(field);
+    });
+  });
+}
+
+function addField() {
+  const fieldInput = document.getElementById('new-field-input');
+  const typeSelect = document.getElementById('new-type-select');
+  const isRequiredCheckbox = document.getElementById('is-required-checkbox');
+  
+  const field = fieldInput.value.trim();
+  const type = typeSelect.value;
+  const isRequired = isRequiredCheckbox.checked;
+  
+  if (!field) {
+    showToast('Please enter a field name', 'error');
     return;
   }
   
-  const sourceIndex = state.sources.findIndex(s => s.id === id);
-  if (sourceIndex >= 0) {
-    state.sources[sourceIndex].name = name;
-    localStorage.setItem('sources', JSON.stringify(state.sources));
-    
-    hideModal(elements.editSourceModal);
-    
-    updateSourcesUI();
-    updateSourcesInSelects();
-    
-    showToast('Source name has been updated successfully.', 'success');
+  if (appState.schema.fieldTypes[field]) {
+    showToast('This field already exists', 'error');
+    return;
   }
-}
-
-function toggleSourceActive(id, active) {
-  const sourceIndex = state.sources.findIndex(s => s.id === id);
-  if (sourceIndex >= 0) {
-    const source = state.sources[sourceIndex];
-    source.active = active;
-    
-    localStorage.setItem('sources', JSON.stringify(state.sources));
-    
-    updateSourcesUI();
-    updateSourcesInSelects();
-    
-    showToast(`Source "${source.name}" has been ${active ? 'activated' : 'deactivated'} successfully.`, 'success');
-  }
-}
-
-function regenerateApiKey(id) {
-  const sourceIndex = state.sources.findIndex(s => s.id === id);
-  if (sourceIndex >= 0) {
-    const newKey = generateId() + generateId(); // Longer API key
-    state.sources[sourceIndex].apiKey = newKey;
-    
-    localStorage.setItem('sources', JSON.stringify(state.sources));
-    
-    updateSourcesUI();
-    
-    showToast(`A new API key has been generated for source "${state.sources[sourceIndex].name}".`, 'success');
-  }
-}
-
-function deleteSource(id, name) {
-  if (confirm(`Are you sure you want to delete source "${name}"? All associated data will also be deleted.`)) {
-    // Remove associated data
-    state.data = state.data.filter(item => item.sourceId !== id);
-    localStorage.setItem('data', JSON.stringify(state.data));
-    
-    // Remove source
-    state.sources = state.sources.filter(s => s.id !== id);
-    localStorage.setItem('sources', JSON.stringify(state.sources));
-    
-    updateSourcesUI();
-    updateSourcesInSelects();
-    updateDataTable();
-    
-    showToast(`Source "${name}" has been deleted successfully.`, 'success');
-  }
-}
-
-// Test data functions
-function updateTestDataButton() {
-  const hasActiveSources = state.sources.some(s => s.active);
-  const selectedSource = elements.sourceSelect.value;
   
-  elements.sendTestDataBtn.disabled = !hasActiveSources || !selectedSource;
+  // Add field to schema
+  appState.schema.fieldTypes[field] = type;
+  
+  if (isRequired) {
+    appState.schema.requiredFields.push(field);
+  }
+  
+  // Re-render schema
+  renderSchemaEditor();
+  
+  // Clear inputs
+  fieldInput.value = '';
+  isRequiredCheckbox.checked = false;
+  
+  updateApiUsageStats();
+}
+
+function removeField(field) {
+  // Remove field from schema
+  delete appState.schema.fieldTypes[field];
+  
+  // Remove from required fields if present
+  appState.schema.requiredFields = appState.schema.requiredFields.filter(f => f !== field);
+  
+  // Re-render schema
+  renderSchemaEditor();
+  
+  updateApiUsageStats();
+}
+
+function toggleRequired(field) {
+  const isRequired = appState.schema.requiredFields.includes(field);
+  
+  if (isRequired) {
+    appState.schema.requiredFields = appState.schema.requiredFields.filter(f => f !== field);
+  } else {
+    appState.schema.requiredFields.push(field);
+  }
+}
+
+function saveSchema() {
+  // Send schema to server
+  fetch('/public/api/schema', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(appState.schema)
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      showToast('Schema saved successfully', 'success');
+      updateApiUsageStats();
+    }
+  })
+  .catch(error => {
+    console.error('Error saving schema:', error);
+    showToast('Failed to save schema', 'error');
+  });
+}
+
+// Control Panel
+function initializeControlPanel() {
+  const container = document.getElementById('control-panel-container');
+  if (!container) return;
+  
+  // Render control panel
+  renderControlPanel();
+}
+
+function renderControlPanel() {
+  const container = document.getElementById('control-panel-container');
+  if (!container) return;
+  
+  // Create control panel HTML
+  const html = `
+    <div class="card shadow-sm hover:shadow-md transition-all duration-300">
+      <div class="card-header">
+        <h2 class="text-xl font-medium">Control Panel</h2>
+        <p class="card-description">
+          Test API functionality and trigger operations
+        </p>
+      </div>
+      <div class="card-content">
+        <div class="space-y-6">
+          <div class="space-y-3">
+            <h3 class="text-sm font-medium">Test Data Submission</h3>
+            <div class="flex flex-col gap-3">
+              <div class="flex flex-col gap-2">
+                <label for="source-select" class="text-sm text-muted-foreground">
+                  Select Source for Test Data
+                </label>
+                <select 
+                  id="source-select"
+                  class="select"
+                >
+                  <option value="all">All Sources</option>
+                  ${appState.sources.map(source => `
+                    <option value="${source.id}">${source.name}</option>
+                  `).join('')}
+                </select>
+              </div>
+              
+              <button 
+                id="send-test-data-btn"
+                class="button primary hover-lift"
+                ${appState.sources.length === 0 ? 'disabled' : ''}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                Send Test Data
+              </button>
+              
+              <div id="last-result" class="hidden mt-2 text-sm flex items-center"></div>
+            </div>
+          </div>
+          
+          <div class="space-y-3">
+            <h3 class="text-sm font-medium">Manual Operations</h3>
+            <div class="flex flex-wrap gap-2">
+              <button
+                id="trigger-export-btn"
+                class="button outline hover-lift"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                Trigger CSV Export Now
+              </button>
+              
+              <button
+                id="clear-data-btn"
+                class="button outline hover-lift"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
+                Clear All Data
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  container.innerHTML = html;
+  
+  // Add event listeners
+  const sendTestDataBtn = document.getElementById('send-test-data-btn');
+  if (sendTestDataBtn) {
+    sendTestDataBtn.addEventListener('click', sendTestData);
+  }
+  
+  const triggerExportBtn = document.getElementById('trigger-export-btn');
+  if (triggerExportBtn) {
+    triggerExportBtn.addEventListener('click', triggerExport);
+  }
+  
+  const clearDataBtn = document.getElementById('clear-data-btn');
+  if (clearDataBtn) {
+    clearDataBtn.addEventListener('click', clearAllData);
+  }
 }
 
 function sendTestData() {
-  const selectedSource = elements.sourceSelect.value;
-  const source = state.sources.find(s => s.id === selectedSource);
+  const sendButton = document.getElementById('send-test-data-btn');
+  const resultDiv = document.getElementById('last-result');
+  const sourceSelect = document.getElementById('source-select');
   
-  if (!source) {
-    showToast('No source selected. Please select a source first.', 'error');
+  if (!sendButton || !resultDiv || !sourceSelect) return;
+  
+  const selectedSourceId = sourceSelect.value;
+  
+  if (selectedSourceId === 'all') {
+    showToast('Please select a specific source', 'error');
     return;
   }
   
-  elements.sendTestDataBtn.disabled = true;
-  elements.sendTestDataBtn.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i>Sending...';
-  elements.testResult.classList.add('hidden');
+  const selectedSource = appState.sources.find(s => s.id === selectedSourceId);
+  
+  if (!selectedSource) {
+    showToast('Source not found', 'error');
+    return;
+  }
+  
+  // Disable button and show loading state
+  sendButton.disabled = true;
+  sendButton.innerHTML = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2 animate-pulse"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+    Sending...
+  `;
+  resultDiv.classList.add('hidden');
   
   // Create test data
   const testData = {
@@ -810,304 +738,330 @@ function sendTestData() {
     temperature: Math.round((Math.random() * 30 + 10) * 10) / 10,
     humidity: Math.round(Math.random() * 100),
     pressure: Math.round((Math.random() * 50 + 970) * 10) / 10,
-    sourceId: source.id
+    sourceId: selectedSource.id
   };
-  
-  // Generate ID for the data
-  testData.id = generateId();
-  
-  // Add to data
-  state.data.push(testData);
-  
-  // Update source stats
-  source.dataCount = (source.dataCount || 0) + 1;
-  source.lastActive = new Date().toISOString();
-  
-  // Save to local storage
-  localStorage.setItem('data', JSON.stringify(state.data));
-  localStorage.setItem('sources', JSON.stringify(state.sources));
   
   // Simulate API call delay
   setTimeout(() => {
-    elements.sendTestDataBtn.disabled = false;
-    elements.sendTestDataBtn.innerHTML = '<i class="fa fa-paper-plane mr-2"></i>Send Test Data';
+    // Add to local data
+    appState.data.unshift(testData);
     
-    // Show test result
-    elements.testResult.classList.remove('hidden');
-    elements.testResult.innerHTML = `
-      <i class="fa fa-check-circle mr-1 text-green-600"></i>
-      Test data sent successfully! Data point added for source "${source.name}".
+    // Update result
+    const success = Math.random() > 0.1; // 90% success rate for demo
+    
+    resultDiv.className = `mt-2 text-sm flex items-center ${success ? 'text-green-600' : 'text-red-600'}`;
+    resultDiv.innerHTML = success
+      ? `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg> Data received successfully`
+      : `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg> Failed to send data`;
+    resultDiv.classList.remove('hidden');
+    
+    // Reset button
+    sendButton.disabled = false;
+    sendButton.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+      Send Test Data
     `;
-    elements.testResult.className = 'mt-2 text-sm text-green-600 flex items-center';
     
-    // Update UI
-    updateDataTable();
-    updateSourcesUI();
-    updateStats();
+    // Show toast
+    showToast(success ? 'Test data sent successfully' : 'Failed to send test data', success ? 'success' : 'error');
     
-    showToast('Test data sent successfully!', 'success');
-  }, 1000);
+    // Update table and stats
+    renderDataTable();
+    updateApiUsageStats();
+  }, 800);
 }
 
 function triggerExport() {
-  if (state.data.length === 0) {
-    showToast('No data to export.', 'error');
-    return;
-  }
-  
-  // Simulate export
-  showToast('CSV export triggered. Files will be uploaded to your Dropbox location.', 'success');
+  showToast('CSV export triggered successfully', 'success');
 }
 
 function clearAllData() {
-  if (state.data.length === 0) {
-    showToast('No data to clear.', 'info');
-    return;
-  }
+  // Clear data
+  appState.data = [];
   
-  if (confirm('Are you sure you want to clear all data? This cannot be undone.')) {
-    // Reset data counts on sources
-    state.sources.forEach(source => {
-      source.dataCount = 0;
-    });
-    
-    // Clear data
-    state.data = [];
-    
-    // Save to local storage
-    localStorage.setItem('data', JSON.stringify(state.data));
-    localStorage.setItem('sources', JSON.stringify(state.sources));
-    
-    // Update UI
-    updateDataTable();
-    updateSourcesUI();
-    updateStats();
-    
-    showToast('All data has been cleared successfully.', 'success');
-  }
+  // Update table and stats
+  renderDataTable();
+  updateApiUsageStats();
+  
+  showToast('All data cleared successfully', 'success');
 }
 
-// Data functions
-function loadData() {
-  try {
-    const data = localStorage.getItem('data');
-    if (data) {
-      state.data = JSON.parse(data);
-    } else {
-      // Initialize with empty array if not found
-      state.data = [];
-      localStorage.setItem('data', JSON.stringify(state.data));
+// Data Table
+function initializeDataTable() {
+  const container = document.getElementById('data-table-container');
+  if (!container) return;
+  
+  // Render data table
+  renderDataTable();
+  
+  // Add event listener for search input
+  document.addEventListener('input', (e) => {
+    if (e.target && e.target.id === 'search-data-input') {
+      renderDataTable();
     }
-    
-    filterData();
-    elements.dataError.classList.add('hidden');
-  } catch (err) {
-    console.error('Error loading data:', err);
-    elements.dataErrorMessage.textContent = 'Error loading data.';
-    elements.dataError.classList.remove('hidden');
-  }
+  });
+  
+  // Add event listener for source filter
+  document.addEventListener('change', (e) => {
+    if (e.target && e.target.id === 'filter-source-select') {
+      appState.selectedSource = e.target.value;
+      renderDataTable();
+    }
+  });
 }
 
-function filterData() {
-  state.searchTerm = elements.dataSearch.value.toLowerCase();
-  state.selectedSourceFilter = elements.dataSourceFilter.value;
+function renderDataTable() {
+  const container = document.getElementById('data-table-container');
+  if (!container) return;
+  
+  // Get search term if search input exists
+  const searchInput = document.getElementById('search-data-input');
+  const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
   
   // Filter data
-  let filtered = state.data;
+  let filteredData = [...appState.data];
   
   // Filter by source
-  if (state.selectedSourceFilter !== 'all') {
-    filtered = filtered.filter(entry => entry.sourceId === state.selectedSourceFilter);
+  if (appState.selectedSource !== 'all') {
+    filteredData = filteredData.filter(entry => entry.sourceId === appState.selectedSource);
   }
   
   // Filter by search term
-  if (state.searchTerm.trim()) {
-    filtered = filtered.filter(entry => {
+  if (searchTerm) {
+    filteredData = filteredData.filter(entry => {
       return Object.values(entry).some(value => 
         value !== null && 
         value !== undefined && 
-        String(value).toLowerCase().includes(state.searchTerm)
+        String(value).toLowerCase().includes(searchTerm)
       );
     });
   }
   
-  state.visibleData = filtered;
-  updateDataTable();
-}
-
-function updateDataTable() {
   // Get all columns dynamically from data
-  const columns = getDataColumns();
-  
-  // Update header
-  if (columns.length > 0 && columns[0] !== 'No Data') {
-    elements.dataTableHeader.innerHTML = '';
-    const headerRow = document.createElement('tr');
+  const getColumns = () => {
+    if (appState.data.length === 0) return ['No Data'];
     
-    columns.forEach(column => {
-      const th = document.createElement('th');
-      th.className = 'p-3 text-left whitespace-nowrap';
-      th.textContent = column === 'sourceId' ? 'Source' : column;
-      headerRow.appendChild(th);
-    });
+    // Get all unique keys, prioritizing common ones
+    const priorityKeys = ['timestamp', 'id', 'sourceId', 'sensorId'];
+    const allKeys = new Set();
     
-    elements.dataTableHeader.appendChild(headerRow);
-  }
-  
-  // Update body
-  if (state.visibleData.length > 0) {
-    elements.dataTableBody.innerHTML = '';
+    // Add priority keys first
+    priorityKeys.forEach(key => allKeys.add(key));
     
-    state.visibleData.forEach((entry, index) => {
-      const row = document.createElement('tr');
-      row.className = 'animate-fade-in';
-      
-      columns.forEach(column => {
-        const cell = document.createElement('td');
-        cell.className = 'p-3 whitespace-nowrap';
-        cell.textContent = formatCellValue(column, entry[column]);
-        row.appendChild(cell);
+    // Add all other keys
+    appState.data.forEach(entry => {
+      Object.keys(entry).forEach(key => {
+        if (!priorityKeys.includes(key)) {
+          allKeys.add(key);
+        }
       });
-      
-      elements.dataTableBody.appendChild(row);
     });
     
-    // Enable export button
-    elements.exportCsvBtn.disabled = false;
-  } else {
-    elements.dataTableBody.innerHTML = `
-      <tr>
-        <td colspan="${columns.length || 1}" class="h-24 text-center">
-          No data available
-        </td>
-      </tr>
-    `;
-    
-    // Disable export button
-    elements.exportCsvBtn.disabled = true;
+    return Array.from(allKeys);
+  };
+  
+  const columns = getColumns();
+  
+  // Create table HTML
+  const html = `
+    <div class="card shadow-sm hover:shadow-md transition-all duration-300">
+      <div class="card-header">
+        <div class="flex items-center justify-between">
+          <span class="text-xl font-medium">Received Data</span>
+          <div class="flex gap-2">
+            <button 
+              id="clear-table-data-btn"
+              class="button outline sm"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+              Clear
+            </button>
+            <button 
+              id="export-csv-btn"
+              class="button primary sm"
+              ${filteredData.length === 0 ? 'disabled' : ''}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              Export CSV
+            </button>
+          </div>
+        </div>
+        <p class="card-description">
+          View and manage data received from your API
+        </p>
+        
+        <div class="flex flex-col gap-2 sm:flex-row mt-2">
+          <div class="relative flex-1">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input
+              id="search-data-input"
+              placeholder="Search data..."
+              class="input pl-8"
+              value="${searchTerm}"
+            />
+          </div>
+          <div class="w-full sm:w-48">
+            <select 
+              id="filter-source-select"
+              class="select w-full"
+            >
+              <option value="all" ${appState.selectedSource === 'all' ? 'selected' : ''}>All Sources</option>
+              ${appState.sources.map(source => `
+                <option value="${source.id}" ${appState.selectedSource === source.id ? 'selected' : ''}>${source.name}</option>
+              `).join('')}
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="card-content p-0">
+        <div class="rounded-md border">
+          <div class="relative overflow-auto max-h-[400px]">
+            <table class="table w-full">
+              <thead class="sticky top-0 bg-secondary">
+                <tr>
+                  ${columns.map(column => `
+                    <th class="whitespace-nowrap">${column === 'sourceId' ? 'Source' : column}</th>
+                  `).join('')}
+                </tr>
+              </thead>
+              <tbody>
+                ${filteredData.length > 0 
+                  ? filteredData.map((entry, index) => `
+                    <tr class="animate-fade-in">
+                      ${columns.map(column => `
+                        <td class="whitespace-nowrap">${formatCellValue(column, entry[column])}</td>
+                      `).join('')}
+                    </tr>
+                  `).join('')
+                  : `
+                    <tr>
+                      <td colspan="${columns.length}" class="h-24 text-center">
+                        No data available
+                      </td>
+                    </tr>
+                  `
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="card-footer py-3 text-sm text-muted-foreground">
+        Showing ${filteredData.length} of ${appState.data.length} entries
+        ${appState.selectedSource !== 'all' ? ` for ${getSourceName(appState.selectedSource)}` : ''}
+      </div>
+    </div>
+  `;
+  
+  container.innerHTML = html;
+  
+  // Add event listeners
+  const clearTableDataBtn = document.getElementById('clear-table-data-btn');
+  if (clearTableDataBtn) {
+    clearTableDataBtn.addEventListener('click', clearAllData);
   }
   
-  // Update stats
-  elements.dataTableStats.textContent = `Showing ${state.visibleData.length} of ${state.data.length} entries${
-    state.selectedSourceFilter !== 'all' 
-      ? ` for ${getSourceName(state.selectedSourceFilter)}` 
-      : ''
-  }`;
-}
-
-function getDataColumns() {
-  if (state.data.length === 0) return ['No Data'];
-  
-  // Get all unique keys, prioritizing common ones
-  const priorityKeys = ['timestamp', 'id', 'sourceId', 'sensorId'];
-  const allKeys = new Set();
-  
-  // Add priority keys first
-  priorityKeys.forEach(key => allKeys.add(key));
-  
-  // Add all other keys
-  state.data.forEach(entry => {
-    Object.keys(entry).forEach(key => {
-      if (!priorityKeys.includes(key)) {
-        allKeys.add(key);
-      }
-    });
-  });
-  
-  return Array.from(allKeys);
-}
-
-function getSourceName(sourceId) {
-  if (!sourceId) return 'Unknown';
-  const source = state.sources.find(s => s.id === sourceId);
-  return source ? source.name : sourceId;
+  const exportCsvBtn = document.getElementById('export-csv-btn');
+  if (exportCsvBtn) {
+    exportCsvBtn.addEventListener('click', exportTableToCSV);
+  }
 }
 
 function formatCellValue(key, value) {
   if (value === undefined || value === null) return '-';
   if (key === 'sourceId') return getSourceName(value);
-  if (key === 'timestamp') return formatDate(value);
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
 }
 
-// CSV Export
-function exportCsv() {
-  if (state.visibleData.length === 0) {
-    showToast('No data to export.', 'error');
+function getSourceName(sourceId) {
+  if (!sourceId) return 'Unknown';
+  const source = appState.sources.find(s => s.id === sourceId);
+  return source ? source.name : sourceId;
+}
+
+function exportTableToCSV() {
+  // Filter data
+  let filteredData = [...appState.data];
+  
+  // Filter by source
+  if (appState.selectedSource !== 'all') {
+    filteredData = filteredData.filter(entry => entry.sourceId === appState.selectedSource);
+  }
+  
+  // Get search term if search input exists
+  const searchInput = document.getElementById('search-data-input');
+  const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+  
+  // Filter by search term
+  if (searchTerm) {
+    filteredData = filteredData.filter(entry => {
+      return Object.values(entry).some(value => 
+        value !== null && 
+        value !== undefined && 
+        String(value).toLowerCase().includes(searchTerm)
+      );
+    });
+  }
+  
+  if (filteredData.length === 0) {
+    showToast('No data to export', 'error');
     return;
   }
   
-  elements.exportCsvBtn.innerHTML = 'Downloading...';
-  elements.exportCsvBtn.disabled = true;
+  // Get all columns
+  const columns = Object.keys(filteredData[0]);
   
-  setTimeout(() => {
-    try {
-      // Get columns
-      const columns = getDataColumns();
-      
-      // Create CSV content
-      let csv = columns.join(',') + '\n';
-      
-      // Add data rows
-      state.visibleData.forEach(item => {
-        const row = columns.map(column => {
-          const value = item[column];
-          
-          // Handle undefined or null
-          if (value === undefined || value === null) {
-            return '';
-          }
-          
-          // Handle strings that might contain commas or quotes
-          if (typeof value === 'string') {
-            return `"${value.replace(/"/g, '""')}"`;
-          }
-          
-          // Handle objects
-          if (typeof value === 'object') {
-            return `"${JSON.stringify(value).replace(/"/g, '""')}"`;
-          }
-          
-          return value;
-        });
-        
-        csv += row.join(',') + '\n';
-      });
-      
-      // Create download link
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', `data-export-${new Date().toISOString().slice(0, 10)}.csv`);
-      link.style.display = 'none';
-      
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      showToast('CSV exported successfully!', 'success');
-    } catch (err) {
-      console.error('Error exporting CSV:', err);
-      showToast('Error exporting CSV.', 'error');
-    } finally {
-      elements.exportCsvBtn.innerHTML = '<i class="fa fa-download mr-1"></i>Export CSV';
-      elements.exportCsvBtn.disabled = false;
-    }
-  }, 500);
+  // Create CSV content
+  let csvContent = "data:text/csv;charset=utf-8,";
+  
+  // Add headers
+  csvContent += columns.join(",") + "\r\n";
+  
+  // Add rows
+  filteredData.forEach(entry => {
+    const row = columns.map(column => {
+      const value = entry[column];
+      if (value === null || value === undefined) return '';
+      if (typeof value === 'object') return JSON.stringify(value).replace(/,/g, ';').replace(/"/g, '""');
+      return typeof value === 'string' ? `"${value.replace(/"/g, '""')}"` : value;
+    });
+    csvContent += row.join(",") + "\r\n";
+  });
+  
+  // Create download link
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", `data_export_${new Date().toISOString().split('T')[0]}.csv`);
+  document.body.appendChild(link);
+  
+  // Download file
+  link.click();
+  
+  // Remove link
+  document.body.removeChild(link);
+  
+  showToast('CSV file exported successfully', 'success');
 }
 
-// API Documentation functions
-function updateApiDocumentation() {
-  const apiEndpoint = `${state.domainName}/api/data`;
-  elements.apiEndpoint.textContent = apiEndpoint;
+// API Instructions
+function initializeApiInstructions() {
+  const container = document.getElementById('api-instructions-container');
+  if (!container) return;
   
-  // Update examples
-  const apiKey = state.apiKey || 'YOUR_API_KEY';
+  updateApiInstructions();
+}
+
+function updateApiInstructions() {
+  const container = document.getElementById('api-instructions-container');
+  if (!container) return;
   
-  // cURL example
-  elements.curlCode.textContent = `curl -X POST ${apiEndpoint} \\
+  const domainName = window.location.origin || 'https://your-domain.com';
+  const apiEndpoint = `${domainName}/public/api/data`;
+  const apiKey = appState.apiKey || 'YOUR_API_KEY';
+  
+  const curlExample = `curl -X POST ${apiEndpoint} \\
   -H "Content-Type: application/json" \\
   -H "X-API-Key: ${apiKey}" \\
   -d '{
@@ -1116,9 +1070,8 @@ function updateApiDocumentation() {
     "humidity": 68,
     "pressure": 1013.2
   }'`;
-  
-  // JavaScript example
-  elements.jsCode.textContent = `// Using fetch API
+
+  const jsExample = `// Using fetch API
 const url = '${apiEndpoint}';
 const apiKey = '${apiKey}';
 
@@ -1140,9 +1093,8 @@ fetch(url, {
 .then(response => response.json())
 .then(result => console.log('Success:', result))
 .catch(error => console.error('Error:', error));`;
-  
-  // Python example
-  elements.pythonCode.textContent = `import requests
+
+  const pythonExample = `import requests
 import json
 
 url = "${apiEndpoint}"
@@ -1162,263 +1114,277 @@ data = {
 
 response = requests.post(url, headers=headers, data=json.dumps(data))
 print(response.json())`;
-}
-
-// Stats functions
-function updateStats() {
-  // Calculate stats
-  const totalDataPoints = state.data.length;
-  const uniqueSourceIds = new Set(state.data.map(d => d.sourceId));
   
-  const activeSources = state.sources.filter(s => s.active).length;
-  const totalSources = state.sources.length;
-  
-  let lastReceived = 'No data';
-  if (state.data.length > 0) {
-    // Find the most recent timestamp
-    const timestamps = state.data
-      .map(d => d.timestamp)
-      .filter(ts => ts) // Filter out undefined/null
-      .map(ts => new Date(ts).getTime());
-    
-    if (timestamps.length > 0) {
-      const maxTimestamp = Math.max(...timestamps);
-      lastReceived = new Date(maxTimestamp).toLocaleTimeString();
-    }
-  }
-  
-  // Update UI
-  elements.totalDataPoints.textContent = totalDataPoints;
-  elements.activeSources.textContent = `${activeSources}/${totalSources}`;
-  elements.uniqueSources.textContent = uniqueSourceIds.size;
-  elements.lastReceived.textContent = lastReceived;
-}
-
-// Tab functions
-function switchConfigTab(tabId) {
-  // Update tab styling
-  elements.configTabs.forEach(tab => {
-    const isActive = tab.getAttribute('data-tab') === tabId;
-    if (isActive) {
-      tab.classList.add('border-primary', 'text-primary');
-      tab.classList.remove('border-transparent', 'hover:border-gray-300');
-    } else {
-      tab.classList.remove('border-primary', 'text-primary');
-      tab.classList.add('border-transparent', 'hover:border-gray-300');
-    }
-  });
-  
-  // Show/hide tab content
-  document.getElementById('basic-tab').classList.toggle('active', tabId === 'basic');
-  document.getElementById('schema-tab').classList.toggle('active', tabId === 'schema');
-  document.getElementById('deployment-tab').classList.toggle('active', tabId === 'deployment');
-  
-  // Hide all tab panes
-  document.querySelectorAll('.tab-pane').forEach(pane => {
-    pane.classList.remove('active');
-    pane.classList.add('hidden');
-  });
-  
-  // Show selected tab pane
-  const activePane = document.getElementById(`${tabId}-tab`);
-  if (activePane) {
-    activePane.classList.add('active');
-    activePane.classList.remove('hidden');
-  }
-  
-  state.activeConfigTab = tabId;
-}
-
-function switchApiExampleTab(tabId) {
-  // Update tab styling
-  elements.apiExampleTabs.forEach(tab => {
-    const isActive = tab.getAttribute('data-tab') === tabId;
-    if (isActive) {
-      tab.classList.add('border-primary', 'text-primary');
-      tab.classList.remove('border-transparent', 'hover:border-gray-300');
-    } else {
-      tab.classList.remove('border-primary', 'text-primary');
-      tab.classList.add('border-transparent', 'hover:border-gray-300');
-    }
-  });
-  
-  // Hide all example panes
-  document.querySelectorAll('.example-tab-pane').forEach(pane => {
-    pane.classList.add('hidden');
-    pane.classList.remove('active');
-  });
-  
-  // Show selected example pane
-  const activePane = document.getElementById(`${tabId}-example`);
-  if (activePane) {
-    activePane.classList.remove('hidden');
-    activePane.classList.add('active');
-  }
-  
-  state.activeApiExampleTab = tabId;
-}
-
-// Deployment guide
-function loadDeploymentGuide() {
-  // For demo purposes, we'll just add some static content
-  elements.deploymentGuideContainer.innerHTML = `
-    <div class="bg-white rounded-lg shadow-sm p-6 space-y-4">
-      <h3 class="text-xl font-medium">Deployment Instructions</h3>
-      
-      <div class="space-y-4">
-        <p>Follow these steps to deploy your CSV Consolidator API to SiteGround or any other PHP-compatible hosting:</p>
-        
-        <ol class="list-decimal list-inside space-y-3 ml-4">
-          <li class="text-sm">
-            <span class="font-medium">Upload Files</span>: 
-            Transfer all files in the <code>/public/api/</code> directory to your hosting server.
-          </li>
-          <li class="text-sm">
-            <span class="font-medium">Set Permissions</span>: 
-            Ensure the <code>/api/data/</code> directory has write permissions (chmod 755 or 775).
-          </li>
-          <li class="text-sm">
-            <span class="font-medium">Configure Domain</span>: 
-            Update your domain settings in the configuration to match your actual domain name.
-          </li>
-          <li class="text-sm">
-            <span class="font-medium">Secure API Key</span>: 
-            Change the default API key in <code>config.php</code> to enhance security.
-          </li>
-          <li class="text-sm">
-            <span class="font-medium">Test Deployment</span>: 
-            Send a test request to verify your API is working correctly.
-          </li>
-        </ol>
-        
-        <div class="p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded">
-          <p class="text-sm text-yellow-800">
-            <strong>Note:</strong> For production use, we recommend setting up proper authentication and 
-            implementing additional security measures like rate limiting and validation.
-          </p>
+  // Create API instructions HTML
+  const html = `
+    <div class="card shadow-sm hover:shadow-md transition-all duration-300">
+      <div class="card-header">
+        <div class="flex items-center gap-2 text-xl font-medium">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M10 12a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1v-1a1 1 0 0 1 1-1h1z"></path><path d="M14 12a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1a1 1 0 0 1 1-1h1z"></path><path d="M10 17a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1v-1a1 1 0 0 1 1-1h1z"></path><path d="M14 17a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1a1 1 0 0 1 1-1h1z"></path></svg>
+          API Integration Guide
         </div>
-        
-        <p class="text-sm">
-          If you need assistance with deployment, please refer to your hosting provider's documentation
-          for PHP application deployment instructions.
+        <p class="card-description">
+          Instructions for integrating with your data consolidation API
         </p>
+      </div>
+      <div class="card-content">
+        <div class="space-y-6">
+          <div class="space-y-2">
+            <h3 class="text-sm font-medium">Endpoint and Authentication</h3>
+            <p class="text-sm text-muted-foreground">
+              Send your data to the following endpoint using your API key for authentication:
+            </p>
+            <div class="flex items-center justify-between bg-secondary p-3 rounded-md">
+              <code class="text-xs sm:text-sm break-all">${apiEndpoint}</code>
+              <button 
+                class="button ghost sm copy-endpoint-btn"
+                data-copy="${apiEndpoint}"
+                title="Copy to clipboard"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              </button>
+            </div>
+            <p class="text-xs text-muted-foreground mt-2">
+              <span class="font-medium flex items-center gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="1"></circle></svg> 
+                Note:
+              </span> This endpoint will automatically use your domain name. After deployment to SiteGround, this will reflect your actual server address.
+            </p>
+          </div>
+          
+          <div class="space-y-3">
+            <h3 class="text-sm font-medium">Request Format</h3>
+            <div class="tabs" id="api-example-tabs">
+              <div class="tabs-header">
+                <button class="tab-button active" data-tab="curl">cURL</button>
+                <button class="tab-button" data-tab="js">JavaScript</button>
+                <button class="tab-button" data-tab="python">Python</button>
+              </div>
+              
+              <div class="tab-content">
+                <div class="tab-pane active" id="curl-tab">
+                  <div class="relative">
+                    <div class="bg-secondary p-3 rounded-md overflow-x-auto">
+                      <pre class="text-xs sm:text-sm whitespace-pre-wrap">${curlExample}</pre>
+                    </div>
+                    <button 
+                      class="button ghost sm absolute top-2 right-2 copy-code-btn"
+                      data-copy="${curlExample}"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                    </button>
+                  </div>
+                </div>
+                
+                <div class="tab-pane" id="js-tab">
+                  <div class="relative">
+                    <div class="bg-secondary p-3 rounded-md overflow-x-auto">
+                      <pre class="text-xs sm:text-sm whitespace-pre-wrap">${jsExample}</pre>
+                    </div>
+                    <button 
+                      class="button ghost sm absolute top-2 right-2 copy-code-btn"
+                      data-copy="${jsExample}"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                    </button>
+                  </div>
+                </div>
+                
+                <div class="tab-pane" id="python-tab">
+                  <div class="relative">
+                    <div class="bg-secondary p-3 rounded-md overflow-x-auto">
+                      <pre class="text-xs sm:text-sm whitespace-pre-wrap">${pythonExample}</pre>
+                    </div>
+                    <button 
+                      class="button ghost sm absolute top-2 right-2 copy-code-btn"
+                      data-copy="${pythonExample}"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="space-y-2">
+            <h3 class="text-sm font-medium">CSV Export Schedule</h3>
+            <p class="text-sm text-muted-foreground">
+              All data received throughout the day will be automatically consolidated into a CSV file and exported 
+              to your configured Dropbox location at midnight UTC. You can also trigger manual exports from the Control Panel.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   `;
-}
-
-// Utility functions
-function showToast(message, type = 'success') {
-  const toast = document.createElement('div');
-  toast.className = `toast ${type} animate-fade-in`;
   
-  let icon = 'info-circle';
-  if (type === 'success') icon = 'check-circle';
-  if (type === 'error') icon = 'exclamation-circle';
+  container.innerHTML = html;
   
-  toast.innerHTML = `
-    <div class="flex items-center">
-      <i class="fa fa-${icon} mr-2"></i>
-      <span>${message}</span>
-    </div>
-    <button class="toast-close ml-auto text-gray-400 hover:text-gray-600">
-      <i class="fa fa-times"></i>
-    </button>
-  `;
+  // Initialize tabs
+  const apiTabButtons = document.querySelectorAll('#api-example-tabs .tab-button');
   
-  elements.toastContainer.appendChild(toast);
-  
-  // Close button
-  toast.querySelector('.toast-close').addEventListener('click', () => {
-    toast.classList.remove('animate-fade-in');
-    toast.classList.add('animate-fade-out');
-    setTimeout(() => {
-      toast.remove();
-    }, 300);
+  apiTabButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      const tabId = button.getAttribute('data-tab');
+      
+      // Remove active class from all buttons and panes
+      document.querySelectorAll('#api-example-tabs .tab-button').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('#api-example-tabs .tab-pane').forEach(pane => pane.classList.remove('active'));
+      
+      // Add active class to clicked button and corresponding pane
+      button.classList.add('active');
+      document.getElementById(`${tabId}-tab`).classList.add('active');
+    });
   });
   
-  // Auto close after 5 seconds
-  setTimeout(() => {
-    if (toast.parentNode) {
-      toast.classList.remove('animate-fade-in');
-      toast.classList.add('animate-fade-out');
-      setTimeout(() => {
-        if (toast.parentNode) {
-          toast.remove();
-        }
-      }, 300);
-    }
-  }, 5000);
+  // Add copy button functionality
+  document.querySelectorAll('.copy-endpoint-btn, .copy-code-btn').forEach(button => {
+    button.addEventListener('click', () => {
+      const textToCopy = button.getAttribute('data-copy');
+      
+      navigator.clipboard.writeText(textToCopy)
+        .then(() => {
+          showToast('Copied to clipboard!', 'success');
+        })
+        .catch(err => {
+          console.error('Could not copy text: ', err);
+          showToast('Failed to copy to clipboard', 'error');
+        });
+    });
+  });
 }
 
-function formatDate(dateString) {
-  try {
-    const date = new Date(dateString);
-    return date.toLocaleString();
-  } catch (e) {
-    return dateString;
+// Helper Functions for updating stats
+function updateApiUsageStats() {
+  updateTotalDataPoints();
+  updateActiveSources();
+  updateUniqueSources();
+  updateLastReceived();
+  updateDataTypes();
+}
+
+function updateTotalDataPoints() {
+  const element = document.getElementById('total-data-points');
+  if (element) {
+    element.textContent = appState.data.length.toString();
   }
 }
 
-function generateId() {
-  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+function updateActiveSources() {
+  const element = document.getElementById('active-sources');
+  if (element) {
+    const activeSources = appState.sources.filter(source => 
+      appState.data.some(data => data.sourceId === source.id)
+    ).length;
+    
+    element.textContent = `${activeSources}/${appState.sources.length}`;
+  }
 }
 
-function copyToClipboard(text, successMessage) {
-  navigator.clipboard.writeText(text).then(() => {
-    showToast(successMessage, 'success');
-  }).catch(err => {
-    console.error('Error copying to clipboard:', err);
-    showToast('Failed to copy to clipboard.', 'error');
-  });
+function updateUniqueSources() {
+  const element = document.getElementById('unique-sources');
+  if (element) {
+    const uniqueSources = new Set(
+      appState.data.map(data => data.sourceId).filter(Boolean)
+    ).size;
+    
+    element.textContent = uniqueSources.toString();
+  }
 }
 
-function showModal(modal) {
-  modal.classList.remove('hidden');
+function updateLastReceived() {
+  const element = document.getElementById('last-received');
+  if (element) {
+    if (appState.data.length === 0) {
+      element.textContent = 'No data';
+      return;
+    }
+    
+    // Sort data by timestamp (newest first)
+    const sortedData = [...appState.data].sort((a, b) => {
+      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+    });
+    
+    const latestTimestamp = sortedData[0].timestamp;
+    
+    try {
+      const date = new Date(latestTimestamp);
+      element.textContent = date.toLocaleTimeString([], { 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        second: '2-digit' 
+      });
+    } catch (e) {
+      element.textContent = latestTimestamp;
+    }
+  }
 }
 
-function hideModal(modal) {
-  modal.classList.add('hidden');
+function updateDataTypes() {
+  const element = document.getElementById('data-types');
+  if (element) {
+    element.textContent = Object.keys(appState.schema.fieldTypes).length.toString();
+  }
 }
 
-function resetState() {
-  state.apiKey = '';
-  state.dropboxLink = '';
-  state.schema = {
-    requiredFields: [],
-    fieldTypes: {}
-  };
-  state.sources = [];
-  state.data = [];
-  state.visibleData = [];
-  state.selectedSource = '';
-  state.selectedSourceFilter = 'all';
-  state.searchTerm = '';
+// Data loading functions
+function loadData() {
+  // For demo, create some sample data
+  appState.data = Array.from({ length: 10 }, (_, i) => ({
+    id: `data_${i}`,
+    timestamp: new Date(Date.now() - Math.random() * 86400000).toISOString(),
+    sensorId: `sensor-${Math.floor(Math.random() * 5) + 1}`,
+    temperature: Math.round((Math.random() * 30 + 10) * 10) / 10,
+    humidity: Math.round(Math.random() * 100),
+    pressure: Math.round((Math.random() * 50 + 970) * 10) / 10,
+    sourceId: i % 2 === 0 ? 'src_1' : 'src_2'
+  }));
+  
+  renderDataTable();
 }
 
-// Add custom styles for tab panes
-document.addEventListener('DOMContentLoaded', function() {
-  const style = document.createElement('style');
-  style.textContent = `
-    .tab-pane {
-      display: none;
-    }
-    .tab-pane.active {
-      display: block;
-    }
-    .example-tab-pane {
-      display: none;
-    }
-    .example-tab-pane.active {
-      display: block;
-    }
-    .hover-lift {
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-    .hover-lift:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05), 0 4px 6px -2px rgba(0,0,0,0.03);
-    }
-  `;
-  document.head.appendChild(style);
-});
+function loadSources() {
+  // For demo, create some sample sources
+  if (appState.sources.length === 0) {
+    appState.sources = [
+      {
+        id: 'src_1',
+        name: 'Weather Station',
+        url: 'https://api.example.com/weather',
+        type: 'json',
+        dateAdded: new Date().toISOString(),
+        apiKey: 'demo_key_1'
+      },
+      {
+        id: 'src_2',
+        name: 'Smart Factory',
+        url: 'https://api.factory.com/sensors',
+        type: 'csv',
+        dateAdded: new Date().toISOString(),
+        apiKey: 'demo_key_2'
+      }
+    ];
+  }
+  
+  renderSourcesManager();
+  updateSourcesDropdown();
+}
+
+function loadSchema() {
+  // For demo, create sample schema
+  if (Object.keys(appState.schema.fieldTypes).length === 0) {
+    appState.schema = {
+      requiredFields: ['sensorId', 'timestamp'],
+      fieldTypes: {
+        sensorId: 'string',
+        timestamp: 'string',
+        temperature: 'number',
+        humidity: 'number',
+        pressure: 'number'
+      }
+    };
+  }
+  
+  renderSchemaEditor();
+}
