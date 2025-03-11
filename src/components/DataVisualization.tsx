@@ -179,8 +179,8 @@ const DataVisualization: React.FC = () => {
     return value.toString();
   };
 
-  // Custom tooltip renderer that properly handles the React component requirement
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  // Custom tooltip content
+  const renderTooltipContent = ({ active, payload, label }: any) => {
     if (!active || !payload || payload.length === 0) {
       return null;
     }
@@ -268,7 +268,7 @@ const DataVisualization: React.FC = () => {
                     tickFormatter={formatYAxis} 
                     label={{ value: 'Data Entries', angle: -90, position: 'insideLeft', offset: -5 }} 
                   />
-                  <Tooltip content={<CustomTooltip />} />
+                  <Tooltip content={renderTooltipContent} />
                   <Legend verticalAlign="top" wrapperStyle={{ paddingBottom: 10 }} />
                   {statsBySource.map((source, index) => (
                     <Bar 
@@ -296,7 +296,7 @@ const DataVisualization: React.FC = () => {
                     tickFormatter={formatYAxis} 
                     label={{ value: 'Data Entries', angle: -90, position: 'insideLeft', offset: -5 }} 
                   />
-                  <Tooltip content={<CustomTooltip />} />
+                  <Tooltip content={renderTooltipContent} />
                   <Legend verticalAlign="top" wrapperStyle={{ paddingBottom: 10 }} />
                   {statsBySource.map((source, index) => (
                     <Line 
@@ -331,7 +331,7 @@ const DataVisualization: React.FC = () => {
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip content={<CustomTooltip />} />
+                  <Tooltip content={renderTooltipContent} />
                   <Legend layout="vertical" verticalAlign="middle" align="right" />
                 </PieChart>
               )}
