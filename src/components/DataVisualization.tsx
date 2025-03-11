@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -184,7 +185,7 @@ const DataVisualization: React.FC = () => {
   };
 
   // This function renders the timestamp or N/A
-  const renderLastReceived = () => {
+  const renderLastReceived = (): string => {
     if (data.length > 0 && data[0]?.timestamp) {
       return formatTimeForDisplay(data[0].timestamp);
     }
