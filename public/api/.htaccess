@@ -1,7 +1,5 @@
 
-# Production .htaccess configuration for API backend
-# Enhanced for security, performance and error handling
-
+# Simplified .htaccess file for easy installation and testing
 # Enable rewrite engine
 RewriteEngine On
 
@@ -15,35 +13,12 @@ RewriteCond %{REQUEST_FILENAME} !-d
 # Rewrite all other URLs to index.php
 RewriteRule ^(.*)$ index.php [QSA,L]
 
-# Security headers
+# Basic CORS headers - allow all origins during setup
 <IfModule mod_headers.c>
-    # Prevent clickjacking
-    Header set X-Frame-Options "SAMEORIGIN"
-    
-    # XSS protection
-    Header set X-XSS-Protection "1; mode=block"
-    
-    # Content type protection
-    Header set X-Content-Type-Options "nosniff"
-    
-    # Content Security Policy
-    Header set Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
-    
-    # HTTP Strict Transport Security (HSTS)
-    Header set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-    
-    # Referrer Policy
-    Header set Referrer-Policy "no-referrer-when-downgrade"
-    
-    # Feature Policy
-    Header set Permissions-Policy "geolocation=(), microphone=(), camera=()"
-    
-    # CORS headers - restrict to specific domains in production
-    SetEnvIf Origin "^(https://(www\.)?yourdomain\.com)$" CORS_ALLOW_ORIGIN=$1
-    Header set Access-Control-Allow-Origin %{CORS_ALLOW_ORIGIN}e env=CORS_ALLOW_ORIGIN
-    Header set Access-Control-Allow-Methods "GET, POST, OPTIONS" env=CORS_ALLOW_ORIGIN
-    Header set Access-Control-Allow-Headers "Content-Type, X-API-Key, Authorization" env=CORS_ALLOW_ORIGIN
-    Header set Access-Control-Max-Age "86400" env=CORS_ALLOW_ORIGIN
+    # Allow any origin during installation/testing
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET, POST, OPTIONS"
+    Header set Access-Control-Allow-Headers "Content-Type, X-API-Key, Authorization"
     
     # Remove PHP version info
     Header unset X-Powered-By
@@ -54,66 +29,17 @@ RewriteEngine On
 RewriteCond %{REQUEST_METHOD} OPTIONS
 RewriteRule ^(.*)$ $1 [R=200,L]
 
-# Protect sensitive files
-<FilesMatch "^(\.htaccess|\.htpasswd|\.user.ini|php\.ini|\.env|config\.php)">
-    Order Allow,Deny
-    Deny from all
-</FilesMatch>
-
-# Protect all dot files
-<FilesMatch "^\.">
-    Order allow,deny
-    Deny from all
-</FilesMatch>
-
-# Protect critical directories
-<IfModule mod_rewrite.c>
-    RewriteRule ^(data|logs|vendor)/ - [F,L]
-</IfModule>
-
 # Disable directory listing
 Options -Indexes
 
-# Prevent script execution in uploads
-<Directory "data">
-    SetHandler default-handler
-    <FilesMatch "\.(php|phtml|php3|php4|php5|php7|phps)$">
-        Deny from all
-    </FilesMatch>
-</Directory>
-
-# PHP configuration
-php_flag display_errors off
-php_value error_reporting 0
+# PHP configuration - enable error display for easier debugging
+php_flag display_errors on
+php_value error_reporting 32767
 php_flag log_errors on
-php_value error_log "logs/error.log"
-
-# Limit request size to prevent abuse
-<IfModule mod_php.c>
-    php_value upload_max_filesize 10M
-    php_value post_max_size 10M
-    php_value memory_limit 128M
-    php_value max_execution_time 30
-    php_value max_input_time 30
-</IfModule>
-
-# Implement request rate limiting (requires mod_ratelimit)
-<IfModule mod_ratelimit.c>
-    # Limit bandwidth to 1024KB/s
-    SetOutputFilter RATE_LIMIT
-    SetEnv rate-limit 1024
-</IfModule>
 
 # Compress text-based responses
 <IfModule mod_deflate.c>
     AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css application/javascript application/json
-</IfModule>
-
-# Set caching for API responses
-<IfModule mod_expires.c>
-    ExpiresActive On
-    ExpiresByType application/json "access plus 0 seconds"
-    Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
 </IfModule>
 
 # Custom error documents
