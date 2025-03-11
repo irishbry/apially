@@ -184,6 +184,14 @@ const DataVisualization: React.FC = () => {
     return value.toString();
   };
 
+  // This function renders the timestamp or N/A - fixed to handle the TypeScript children error
+  const renderLastReceived = () => {
+    if (data.length > 0 && data[0]?.timestamp) {
+      return formatTimeForDisplay(data[0].timestamp);
+    }
+    return 'N/A';
+  };
+
   return (
     <Card className="w-full shadow-sm hover:shadow-md transition-all duration-300">
       <CardHeader>
@@ -340,7 +348,7 @@ const DataVisualization: React.FC = () => {
             <div className="p-4 border rounded-md bg-background/50">
               <div className="text-sm text-muted-foreground">Last Received</div>
               <div className="text-xl font-medium">
-                {data.length > 0 && data[0]?.timestamp ? formatTimeForDisplay(data[0].timestamp) : 'N/A'}
+                {renderLastReceived()}
               </div>
             </div>
           </div>
