@@ -1,4 +1,3 @@
-
 /**
  * Utility functions for generating installation package templates
  */
@@ -9,27 +8,40 @@
 export const createInstallerPHP = (): string => {
   return `<?php
 // Installation script for Data Consolidation Tool
-// Prevent any whitespace or output before headers
+// IMPORTANT: No whitespace or output before this PHP opening tag
+ob_start(); // Start output buffering to prevent "headers already sent" errors
+
 // Show all errors for easier debugging
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-// Very simple test script that should work on most PHP installations
-echo '<html><head><title>API Installation Test</title>';
-echo '<style>
-    body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-    h1 { color: #333; }
-    .success { color: green; font-weight: bold; }
-    .error { color: red; font-weight: bold; }
-    .warning { color: orange; font-weight: bold; }
-    .test { border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; }
-</style>';
-echo '</head><body>';
-echo '<h1>Data Consolidation Tool - Installation</h1>';
+echo '<!DOCTYPE html>
+<html>
+<head>
+    <title>API Installation Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        h1 { color: #333; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        .warning { color: orange; font-weight: bold; }
+        .test { border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Data Consolidation Tool - Installation</h1>';
 
 echo '<div class="test">';
 echo '<h2>PHP Version</h2>';
 echo '<p>PHP Version: ' . phpversion() . '</p>';
+
+// Check if PHP version is compatible
+if (version_compare(phpversion(), '7.0.0', '>=')) {
+    echo "<p class='success'>PHP version " . phpversion() . " is supported</p>";
+} else {
+    echo "<p class='error'>PHP version " . phpversion() . " is too old. PHP 7.0+ is recommended.</p>";
+}
+
 echo '</div>';
 
 echo '<div class="test">';
@@ -101,9 +113,27 @@ if (file_exists('./assets')) {
 echo '</div>';
 
 echo '<div class="test">';
+echo '<h2>PHP Configuration</h2>';
+
+// Check common PHP settings
+echo "<p>output_buffering: " . (ini_get('output_buffering') ? "<span class='success'>Enabled</span>" : "<span class='warning'>Disabled</span>") . "</p>";
+echo "<p>allow_url_fopen: " . (ini_get('allow_url_fopen') ? "<span class='success'>Enabled</span>" : "<span class='warning'>Disabled</span>") . "</p>";
+echo "<p>memory_limit: " . ini_get('memory_limit') . "</p>";
+echo "<p>max_execution_time: " . ini_get('max_execution_time') . " seconds</p>";
+
+// Check for json extension
+if (function_exists('json_encode')) {
+    echo "<p class='success'>JSON extension is available</p>";
+} else {
+    echo "<p class='error'>JSON extension is missing! This is required.</p>";
+}
+
+echo '</div>';
+
+echo '<div class="test">';
 echo '<h2>API Test</h2>';
 
-// Simple API test that should work everywhere
+// Simple API test that doesn't interfere with headers
 echo "<p>Testing API status endpoint:</p>";
 
 // Use a reliable test method
@@ -182,6 +212,7 @@ echo '</ol>';
 echo '</div>';
 
 echo '</body></html>';
+ob_end_flush(); // Flush the output buffer and turn off output buffering
 `;
 }
 
@@ -253,4 +284,3 @@ If you encounter any issues during installation:
 
 For more help, please contact support.`;
 };
-

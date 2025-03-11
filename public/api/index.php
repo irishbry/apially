@@ -1,5 +1,8 @@
 
 <?php
+// IMPORTANT: No whitespace or output before this PHP tag
+ob_start(); // Start output buffering to prevent "headers already sent" errors
+
 // Main API entry point
 require_once 'utils/error_handler.php';
 require_once 'config.php';
@@ -29,8 +32,10 @@ try {
             break;
             
         case 'test':
+            // End output buffering before including test.php which outputs HTML
+            ob_end_flush();
             include 'test.php';
-            break;
+            exit; // Exit to prevent further processing
             
         case 'login':
             handleLoginEndpoint();
@@ -56,7 +61,8 @@ try {
             echo json_encode([
                 'name' => 'Data Consolidation API',
                 'version' => '1.0.0',
-                'endpoints' => ['/status', '/test', '/login', '/data', '/sources', '/schema', '/api-key']
+                'endpoints' => ['/status', '/test', '/login', '/data', '/sources', '/schema', '/api-key'],
+                'php_version' => phpversion()
             ]);
             break;
             
@@ -72,3 +78,5 @@ try {
     echo json_encode(['error' => 'An internal server error occurred']);
 }
 
+// End output buffering
+ob_end_flush();

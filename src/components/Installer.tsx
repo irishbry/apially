@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,10 @@ const Installer: React.FC = () => {
 
   const createIndexPHP = () => {
     return `<?php
-// Simplified index.php that doesn't rely on many PHP features
+// IMPORTANT: No whitespace or output before this PHP opening tag
+ob_start(); // Use output buffering to prevent "headers already sent" errors
+
+// Simplified index.php that works with modern PHP versions
 // Enable error reporting for debugging in development (remove in production)
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
@@ -40,28 +44,34 @@ switch ($endpoint) {
         echo json_encode([
             'status' => 'ok',
             'version' => '1.0.0',
-            'timestamp' => date('c')
+            'timestamp' => date('c'),
+            'php_version' => phpversion() // Include PHP version in status response
         ]);
         break;
         
     case 'test':
     case 'test.php':
-        // Just redirect to the test.php file
+        // End output buffering before including test.php which has its own output
+        ob_end_flush();
         include 'test.php';
-        break;
+        exit; // Stop execution after test.php
         
     case '':
         echo json_encode([
             'name' => 'Data Consolidation API',
             'version' => '1.0.0',
-            'endpoints' => ['/status', '/test']
+            'endpoints' => ['/status', '/test'],
+            'php_version' => phpversion()
         ]);
         break;
         
     default:
         header('HTTP/1.1 404 Not Found');
         echo json_encode(['error' => 'Endpoint not found']);
-}`;
+}
+
+// End output buffering
+ob_end_flush();`;
   };
   
   const createHtaccess = () => {
@@ -79,11 +89,25 @@ RewriteCond %{REQUEST_FILENAME} !-d
 # Route everything else to index.php
 RewriteRule ^(.*)$ index.php [QSA,L]
 
+# Set correct MIME types for modern browsers
+<IfModule mod_mime.c>
+    AddType text/javascript .js
+    AddType application/javascript .mjs
+    AddType text/css .css
+</IfModule>
+
 # Basic CORS headers
 <IfModule mod_headers.c>
     Header set Access-Control-Allow-Origin "*"
     Header set Access-Control-Allow-Methods "GET, POST, OPTIONS"
     Header set Access-Control-Allow-Headers "Content-Type, X-API-Key"
+</IfModule>
+
+# Handle PHP settings that improve compatibility
+<IfModule mod_php.c>
+    php_flag output_buffering on
+    php_value display_errors 0
+    php_value error_reporting 0
 </IfModule>
 
 # Protect data directory
@@ -94,6 +118,7 @@ RewriteRule ^(.*)$ index.php [QSA,L]
   
   const createTestPHP = () => {
     return `<?php
+// IMPORTANT: No whitespace or output before this PHP opening tag
 // Very basic test script that should work on most PHP installations
 // Enable error reporting for troubleshooting
 error_reporting(E_ALL);
@@ -120,6 +145,13 @@ header('Content-Type: text/html; charset=utf-8');
     <div class="test">
         <h3>PHP Version</h3>
         <p>PHP Version: <?php echo phpversion(); ?></p>
+        <?php
+        if (version_compare(phpversion(), '7.0.0', '>=')) {
+            echo "<p class='success'>Your PHP version is compatible (PHP 7.0+)</p>";
+        } else {
+            echo "<p class='error'>Your PHP version is too old. PHP 7.0+ is recommended.</p>";
+        }
+        ?>
     </div>
 
     <div class="test">
@@ -139,6 +171,13 @@ header('Content-Type: text/html; charset=utf-8');
             }
         }
         ?>
+    </div>
+    
+    <div class="test">
+        <h3>PHP Configuration</h3>
+        <p>output_buffering: <?php echo ini_get('output_buffering') ? "<span class='success'>Enabled</span>" : "<span class='warning'>Disabled</span>"; ?></p>
+        <p>memory_limit: <?php echo ini_get('memory_limit'); ?></p>
+        <p>max_execution_time: <?php echo ini_get('max_execution_time'); ?> seconds</p>
     </div>
     
     <div class="test">
@@ -174,6 +213,7 @@ header('Content-Type: text/html; charset=utf-8');
                     <li>PHP syntax errors</li>
                     <li>Missing required PHP extensions</li>
                     <li>File permission issues</li>
+                    <li><strong>"Headers already sent" errors</strong> - Make sure there's no output before header() calls</li>
                 </ul>
             </li>
             <li><strong>HTTP 404 Errors:</strong> Routing issues:
@@ -181,6 +221,12 @@ header('Content-Type: text/html; charset=utf-8');
                     <li>Missing .htaccess file</li>
                     <li>mod_rewrite not enabled</li>
                     <li>Wrong RewriteBase in .htaccess</li>
+                </ul>
+            </li>
+            <li><strong>PHP Version Compatibility:</strong>
+                <ul>
+                    <li>This application works best with PHP 7.0+</li>
+                    <li>Some features may not work with PHP 5.x</li>
                 </ul>
             </li>
         </ul>
@@ -191,7 +237,8 @@ header('Content-Type: text/html; charset=utf-8');
   
   const createConfigPHP = () => {
     return `<?php
-// Extremely simple configuration file that should work with most PHP installations
+// IMPORTANT: No whitespace or output before this PHP opening tag
+// Simple configuration file compatible with modern PHP
 error_reporting(0); // Disable error reporting in production
 
 // Simple configuration
@@ -200,8 +247,18 @@ $config = [
     'api_key' => 'your-secure-api-key-here',
     
     // Path to data storage directory
-    'storage_path' => __DIR__ . '/data'
+    'storage_path' => __DIR__ . '/data',
+    
+    // PHP version requirements
+    'min_php_version' => '7.0.0',
+    'recommended_php_version' => '7.4.0'
 ];
+
+// Check PHP version
+if (version_compare(phpversion(), $config['min_php_version'], '<')) {
+    // Log warning about PHP version
+    error_log('Warning: PHP version ' . phpversion() . ' is below the minimum recommended version ' . $config['min_php_version']);
+}
 
 // Create storage directory if it doesn't exist
 if (!file_exists($config['storage_path'])) {

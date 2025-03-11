@@ -44,3 +44,37 @@ function loadJsonFile($filePath, $default = []) {
 function saveJsonFile($filePath, $data) {
     return file_put_contents($filePath, json_encode($data, JSON_PRETTY_PRINT));
 }
+
+/**
+ * Set CORS headers for API responses
+ * Uses modern PHP syntax compatible with PHP 7.0+
+ */
+function setCorsHeaders() {
+    // Allow all origins during installation/testing
+    header("Access-Control-Allow-Origin: *");
+    header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+    header('Access-Control-Allow-Headers: Content-Type, X-API-Key, Authorization');
+    header('Access-Control-Max-Age: 86400'); // 24 hours cache
+    
+    // Handle preflight requests using modern PHP 7+ syntax
+    if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+        http_response_code(200);
+        exit(0);
+    }
+}
+
+/**
+ * Log API request with PHP 7+ compatible error handling
+ */
+function logApiRequest($endpoint, $status, $message = '') {
+    global $config;
+    try {
+        $logFile = $config['storage_path'] . '/api_log.txt';
+        $timestamp = date('Y-m-d H:i:s');
+        $logEntry = "[$timestamp] $endpoint - Status: $status" . ($message ? " - $message" : "") . PHP_EOL;
+        @file_put_contents($logFile, $logEntry, FILE_APPEND);
+    } catch (Exception $e) {
+        // Silently fail if logging fails - don't disrupt API operation
+        error_log("Failed to log API request: " . $e->getMessage());
+    }
+}

@@ -1,5 +1,6 @@
 
 <?php
+// IMPORTANT: No whitespace or output before this PHP tag
 // Enable error reporting for troubleshooting
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
@@ -29,6 +30,12 @@ header('Content-Type: text/html; charset=utf-8');
         <?php
         // Basic info about PHP that doesn't require functions that might be disabled
         echo '<p>PHP Version: ' . phpversion() . '</p>';
+        if (version_compare(phpversion(), '7.0.0', '>=')) {
+            echo "<p class='success'>Your PHP version " . phpversion() . " is compatible (PHP 7.0+)</p>";
+        } else {
+            echo "<p class='error'>Your PHP version " . phpversion() . " is too old. PHP 7.0+ is recommended.</p>";
+        }
+        
         if (function_exists('phpinfo')) {
             echo '<p><a href="phpinfo.php" target="_blank">View Full PHP Info</a></p>';
         }
@@ -55,6 +62,16 @@ header('Content-Type: text/html; charset=utf-8');
                 echo "<p><span class='error'>✗</span> $ext extension is NOT loaded</p>";
             }
         }
+        ?>
+    </div>
+    
+    <div class="test">
+        <h3>PHP Configuration</h3>
+        <?php
+        echo "<p>output_buffering: " . (ini_get('output_buffering') ? "<span class='success'>Enabled</span>" : "<span class='warning'>Disabled (may cause header issues)</span>") . "</p>";
+        echo "<p>allow_url_fopen: " . (ini_get('allow_url_fopen') ? "<span class='success'>Enabled</span>" : "<span class='warning'>Disabled</span>") . "</p>";
+        echo "<p>memory_limit: " . ini_get('memory_limit') . "</p>";
+        echo "<p>max_execution_time: " . ini_get('max_execution_time') . " seconds</p>";
         ?>
     </div>
     
@@ -118,6 +135,17 @@ header('Content-Type: text/html; charset=utf-8');
             echo "<span class='warning'>Skipped.</span> file_get_contents not available or allow_url_fopen disabled.</p>";
         }
         ?>
+    </div>
+    
+    <div class="test">
+        <h3>Common PHP Version Issues</h3>
+        <p>This application is designed to work with PHP 7.0 and newer versions.</p>
+        <ul>
+            <li><strong>PHP 5.x:</strong> Some features may not work correctly with older PHP versions.</li>
+            <li><strong>PHP 7.0+:</strong> Recommended for best performance and compatibility.</li>
+            <li><strong>PHP 8.0+:</strong> Fully supported with the latest updates.</li>
+        </ul>
+        <p>If you're experiencing issues related to PHP version compatibility, please contact your hosting provider about upgrading PHP.</p>
     </div>
 </body>
 </html>
