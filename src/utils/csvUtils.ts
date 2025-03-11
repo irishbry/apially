@@ -83,3 +83,44 @@ export function getFormattedDateTime(): string {
   const time = now.toLocaleTimeString().replace(/:/g, '-').replace(/\s/g, '');
   return `${date}_${time}`;
 }
+
+// Group data by date
+export function groupDataByDate(data: DataEntry[]): Record<string, DataEntry[]> {
+  const groupedData: Record<string, DataEntry[]> = {};
+  
+  data.forEach(entry => {
+    if (!entry.timestamp) return;
+    
+    const date = new Date(entry.timestamp);
+    const dateString = date.toLocaleDateString();
+    
+    if (!groupedData[dateString]) {
+      groupedData[dateString] = [];
+    }
+    
+    groupedData[dateString].push(entry);
+  });
+  
+  return groupedData;
+}
+
+// Count data entries by source and date range
+export function countDataBySource(
+  data: DataEntry[], 
+  startDate: Date, 
+  endDate: Date
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  
+  data.forEach(entry => {
+    if (!entry.timestamp) return;
+    
+    const date = new Date(entry.timestamp);
+    if (date >= startDate && date <= endDate) {
+      const sourceId = entry.sourceId || 'unknown';
+      counts[sourceId] = (counts[sourceId] || 0) + 1;
+    }
+  });
+  
+  return counts;
+}

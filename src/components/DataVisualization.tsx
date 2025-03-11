@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, Legend } from 'recharts';
 import ApiService, { DataEntry } from "@/services/ApiService";
 import { Button } from './ui/button';
 import { BarChart2, LineChart as LineChartIcon, PieChart as PieChartIcon } from 'lucide-react';
@@ -14,8 +14,9 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'
 const DataVisualization: React.FC = () => {
   const [data, setData] = useState<DataEntry[]>([]);
   const [chartType, setChartType] = useState<'bar' | 'line' | 'pie'>('bar');
-  const [dataType, setDataType] = useState<'temperature' | 'humidity' | 'pressure'>('temperature');
+  const [timeFrame, setTimeFrame] = useState<'day' | 'week' | 'month'>('day');
   const [statsBySource, setStatsBySource] = useState<any[]>([]);
+  const [dataByTime, setDataByTime] = useState<any[]>([]);
 
   useEffect(() => {
     // Get initial data
@@ -37,12 +38,6 @@ const DataVisualization: React.FC = () => {
     const sources = new Map<string, {
       name: string;
       count: number;
-      totalTemperature: number;
-      totalHumidity: number;
-      totalPressure: number;
-      avgTemperature: number;
-      avgHumidity: number;
-      avgPressure: number;
     }>();
     
     // Group data by source
@@ -53,103 +48,140 @@ const DataVisualization: React.FC = () => {
       if (!sources.has(sourceId)) {
         sources.set(sourceId, {
           name: sourceName,
-          count: 0,
-          totalTemperature: 0,
-          totalHumidity: 0,
-          totalPressure: 0,
-          avgTemperature: 0,
-          avgHumidity: 0,
-          avgPressure: 0
+          count: 0
         });
       }
       
       const source = sources.get(sourceId)!;
       source.count += 1;
-      
-      if (typeof entry.temperature === 'number') {
-        source.totalTemperature += entry.temperature;
-      }
-      
-      if (typeof entry.humidity === 'number') {
-        source.totalHumidity += entry.humidity;
-      }
-      
-      if (typeof entry.pressure === 'number') {
-        source.totalPressure += entry.pressure;
-      }
     });
     
-    // Calculate averages
-    const statsArray = Array.from(sources.entries()).map(([id, source]) => {
-      return {
-        id,
-        name: source.name,
-        count: source.count,
-        avgTemperature: source.count ? Math.round((source.totalTemperature / source.count) * 10) / 10 : 0,
-        avgHumidity: source.count ? Math.round(source.totalHumidity / source.count) : 0,
-        avgPressure: source.count ? Math.round((source.totalPressure / source.count) * 10) / 10 : 0,
-      };
-    });
+    // Convert to array for chart
+    const statsArray = Array.from(sources.entries()).map(([id, source]) => ({
+      id,
+      name: source.name,
+      count: source.count
+    }));
     
     setStatsBySource(statsArray);
-  }, [data]);
 
-  // Get chart data based on selected data type
-  const getChartData = () => {
-    return statsBySource.map(source => ({
-      name: source.name,
-      value: source[`avg${dataType.charAt(0).toUpperCase() + dataType.slice(1)}`],
-    }));
-  };
-
-  // Get latest readings for each sensor across all sources
-  const getLatestReadings = () => {
-    const sensorMap = new Map<string, DataEntry>();
+    // Process data by time periods
+    processDataByTime(data, timeFrame);
+  }, [data, timeFrame]);
+  
+  // Process data based on selected time frame
+  const processDataByTime = (data: DataEntry[], timeFrame: 'day' | 'week' | 'month') => {
+    // Maps to track data counts by time period and source
+    const timeMap = new Map<string, Map<string, number>>();
+    const sourceNames = new Map<string, string>();
     
-    // Find the latest entry for each sensor
+    // Get current date
+    const now = new Date();
+    
+    // Determine time periods based on selected frame
+    const periods: string[] = [];
+    
+    if (timeFrame === 'day') {
+      // Last 24 hours in 2-hour increments
+      for (let i = 0; i < 12; i++) {
+        const time = new Date(now.getTime() - (i * 2 * 60 * 60 * 1000));
+        const hour = time.getHours();
+        const period = `${hour}:00`;
+        periods.unshift(period);
+      }
+    } else if (timeFrame === 'week') {
+      // Last 7 days
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(now.getTime() - (i * 24 * 60 * 60 * 1000));
+        const day = date.toLocaleDateString(undefined, { weekday: 'short' });
+        periods.unshift(day);
+      }
+    } else if (timeFrame === 'month') {
+      // Last 4 weeks
+      for (let i = 0; i < 4; i++) {
+        const date = new Date(now.getTime() - (i * 7 * 24 * 60 * 60 * 1000));
+        const week = `Week ${4-i}`;
+        periods.unshift(week);
+      }
+    }
+    
+    // Initialize time map with periods
+    periods.forEach(period => {
+      timeMap.set(period, new Map<string, number>());
+    });
+    
+    // Categorize data entries by time period and source
     data.forEach(entry => {
-      const sensorId = entry.sensorId;
-      if (sensorId) {
-        const existing = sensorMap.get(sensorId);
-        if (!existing || (entry.timestamp && existing.timestamp && entry.timestamp > existing.timestamp)) {
-          sensorMap.set(sensorId, entry);
-        }
+      if (!entry.timestamp) return;
+      
+      const timestamp = new Date(entry.timestamp);
+      const sourceId = entry.sourceId || 'unknown';
+      const sourceName = entry.sourceId ? ApiService.getSourceName(entry.sourceId) : 'Unknown';
+      
+      // Save source name mapping
+      sourceNames.set(sourceId, sourceName);
+      
+      // Determine which period this entry belongs to
+      let period = '';
+      
+      if (timeFrame === 'day') {
+        // Group by 2-hour blocks
+        const hour = timestamp.getHours();
+        const roundedHour = Math.floor(hour / 2) * 2;
+        period = `${roundedHour}:00`;
+      } else if (timeFrame === 'week') {
+        // Group by day
+        period = timestamp.toLocaleDateString(undefined, { weekday: 'short' });
+      } else if (timeFrame === 'month') {
+        // Group by week
+        const daysPassed = Math.floor((now.getTime() - timestamp.getTime()) / (24 * 60 * 60 * 1000));
+        const weekNumber = Math.min(Math.floor(daysPassed / 7) + 1, 4);
+        period = `Week ${weekNumber}`;
+      }
+      
+      // If period exists in our map, increment the count for this source
+      if (timeMap.has(period)) {
+        const sourceMap = timeMap.get(period)!;
+        sourceMap.set(sourceId, (sourceMap.get(sourceId) || 0) + 1);
       }
     });
     
-    return Array.from(sensorMap.values());
+    // Convert to format suitable for charts
+    const formattedData: any[] = [];
+    
+    // Get all unique source IDs
+    const sourceIds = Array.from(sourceNames.keys());
+    
+    // Create data entries for each time period
+    periods.forEach(period => {
+      const entry: any = { name: period };
+      const sourceMap = timeMap.get(period)!;
+      
+      // Add count for each source
+      sourceIds.forEach(sourceId => {
+        entry[sourceId] = sourceMap.get(sourceId) || 0;
+        entry[`${sourceNames.get(sourceId)}`] = sourceMap.get(sourceId) || 0;
+      });
+      
+      // Add total for this period
+      entry.total = Array.from(sourceMap.values()).reduce((sum, count) => sum + count, 0);
+      
+      formattedData.push(entry);
+    });
+    
+    setDataByTime(formattedData);
   };
 
-  // Get time series data for selected data type
-  const getTimeSeriesData = () => {
-    // Only take the last 10 entries for clarity
-    return data.slice(0, 10).reverse().map(entry => ({
-      name: entry.timestamp ? formatTimeForDisplay(entry.timestamp).split(', ')[1] : 'Unknown',
-      value: typeof entry[dataType] === 'number' ? entry[dataType] : 0,
-      sensor: entry.sensorId || 'Unknown'
-    }));
-  };
-
-  // Get unit for selected data type
-  const getUnit = () => {
-    switch (dataType) {
-      case 'temperature': return '°C';
-      case 'humidity': return '%';
-      case 'pressure': return 'hPa';
-      default: return '';
-    }
-  };
-
-  // Format chart value with appropriate unit
+  // Format chart value for tooltip
   const formatChartValue = (value: number) => {
-    return `${value}${getUnit()}`;
+    return `${value} entries`;
   };
 
   return (
     <Card className="w-full shadow-sm hover:shadow-md transition-all duration-300">
       <CardHeader>
         <CardTitle className="flex items-center justify-between text-xl font-medium">
-          <span>Data Visualization</span>
+          <span>Data Volume Visualization</span>
           <div className="flex items-center gap-2">
             <Button 
               variant={chartType === 'bar' ? 'default' : 'outline'} 
@@ -178,17 +210,17 @@ const DataVisualization: React.FC = () => {
           </div>
         </CardTitle>
         <CardDescription>
-          Visualize your data by source and metric
+          Visualize data volume by source and time period
         </CardDescription>
         <div className="mt-2">
-          <Select value={dataType} onValueChange={(value: 'temperature' | 'humidity' | 'pressure') => setDataType(value)}>
+          <Select value={timeFrame} onValueChange={(value: 'day' | 'week' | 'month') => setTimeFrame(value)}>
             <SelectTrigger>
-              <SelectValue placeholder="Select metric" />
+              <SelectValue placeholder="Select time frame" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="temperature">Temperature (°C)</SelectItem>
-              <SelectItem value="humidity">Humidity (%)</SelectItem>
-              <SelectItem value="pressure">Pressure (hPa)</SelectItem>
+              <SelectItem value="day">Daily (Last 24 hours)</SelectItem>
+              <SelectItem value="week">Weekly (Last 7 days)</SelectItem>
+              <SelectItem value="month">Monthly (Last 4 weeks)</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -202,27 +234,44 @@ const DataVisualization: React.FC = () => {
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
               {chartType === 'bar' && (
-                <BarChart data={getChartData()} margin={{ top: 20, right: 30, left: 20, bottom: 70 }}>
+                <BarChart data={dataByTime} margin={{ top: 20, right: 30, left: 20, bottom: 70 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} />
-                  <YAxis tickFormatter={(value) => `${value}${getUnit()}`} />
+                  <YAxis tickFormatter={(value) => `${value}`} label={{ value: 'Data Entries', angle: -90, position: 'insideLeft' }} />
                   <Tooltip formatter={(value) => formatChartValue(value as number)} />
-                  <Bar dataKey="value" name={dataType.charAt(0).toUpperCase() + dataType.slice(1)} fill="#8884d8" />
+                  <Legend />
+                  {statsBySource.map((source, index) => (
+                    <Bar key={source.id} dataKey={source.name} name={source.name} fill={COLORS[index % COLORS.length]} />
+                  ))}
                 </BarChart>
               )}
               {chartType === 'line' && (
-                <LineChart data={getTimeSeriesData()} margin={{ top: 20, right: 30, left: 20, bottom: 70 }}>
+                <LineChart data={dataByTime} margin={{ top: 20, right: 30, left: 20, bottom: 70 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} />
-                  <YAxis tickFormatter={(value) => `${value}${getUnit()}`} />
-                  <Tooltip formatter={(value) => formatChartValue(value as number)} labelFormatter={(label) => `Time: ${label}`} />
-                  <Line type="monotone" dataKey="value" name={dataType.charAt(0).toUpperCase() + dataType.slice(1)} stroke="#8884d8" strokeWidth={2} dot={{ r: 4 }} />
+                  <YAxis tickFormatter={(value) => `${value}`} label={{ value: 'Data Entries', angle: -90, position: 'insideLeft' }} />
+                  <Tooltip formatter={(value) => formatChartValue(value as number)} />
+                  <Legend />
+                  {statsBySource.map((source, index) => (
+                    <Line 
+                      key={source.id} 
+                      type="monotone" 
+                      dataKey={source.name} 
+                      name={source.name} 
+                      stroke={COLORS[index % COLORS.length]} 
+                      strokeWidth={2} 
+                      dot={{ r: 4 }} 
+                    />
+                  ))}
                 </LineChart>
               )}
               {chartType === 'pie' && (
                 <PieChart>
                   <Pie
-                    data={getChartData()}
+                    data={statsBySource.map(source => ({
+                      name: source.name,
+                      value: source.count
+                    }))}
                     cx="50%"
                     cy="50%"
                     labelLine={true}
@@ -230,39 +279,39 @@ const DataVisualization: React.FC = () => {
                     fill="#8884d8"
                     dataKey="value"
                     nameKey="name"
-                    label={({ name, value }) => `${name}: ${value}${getUnit()}`}
+                    label={({name, value}) => `${name}: ${value}`}
                   >
-                    {getChartData().map((entry, index) => (
+                    {statsBySource.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
                   <Tooltip formatter={(value) => formatChartValue(value as number)} />
+                  <Legend />
                 </PieChart>
               )}
             </ResponsiveContainer>
           </div>
         )}
 
-        {getLatestReadings().length > 0 && (
-          <div className="mt-8">
-            <h3 className="text-sm font-medium mb-2">Latest Readings by Sensor</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-              {getLatestReadings().map((entry) => (
-                <div key={entry.sensorId} className="p-3 border rounded-md">
-                  <div className="font-medium">{entry.sensorId}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {entry.timestamp ? formatTimeForDisplay(entry.timestamp) : 'Unknown time'}
-                  </div>
-                  <div className="grid grid-cols-3 gap-1 mt-1">
-                    <div className="text-xs">Temp: <span className="font-medium">{entry.temperature}°C</span></div>
-                    <div className="text-xs">Humidity: <span className="font-medium">{entry.humidity}%</span></div>
-                    <div className="text-xs">Pressure: <span className="font-medium">{entry.pressure}hPa</span></div>
-                  </div>
-                </div>
-              ))}
+        <div className="mt-8">
+          <h3 className="text-sm font-medium mb-2">Data Volume Summary</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-4 border rounded-md bg-background/50">
+              <div className="text-sm text-muted-foreground">Total Data Points</div>
+              <div className="text-2xl font-bold">{data.length}</div>
+            </div>
+            <div className="p-4 border rounded-md bg-background/50">
+              <div className="text-sm text-muted-foreground">Active Sources</div>
+              <div className="text-2xl font-bold">{statsBySource.length}</div>
+            </div>
+            <div className="p-4 border rounded-md bg-background/50">
+              <div className="text-sm text-muted-foreground">Last Received</div>
+              <div className="text-xl font-medium">
+                {data[0]?.timestamp ? formatTimeForDisplay(data[0].timestamp) : 'N/A'}
+              </div>
             </div>
           </div>
-        )}
+        </div>
       </CardContent>
     </Card>
   );
