@@ -177,6 +177,13 @@ const DataVisualization: React.FC = () => {
     return `${value} entries`;
   };
 
+  // Format large numbers with k, M, etc.
+  const formatYAxis = (value: number) => {
+    if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+    if (value >= 1000) return `${(value / 1000).toFixed(1)}k`;
+    return value.toString();
+  };
+
   return (
     <Card className="w-full shadow-sm hover:shadow-md transition-all duration-300">
       <CardHeader>
@@ -231,27 +238,53 @@ const DataVisualization: React.FC = () => {
             <p>No data available to visualize. Send some test data first.</p>
           </div>
         ) : (
-          <div className="h-80">
+          <div className="h-[400px]">
             <ResponsiveContainer width="100%" height="100%">
               {chartType === 'bar' && (
-                <BarChart data={dataByTime} margin={{ top: 20, right: 30, left: 20, bottom: 70 }}>
+                <BarChart data={dataByTime} margin={{ top: 20, right: 30, left: 20, bottom: 90 }}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} />
-                  <YAxis tickFormatter={(value) => `${value}`} label={{ value: 'Data Entries', angle: -90, position: 'insideLeft' }} />
+                  <XAxis 
+                    dataKey="name" 
+                    angle={-45} 
+                    textAnchor="end" 
+                    height={80} 
+                    tickMargin={20} 
+                    interval={0}
+                  />
+                  <YAxis 
+                    tickFormatter={formatYAxis} 
+                    label={{ value: 'Data Entries', angle: -90, position: 'insideLeft', offset: -5 }} 
+                  />
                   <Tooltip formatter={(value) => formatChartValue(value as number)} />
-                  <Legend />
+                  <Legend verticalAlign="top" wrapperStyle={{ paddingBottom: 10 }} />
                   {statsBySource.map((source, index) => (
-                    <Bar key={source.id} dataKey={source.name} name={source.name} fill={COLORS[index % COLORS.length]} />
+                    <Bar 
+                      key={source.id} 
+                      dataKey={source.name} 
+                      name={source.name} 
+                      fill={COLORS[index % COLORS.length]} 
+                      maxBarSize={60}
+                    />
                   ))}
                 </BarChart>
               )}
               {chartType === 'line' && (
-                <LineChart data={dataByTime} margin={{ top: 20, right: 30, left: 20, bottom: 70 }}>
+                <LineChart data={dataByTime} margin={{ top: 20, right: 30, left: 20, bottom: 90 }}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" angle={-45} textAnchor="end" height={70} />
-                  <YAxis tickFormatter={(value) => `${value}`} label={{ value: 'Data Entries', angle: -90, position: 'insideLeft' }} />
+                  <XAxis 
+                    dataKey="name" 
+                    angle={-45} 
+                    textAnchor="end" 
+                    height={80} 
+                    tickMargin={20} 
+                    interval={0}
+                  />
+                  <YAxis 
+                    tickFormatter={formatYAxis} 
+                    label={{ value: 'Data Entries', angle: -90, position: 'insideLeft', offset: -5 }} 
+                  />
                   <Tooltip formatter={(value) => formatChartValue(value as number)} />
-                  <Legend />
+                  <Legend verticalAlign="top" wrapperStyle={{ paddingBottom: 10 }} />
                   {statsBySource.map((source, index) => (
                     <Line 
                       key={source.id} 
@@ -260,13 +293,13 @@ const DataVisualization: React.FC = () => {
                       name={source.name} 
                       stroke={COLORS[index % COLORS.length]} 
                       strokeWidth={2} 
-                      dot={{ r: 4 }} 
+                      dot={{ r: 4 }}
                     />
                   ))}
                 </LineChart>
               )}
               {chartType === 'pie' && (
-                <PieChart>
+                <PieChart margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                   <Pie
                     data={statsBySource.map(source => ({
                       name: source.name,
@@ -275,7 +308,7 @@ const DataVisualization: React.FC = () => {
                     cx="50%"
                     cy="50%"
                     labelLine={true}
-                    outerRadius={80}
+                    outerRadius={120}
                     fill="#8884d8"
                     dataKey="value"
                     nameKey="name"
@@ -286,7 +319,7 @@ const DataVisualization: React.FC = () => {
                     ))}
                   </Pie>
                   <Tooltip formatter={(value) => formatChartValue(value as number)} />
-                  <Legend />
+                  <Legend layout="vertical" verticalAlign="middle" align="right" />
                 </PieChart>
               )}
             </ResponsiveContainer>
@@ -298,7 +331,7 @@ const DataVisualization: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-4 border rounded-md bg-background/50">
               <div className="text-sm text-muted-foreground">Total Data Points</div>
-              <div className="text-2xl font-bold">{data.length}</div>
+              <div className="text-2xl font-bold">{data.length.toLocaleString()}</div>
             </div>
             <div className="p-4 border rounded-md bg-background/50">
               <div className="text-sm text-muted-foreground">Active Sources</div>
