@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -178,18 +179,14 @@ const DataVisualization: React.FC = () => {
     return value.toString();
   };
 
-  // This is the correct format for Recharts Tooltip formatter
-  // It must return a single value, not an array
-  const tooltipFormatter = (value: any, name: any) => {
-    return `${value} entries`;
-  };
-
-  // Custom content for tooltip to avoid the multiple children error
+  // Custom tooltip renderer that properly handles the React component requirement
   const CustomTooltip = ({ active, payload, label }: any) => {
-    if (!active || !payload || !payload.length) return null;
+    if (!active || !payload || payload.length === 0) {
+      return null;
+    }
     
     return (
-      <div className="bg-white p-2 border shadow-sm rounded-md">
+      <div className="bg-white p-2 border rounded-md shadow-sm">
         <p className="text-xs font-medium">{label}</p>
         {payload.map((entry: any, index: number) => (
           <p key={index} className="text-xs" style={{ color: entry.color }}>
