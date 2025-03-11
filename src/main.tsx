@@ -1,6 +1,6 @@
 
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import App from './App.tsx'
 import InstallerPage from './pages/InstallerPage.tsx'
 import './index.css'
@@ -17,7 +17,7 @@ const renderApp = () => {
     
     const root = createRoot(container);
     
-    // Render the app with proper routing, with special handling for the /installer path
+    // Render the app with proper routing
     root.render(
       <BrowserRouter>
         <Routes>
