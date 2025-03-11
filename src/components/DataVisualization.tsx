@@ -340,7 +340,7 @@ const DataVisualization: React.FC = () => {
             <div className="p-4 border rounded-md bg-background/50">
               <div className="text-sm text-muted-foreground">Last Received</div>
               <div className="text-xl font-medium">
-                {data[0]?.timestamp ? formatTimeForDisplay(data[0].timestamp) : 'N/A'}
+                {data.length > 0 && data[0]?.timestamp ? formatTimeForDisplay(data[0].timestamp) : 'N/A'}
               </div>
             </div>
           </div>
