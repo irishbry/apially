@@ -1,4 +1,3 @@
-
 /**
  * Utility functions for generating installation package templates
  */
@@ -215,7 +214,7 @@ echo '</div>';
 echo '</body></html>';
 ob_end_flush(); // Flush the output buffer and turn off output buffering
 `;
-}
+};
 
 /**
  * Creates the README.md file content
@@ -593,4 +592,216 @@ RewriteRule ^(.*)$ index.php [QSA,L]
 
 The .htaccess file is essential for the API to function properly - without it, you'll get 404 errors.
 `;
+};
+
+/**
+ * Creates the React index.html file
+ */
+export const createReactIndexHTML = (): string => {
+  return `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
+    <title>Data Consolidation Portal</title>
+    <link rel="stylesheet" href="/assets/styles.css">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script src="/assets/app.js"></script>
+  </body>
+</html>`;
+};
+
+/**
+ * Creates a minimal React app.js file that connects to the API
+ */
+export const createReactAppJS = (): string => {
+  return `// Simple React application that connects to the Data Consolidation API
+document.addEventListener('DOMContentLoaded', function() {
+  const root = document.getElementById('root');
+  
+  // Create app container
+  const app = document.createElement('div');
+  app.className = 'app-container';
+  
+  // Create header
+  const header = document.createElement('header');
+  header.className = 'app-header';
+  header.innerHTML = '<h1>Data Consolidation Portal</h1>';
+  
+  // Create main content area
+  const main = document.createElement('main');
+  main.className = 'app-main';
+  
+  // Create API test section
+  const apiTest = document.createElement('div');
+  apiTest.className = 'api-test';
+  apiTest.innerHTML = \`
+    <h2>API Connection Test</h2>
+    <p>Testing connection to the API...</p>
+    <div id="api-status">Checking...</div>
+    <button id="test-api">Test API Connection</button>
+  \`;
+  
+  // Append elements
+  app.appendChild(header);
+  app.appendChild(main);
+  main.appendChild(apiTest);
+  root.appendChild(app);
+  
+  // Add API test functionality
+  document.getElementById('test-api').addEventListener('click', function() {
+    const statusEl = document.getElementById('api-status');
+    statusEl.textContent = 'Connecting...';
+    statusEl.className = 'connecting';
+    
+    fetch('/api/status')
+      .then(response => response.json())
+      .then(data => {
+        statusEl.textContent = 'Connected! API Status: ' + data.status;
+        statusEl.className = 'connected';
+      })
+      .catch(error => {
+        statusEl.textContent = 'Connection failed! Error: ' + error.message;
+        statusEl.className = 'error';
+      });
+  });
+});`;
+};
+
+/**
+ * Creates basic CSS styles for the React app
+ */
+export const createReactStyles = (): string => {
+  return `/* Basic styles for the Data Consolidation Portal */
+:root {
+  --primary-color: #3b82f6;
+  --text-color: #1f2937;
+  --bg-color: #f9fafb;
+  --card-bg: #ffffff;
+  --border-color: #e5e7eb;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  line-height: 1.5;
+  color: var(--text-color);
+  background-color: var(--bg-color);
+}
+
+.app-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.app-header {
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.app-header h1 {
+  color: var(--primary-color);
+}
+
+.app-main {
+  display: grid;
+  gap: 2rem;
+}
+
+.api-test {
+  background-color: var(--card-bg);
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.api-test h2 {
+  margin-bottom: 1rem;
+}
+
+.api-test button {
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.api-test button:hover {
+  opacity: 0.9;
+}
+
+#api-status {
+  margin: 1rem 0;
+  padding: 0.75rem;
+  border-radius: 0.25rem;
+  background-color: #f3f4f6;
+}
+
+#api-status.connecting {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+#api-status.connected {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+#api-status.error {
+  background-color: #fee2e2;
+  color: #b91c1c;
+}`;
+};
+
+/**
+ * Creates .htaccess file for the frontend SPA
+ */
+export const createFrontendHtaccess = (): string => {
+  return `# Frontend .htaccess for single-page React application
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  RewriteRule ^index\\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /index.html [L]
+</IfModule>
+
+# Set proper MIME types
+<IfModule mod_mime.c>
+  AddType application/javascript .js
+  AddType text/css .css
+</IfModule>
+
+# Enable GZIP compression
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css application/javascript application/json
+</IfModule>
+
+# Set caching headers
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType image/jpg "access plus 1 year"
+  ExpiresByType image/jpeg "access plus 1 year"
+  ExpiresByType image/gif "access plus 1 year"
+  ExpiresByType image/png "access plus 1 year"
+  ExpiresByType image/svg+xml "access plus 1 year"
+  ExpiresByType text/css "access plus 1 month"
+  ExpiresByType application/javascript "access plus 1 month"
+  ExpiresDefault "access plus 1 week"
+</IfModule>`;
 };
