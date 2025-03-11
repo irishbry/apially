@@ -171,29 +171,17 @@ const DataVisualization: React.FC = () => {
     setDataByTime(formattedData);
   };
 
-  // Format chart value for tooltip - returns a string instead of JSX
-  const formatChartValue = (value: number): string => {
-    return `${value} entries`;
-  };
+  // Custom tooltip formatter function that returns the expected type for Recharts
+  const customTooltipFormatter = (value: any, name: any) => [
+    `${value} entries`, 
+    name
+  ];
 
-  // Format large numbers with k, M, etc.
+  // Format Y axis values
   const formatYAxis = (value: number): string => {
     if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
     if (value >= 1000) return `${(value / 1000).toFixed(1)}k`;
     return value.toString();
-  };
-
-  // Get formatted last received time as a simple string
-  const getLastReceivedTime = (): string => {
-    if (data.length > 0 && data[0]?.timestamp) {
-      return formatTimeForDisplay(data[0].timestamp);
-    }
-    return 'N/A';
-  };
-
-  // Create a custom tooltip formatter that returns a SINGLE element
-  const tooltipFormatter = (value: number, name: string): [string, string] => {
-    return [`${value} entries`, name];
   };
 
   return (
@@ -267,7 +255,7 @@ const DataVisualization: React.FC = () => {
                     tickFormatter={formatYAxis} 
                     label={{ value: 'Data Entries', angle: -90, position: 'insideLeft', offset: -5 }} 
                   />
-                  <Tooltip formatter={tooltipFormatter} />
+                  <Tooltip formatter={customTooltipFormatter} />
                   <Legend verticalAlign="top" wrapperStyle={{ paddingBottom: 10 }} />
                   {statsBySource.map((source, index) => (
                     <Bar 
@@ -295,7 +283,7 @@ const DataVisualization: React.FC = () => {
                     tickFormatter={formatYAxis} 
                     label={{ value: 'Data Entries', angle: -90, position: 'insideLeft', offset: -5 }} 
                   />
-                  <Tooltip formatter={tooltipFormatter} />
+                  <Tooltip formatter={customTooltipFormatter} />
                   <Legend verticalAlign="top" wrapperStyle={{ paddingBottom: 10 }} />
                   {statsBySource.map((source, index) => (
                     <Line 
@@ -330,7 +318,7 @@ const DataVisualization: React.FC = () => {
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={tooltipFormatter} />
+                  <Tooltip formatter={customTooltipFormatter} />
                   <Legend layout="vertical" verticalAlign="middle" align="right" />
                 </PieChart>
               )}
