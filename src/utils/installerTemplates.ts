@@ -9,6 +9,7 @@
 export const createInstallerPHP = (): string => {
   return `<?php
 // Installation script for Data Consolidation Tool
+// Prevent any whitespace or output before headers
 // Show all errors for easier debugging
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
@@ -113,17 +114,46 @@ echo "<p>Requesting: $testUrl</p>";
 if (file_exists('./api/index.php')) {
     echo "<p class='success'>API index.php exists, basic functions should work</p>";
     
-    // Try to directly include the file to get output
+    // Update this to avoid header issues - use alternative approach for testing API
     echo "<p>If the API is working, you should see JSON output below:</p>";
     echo "<pre>";
-    // Output buffering to safely capture any output
-    ob_start();
-    $_SERVER['REQUEST_URI'] = '/api/status';  // Simulate request to status endpoint
-    $_SERVER['SCRIPT_NAME'] = '/api/index.php';
-    include_once './api/index.php';
-    $result = ob_get_clean();
-    echo htmlspecialchars($result);
+    // Use file_get_contents instead of including the file
+    // This avoids header conflicts when testing
+    $apiUrl = 'http' . (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 's' : '') . 
+              '://' . $_SERVER['HTTP_HOST'] . 
+              dirname($_SERVER['REQUEST_URI']) . '/api/status';
+              
+    // Use curl if available (better for testing APIs)
+    if (function_exists('curl_init')) {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $apiUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        $result = curl_exec($ch);
+        if ($result === false) {
+            echo "cURL Error: " . curl_error($ch);
+        } else {
+            echo htmlspecialchars($result);
+        }
+        curl_close($ch);
+    } else {
+        // Fallback to file_get_contents
+        $context = stream_context_create([
+            'http' => [
+                'ignore_errors' => true,
+                'method' => 'GET'
+            ]
+        ]);
+        $result = @file_get_contents($apiUrl, false, $context);
+        if ($result === false) {
+            echo "Error: Unable to access API. Check file permissions and server configuration.";
+        } else {
+            echo htmlspecialchars($result);
+        }
+    }
     echo "</pre>";
+    
+    echo "<p>Alternative direct test (if above fails):</p>";
+    echo "<p>Visit <a href='./api/status' target='_blank'>./api/status</a> directly in a new tab.</p>";
 }
 
 echo '</div>';
@@ -147,6 +177,7 @@ echo '<li>Ensure all assets are correctly uploaded (JS and CSS files)</li>';
 echo '<li>Try clearing your browser cache or using incognito/private mode</li>';
 echo '<li>Check server logs for any 404 errors which might indicate missing files</li>';
 echo '<li>Try visiting the /installer URL directly if the main page won\'t load</li>';
+echo '<li>If you get "Loading Application..." message, it means JavaScript is running but the app isn\'t finishing initialization</li>';
 echo '</ol>';
 echo '</div>';
 
@@ -222,3 +253,4 @@ If you encounter any issues during installation:
 
 For more help, please contact support.`;
 };
+
