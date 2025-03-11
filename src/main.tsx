@@ -1,9 +1,11 @@
 
 import { createRoot } from 'react-dom/client'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import App from './App.tsx'
+import InstallerPage from './pages/InstallerPage.tsx'
 import './index.css'
 
-// Error boundary for the entire application
+// Improved error boundary for the entire application
 const renderApp = () => {
   try {
     const container = document.getElementById("root");
@@ -15,7 +17,15 @@ const renderApp = () => {
     
     const root = createRoot(container);
     
-    root.render(<App />);
+    // Render the app with proper routing, with special handling for the /installer path
+    root.render(
+      <BrowserRouter>
+        <Routes>
+          <Route path="/installer" element={<InstallerPage />} />
+          <Route path="/*" element={<App />} />
+        </Routes>
+      </BrowserRouter>
+    );
     
     console.log("Application successfully rendered");
   } catch (error) {

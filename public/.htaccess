@@ -1,0 +1,42 @@
+
+# Set correct MIME types
+<IfModule mod_mime.c>
+  # Ensure JavaScript files have the correct MIME type
+  AddType text/javascript .js
+  AddType application/javascript .mjs
+  
+  # For ESM modules
+  AddType text/javascript .js
+  
+  # Fonts
+  AddType application/font-woff .woff
+  AddType application/font-woff2 .woff2
+  
+  # CSS
+  AddType text/css .css
+</IfModule>
+
+# Enable cross-origin requests
+<IfModule mod_headers.c>
+  # Allow cross-domain requests
+  Header set Access-Control-Allow-Origin "*"
+</IfModule>
+
+# Handle routing for SPAs
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  
+  # If the requested resource exists, serve it as-is
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+  
+  # For API requests, proxy to /api
+  RewriteRule ^api/(.*) api/$1 [L]
+  
+  # For /installer, serve the index.html
+  RewriteRule ^installer/?$ index.html [L]
+  
+  # For all other requests, serve index.html
+  RewriteRule ^ index.html [L]
+</IfModule>

@@ -35,6 +35,9 @@
           document.getElementById('root').innerHTML = '<div style="padding: 20px; font-family: Arial, sans-serif;">' +
             '<h2>Loading Application...</h2>' +
             '<p>If you continue seeing this message, the application may not be loading correctly.</p>' +
+            '<p>If you are experiencing a "Failed to load module script" error, make sure your server is configured to serve JavaScript files with the correct MIME type.</p>' +
+            '<p>For Apache servers, you may need to add the following to your .htaccess file:</p>' +
+            '<pre style="background: #f7fafc; padding: 10px; border-radius: 5px; overflow: auto;">AddType text/javascript .js</pre>' +
             '<p><a href="/installer" style="color: #3182ce;">Go to Installer Page</a></p>' +
             '</div>';
         }
