@@ -25,7 +25,7 @@ export const createPackageFiles = (): PackageFile[] => {
     { path: 'README.md', content: createReadme() },
     
     // API directory 
-    { path: 'api', directory: true },
+    { path: 'api', content: '', directory: true },
     { path: 'api/index.php', content: createIndexPHP() },
     { path: 'api/.htaccess', content: createHtaccess() },
     { path: 'api/test.php', content: createTestPHP() },
@@ -33,7 +33,7 @@ export const createPackageFiles = (): PackageFile[] => {
     { path: 'api/htaccess_readme.md', content: createHtaccessReadme() },
     
     // Data directory
-    { path: 'api/data', directory: true },
+    { path: 'api/data', content: '', directory: true },
     { path: 'api/data/.gitkeep', content: '' },
   ];
   
