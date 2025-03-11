@@ -1,3 +1,4 @@
+
 /**
  * Utility functions for generating installation package templates
  */
@@ -117,6 +118,7 @@ echo '</div>';
 
 echo '</body></html>';
 `;
+}
 
 /**
  * Creates the README.md file content
