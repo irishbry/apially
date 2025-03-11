@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import DeploymentInstructions from "./pages/DeploymentInstructions";
@@ -27,8 +27,10 @@ const App = () => (
         <Route path="/" element={<Index />} />
         <Route path="/deploy" element={<DeploymentInstructions />} />
         <Route path="/installer" element={<AutoInstaller />} />
-        {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-        <Route path="*" element={<NotFound />} />
+        {/* Handle 404 errors */}
+        <Route path="/404" element={<NotFound />} />
+        {/* Redirect all other routes to the 404 page instead of rendering it directly */}
+        <Route path="*" element={<Navigate to="/404" replace />} />
       </Routes>
     </TooltipProvider>
   </QueryClientProvider>
