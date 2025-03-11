@@ -913,7 +913,7 @@ This package contains everything you need to deploy the CSV Consolidator applica
 
 ## Support
 
-For help with deployment, please contact support@csvscrub.com
+For help with deployment, please contact support@apially.com
 `);
 
     // Generate and download the ZIP file
