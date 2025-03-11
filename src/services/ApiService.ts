@@ -598,6 +598,12 @@ class ApiService {
       totalDataPoints: this.sources.reduce((sum, s) => sum + s.dataCount, 0)
     };
   }
+
+  // Get source name from ID
+  public getSourceName(sourceId: string): string {
+    const source = this.sources.find(s => s.id === sourceId);
+    return source ? source.name : sourceId;
+  }
 }
 
 export default ApiService.getInstance();

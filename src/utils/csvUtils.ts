@@ -65,3 +65,21 @@ export function downloadCSV(data: DataEntry[], filename?: string): void {
   link.click();
   document.body.removeChild(link);
 }
+
+// Format time for display
+export function formatTimeForDisplay(dateString: string): string {
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleString();
+  } catch (e) {
+    return dateString;
+  }
+}
+
+// Get email-friendly date/time for export name
+export function getFormattedDateTime(): string {
+  const now = new Date();
+  const date = now.toLocaleDateString().replace(/\//g, '-');
+  const time = now.toLocaleTimeString().replace(/:/g, '-').replace(/\s/g, '');
+  return `${date}_${time}`;
+}

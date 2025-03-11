@@ -11,6 +11,8 @@ import Header from "@/components/Header";
 import SchemaEditor from "@/components/SchemaEditor";
 import DeploymentGuide from "@/components/DeploymentGuide";
 import SourcesManager from "@/components/SourcesManager";
+import DataVisualization from "@/components/DataVisualization";
+import ScheduledExports from "@/components/ScheduledExports";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
@@ -91,6 +93,14 @@ const Index = () => {
           
           <section>
             <ApiUsageStats />
+          </section>
+          
+          <section>
+            <DataVisualization />
+          </section>
+          
+          <section>
+            <ScheduledExports />
           </section>
           
           <section>
