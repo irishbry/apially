@@ -340,7 +340,7 @@ const DataVisualization: React.FC = () => {
 
         <div className="mt-8">
           <h3 className="text-sm font-medium mb-2">Data Volume Summary</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="p-4 border rounded-md bg-background/50">
               <div className="text-sm text-muted-foreground">Total Data Points</div>
               <div className="text-2xl font-bold">{data.length.toLocaleString()}</div>
@@ -348,10 +348,6 @@ const DataVisualization: React.FC = () => {
             <div className="p-4 border rounded-md bg-background/50">
               <div className="text-sm text-muted-foreground">Active Sources</div>
               <div className="text-2xl font-bold">{statsBySource.length}</div>
-            </div>
-            <div className="p-4 border rounded-md bg-background/50">
-              <div className="text-sm text-muted-foreground">Last Received</div>
-              <div className="text-xl font-medium">{getLastReceivedTime()}</div>
             </div>
           </div>
         </div>
