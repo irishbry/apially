@@ -184,8 +184,8 @@ const DataVisualization: React.FC = () => {
     return value.toString();
   };
 
-  // This function renders the timestamp or N/A
-  const renderLastReceived = (): string => {
+  // Get formatted last received time as a simple string
+  const getLastReceivedTime = (): string => {
     if (data.length > 0 && data[0]?.timestamp) {
       return formatTimeForDisplay(data[0].timestamp);
     }
@@ -347,7 +347,7 @@ const DataVisualization: React.FC = () => {
             </div>
             <div className="p-4 border rounded-md bg-background/50">
               <div className="text-sm text-muted-foreground">Last Received</div>
-              <div className="text-xl font-medium">{renderLastReceived()}</div>
+              <div className="text-xl font-medium">{getLastReceivedTime()}</div>
             </div>
           </div>
         </div>
