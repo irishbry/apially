@@ -9,9 +9,36 @@
     <link rel="stylesheet" href="/styles.css">
     <!-- Required Lovable script tag -->
     <script src="https://cdn.gpteng.co/gptengineer.js" type="module"></script>
+    <!-- Error handling script -->
+    <script>
+      window.addEventListener('error', function(e) {
+        console.error('Runtime error detected:', e.message);
+        // Display error to user if the app fails to load
+        if (document.getElementById('root') && !document.getElementById('root').children.length) {
+          document.getElementById('root').innerHTML = '<div style="padding: 20px; font-family: Arial, sans-serif;">' +
+            '<h2 style="color: #e53e3e;">Application Load Error</h2>' +
+            '<p>There was a problem loading the application. Please check browser console for details.</p>' +
+            '<p>Error: ' + e.message + '</p>' +
+            '<p><a href="/installer" style="color: #3182ce;">Go to Installer Page</a></p>' +
+            '</div>';
+        }
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <!-- Fallback if app fails to load -->
+    <script>
+      setTimeout(function() {
+        if (document.getElementById('root') && !document.getElementById('root').children.length) {
+          document.getElementById('root').innerHTML = '<div style="padding: 20px; font-family: Arial, sans-serif;">' +
+            '<h2>Loading Application...</h2>' +
+            '<p>If you continue seeing this message, the application may not be loading correctly.</p>' +
+            '<p><a href="/installer" style="color: #3182ce;">Go to Installer Page</a></p>' +
+            '</div>';
+        }
+      }, 5000);
+    </script>
   </body>
 </html>

@@ -20,6 +20,7 @@ echo '<style>
     h1 { color: #333; }
     .success { color: green; font-weight: bold; }
     .error { color: red; font-weight: bold; }
+    .warning { color: orange; font-weight: bold; }
     .test { border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; }
 </style>';
 echo '</head><body>';
@@ -78,6 +79,26 @@ if (file_exists('./api')) {
 
 echo '</div>';
 
+// Also check frontend files
+echo '<div class="test">';
+echo '<h2>Frontend Files</h2>';
+
+// Check for index.html
+if (file_exists('./index.html')) {
+    echo "<p class='success'>index.html exists</p>";
+} else {
+    echo "<p class='error'>index.html missing</p>";
+}
+
+// Check for assets directory
+if (file_exists('./assets')) {
+    echo "<p class='success'>assets directory exists</p>";
+} else {
+    echo "<p class='warning'>assets directory missing - may be built differently</p>";
+}
+
+echo '</div>';
+
 echo '<div class="test">';
 echo '<h2>API Test</h2>';
 
@@ -113,6 +134,19 @@ echo '<ol>';
 echo '<li>Make sure all files are uploaded correctly, especially the hidden .htaccess file</li>';
 echo '<li>Set proper permissions (755 for directories, 644 for files)</li>';
 echo '<li>Access the application at: <a href="./index.html">./index.html</a></li>';
+echo '</ol>';
+echo '</div>';
+
+// Add helpful frontend troubleshooting section
+echo '<div class="test">';
+echo '<h2>Troubleshooting Blank Pages</h2>';
+echo '<p>If you see a blank page at index.html:</p>';
+echo '<ol>';
+echo '<li>Check your browser console for JavaScript errors (Press F12 in most browsers)</li>';
+echo '<li>Ensure all assets are correctly uploaded (JS and CSS files)</li>';
+echo '<li>Try clearing your browser cache or using incognito/private mode</li>';
+echo '<li>Check server logs for any 404 errors which might indicate missing files</li>';
+echo '<li>Try visiting the /installer URL directly if the main page won\'t load</li>';
 echo '</ol>';
 echo '</div>';
 
