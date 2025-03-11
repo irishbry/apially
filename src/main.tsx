@@ -1,8 +1,7 @@
 
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter } from 'react-router-dom'
 import App from './App.tsx'
-import InstallerPage from './pages/InstallerPage.tsx'
 import './index.css'
 
 // Improved error boundary for the entire application
@@ -20,10 +19,7 @@ const renderApp = () => {
     // Render the app with proper routing
     root.render(
       <BrowserRouter>
-        <Routes>
-          <Route path="/installer" element={<InstallerPage />} />
-          <Route path="/*" element={<App />} />
-        </Routes>
+        <App />
       </BrowserRouter>
     );
     
