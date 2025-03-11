@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, Home } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const NotFound = () => {
   const location = useLocation();
@@ -39,10 +40,10 @@ const NotFound = () => {
           </div>
           
           <Button asChild className="hover-lift">
-            <a href="/">
+            <Link to="/">
               <Home className="mr-2 h-4 w-4" />
               Return Home
-            </a>
+            </Link>
           </Button>
         </div>
       </div>
