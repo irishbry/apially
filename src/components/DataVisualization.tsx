@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -184,7 +183,7 @@ const DataVisualization: React.FC = () => {
     return value.toString();
   };
 
-  // This function renders the timestamp or N/A - fixed to handle the TypeScript children error
+  // This function renders the timestamp or N/A
   const renderLastReceived = () => {
     if (data.length > 0 && data[0]?.timestamp) {
       return formatTimeForDisplay(data[0].timestamp);
@@ -347,9 +346,7 @@ const DataVisualization: React.FC = () => {
             </div>
             <div className="p-4 border rounded-md bg-background/50">
               <div className="text-sm text-muted-foreground">Last Received</div>
-              <div className="text-xl font-medium">
-                {renderLastReceived()}
-              </div>
+              <div className="text-xl font-medium">{renderLastReceived()}</div>
             </div>
           </div>
         </div>
