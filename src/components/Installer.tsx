@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import JSZip from 'jszip';
 import FileSaver from 'file-saver';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { createInstallerPHP } from "@/utils/installerTemplates";
 
 const Installer: React.FC = () => {
   const [isOpenFTP, setIsOpenFTP] = useState(false);
@@ -19,15 +20,16 @@ const Installer: React.FC = () => {
 
   const createIndexPHP = () => {
     return `<?php
-// Enable error reporting for debugging
+// Simplified index.php that doesn't rely on many PHP features
+// Enable error reporting for debugging in development (remove in production)
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
 // Main API entry point
 header('Content-Type: application/json');
 
-// Check for actual path
-$requestPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+// Check for actual path - using basic PHP functionality
+$requestPath = $_SERVER['REQUEST_URI'];
 $basePath = dirname($_SERVER['SCRIPT_NAME']);
 $endpoint = str_replace($basePath, '', $requestPath);
 $endpoint = trim($endpoint, '/');
@@ -43,6 +45,8 @@ switch ($endpoint) {
         break;
         
     case 'test':
+    case 'test.php':
+        // Just redirect to the test.php file
         include 'test.php';
         break;
         
@@ -61,20 +65,21 @@ switch ($endpoint) {
   };
   
   const createHtaccess = () => {
-    return `# Enable rewrite engine
+    return `# Simple .htaccess file with minimal configuration
+# Enable rewrite engine
 RewriteEngine On
 
-# Explicitly set the RewriteBase to match your installation directory
+# Base directory path - update this to match your installation path
 RewriteBase /api/
 
-# If the request is for a real file or directory, skip rewrite rules
+# If requesting a real file or directory, don't rewrite
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 
-# Rewrite all other URLs to index.php
+# Route everything else to index.php
 RewriteRule ^(.*)$ index.php [QSA,L]
 
-# Add CORS headers
+# Basic CORS headers
 <IfModule mod_headers.c>
     Header set Access-Control-Allow-Origin "*"
     Header set Access-Control-Allow-Methods "GET, POST, OPTIONS"
@@ -89,11 +94,12 @@ RewriteRule ^(.*)$ index.php [QSA,L]
   
   const createTestPHP = () => {
     return `<?php
+// Very basic test script that should work on most PHP installations
 // Enable error reporting for troubleshooting
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-// Simple test script that avoids complex PHP functions that might cause errors
+// Simple HTML output - no complex PHP functions
 header('Content-Type: text/html; charset=utf-8');
 ?>
 <!DOCTYPE html>
@@ -105,32 +111,20 @@ header('Content-Type: text/html; charset=utf-8');
         h1 { color: #333; }
         .success { color: green; font-weight: bold; }
         .error { color: red; font-weight: bold; }
-        .warning { color: orange; font-weight: bold; }
         .test { border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; }
-        code { background: #f5f5f5; padding: 2px 4px; border-radius: 3px; }
     </style>
 </head>
 <body>
     <h1>API Installation Test</h1>
     
     <div class="test">
-        <h3>PHP Version and Info</h3>
-        <?php
-        // Basic info about PHP that doesn't require functions that might be disabled
-        echo '<p>PHP Version: ' . phpversion() . '</p>';
-        if (function_exists('phpinfo')) {
-            echo '<p><a href="phpinfo.php" target="_blank">View Full PHP Info</a></p>';
-        }
-        ?>
+        <h3>PHP Version</h3>
+        <p>PHP Version: <?php echo phpversion(); ?></p>
     </div>
 
     <div class="test">
         <h3>Server Information</h3>
-        <?php
-        echo '<p>Server Software: ' . ($_SERVER['SERVER_SOFTWARE'] ?? 'Unknown') . '</p>';
-        echo '<p>Document Root: ' . ($_SERVER['DOCUMENT_ROOT'] ?? 'Unknown') . '</p>';
-        echo '<p>Script Path: ' . ($_SERVER['SCRIPT_FILENAME'] ?? 'Unknown') . '</p>';
-        ?>
+        <p>Server Software: <?php echo $_SERVER['SERVER_SOFTWARE'] ?? 'Unknown'; ?></p>
     </div>
     
     <div class="test">
@@ -155,7 +149,6 @@ header('Content-Type: text/html; charset=utf-8');
             echo "<p><span class='success'>✓</span> .htaccess file exists</p>";
         } else {
             echo "<p><span class='error'>✗</span> .htaccess file does not exist</p>";
-            echo "<p>This file is critical for API routing to work!</p>";
         }
         
         // Check if data directory exists and is writable
@@ -166,74 +159,9 @@ header('Content-Type: text/html; charset=utf-8');
                 echo "<p><span class='success'>✓</span> data directory is writable</p>";
             } else {
                 echo "<p><span class='error'>✗</span> data directory is not writable</p>";
-                echo "<p>Fix with: <code>chmod 755 data</code></p>";
             }
         } else {
             echo "<p><span class='error'>✗</span> data directory does not exist</p>";
-            echo "<p>Fix with: <code>mkdir data</code> and <code>chmod 755 data</code></p>";
-        }
-        ?>
-    </div>
-    
-    <div class="test">
-        <h3>Testing API Endpoints</h3>
-        <?php
-        // First, try a simpler test that doesn't use curl
-        $status_url = 'status';
-        echo "<p>Testing API endpoint: $status_url</p>";
-        echo "<p>Direct test without curl: ";
-        
-        // Test using file_get_contents first which might work when curl doesn't
-        if (function_exists('file_get_contents') && ini_get('allow_url_fopen')) {
-            try {
-                $context = stream_context_create([
-                    'http' => [
-                        'method' => 'GET',
-                        'header' => "Accept: application/json\r\n"
-                    ]
-                ]);
-                
-                $response = @file_get_contents($status_url, false, $context);
-                if ($response !== false) {
-                    echo "<span class='success'>Success!</span> API responded.</p>";
-                    echo "<p>Response: " . htmlspecialchars($response) . "</p>";
-                } else {
-                    echo "<span class='error'>Failed.</span> Could not get a response.</p>";
-                }
-            } catch (Exception $e) {
-                echo "<span class='error'>Error: " . htmlspecialchars($e->getMessage()) . "</span></p>";
-            }
-        } else {
-            echo "<span class='warning'>Skipped.</span> file_get_contents not available or allow_url_fopen disabled.</p>";
-        }
-        
-        // Only attempt curl test if the extension is loaded
-        if (extension_loaded('curl')) {
-            echo "<p>Testing with curl: ";
-            
-            try {
-                $ch = curl_init($status_url);
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_HEADER, false);
-                $response = curl_exec($ch);
-                $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                $curl_error = curl_error($ch);
-                curl_close($ch);
-                
-                if ($response !== false && $http_code == 200) {
-                    echo "<span class='success'>Success!</span> API responded with HTTP $http_code</p>";
-                    echo "<p>Response: " . htmlspecialchars($response) . "</p>";
-                } else {
-                    echo "<span class='error'>Failed.</span> HTTP Code: $http_code</p>";
-                    if ($curl_error) {
-                        echo "<p>Curl Error: " . htmlspecialchars($curl_error) . "</p>";
-                    }
-                }
-            } catch (Exception $e) {
-                echo "<span class='error'>Error: " . htmlspecialchars($e->getMessage()) . "</span></p>";
-            }
-        } else {
-            echo "<p><span class='error'>Cannot test API with curl:</span> curl extension is not loaded.</p>";
         }
         ?>
     </div>
@@ -243,340 +171,45 @@ header('Content-Type: text/html; charset=utf-8');
         <ul>
             <li><strong>HTTP 500 Errors:</strong> Check your server's error logs. Common causes:
                 <ul>
-                    <li>PHP syntax errors - Use error_reporting(E_ALL) to show them</li>
-                    <li>Missing extensions - Ensure json and curl extensions are enabled</li>
-                    <li>Permissions issues - Ensure files are readable (644) and directories executable (755)</li>
+                    <li>PHP syntax errors</li>
+                    <li>Missing required PHP extensions</li>
+                    <li>File permission issues</li>
                 </ul>
             </li>
             <li><strong>HTTP 404 Errors:</strong> Routing issues:
                 <ul>
-                    <li>Make sure .htaccess file exists and is readable</li>
-                    <li>Check RewriteBase is correct for your installation path (e.g., /api/)</li>
-                    <li>Verify mod_rewrite is enabled in Apache</li>
+                    <li>Missing .htaccess file</li>
+                    <li>mod_rewrite not enabled</li>
+                    <li>Wrong RewriteBase in .htaccess</li>
                 </ul>
             </li>
-            <li><strong>API Not Working:</strong>
-                <ul>
-                    <li>Check file paths in includes</li>
-                    <li>Verify PHP version compatibility</li>
-                    <li>Check Apache configuration (AllowOverride All needed for .htaccess)</li>
-                </ul>
-            </li>
-        </ul>
-    </div>
-
-    <div class="test">
-        <h3>Debug Information</h3>
-        <p>If you're experiencing issues, this information might help diagnose them:</p>
-        <?php
-        echo "<p>PHP Loaded Configuration File: " . (php_ini_loaded_file() ?: 'Unknown') . "</p>";
-        
-        // Show configured include path
-        echo "<p>Include Path: " . get_include_path() . "</p>";
-        
-        // Show server variables that might be useful for debugging
-        echo "<h4>Request Details:</h4>";
-        echo "<p>Request URI: " . ($_SERVER['REQUEST_URI'] ?? 'Unknown') . "</p>";
-        echo "<p>Script Name: " . ($_SERVER['SCRIPT_NAME'] ?? 'Unknown') . "</p>";
-        
-        // Check if we can write files
-        $test_file = 'data/test_write.txt';
-        $write_test = false;
-        
-        if (is_dir('data')) {
-            try {
-                $write_test = @file_put_contents($test_file, "Write test at " . date('Y-m-d H:i:s'));
-                if ($write_test !== false) {
-                    echo "<p><span class='success'>✓</span> Successfully wrote to test file</p>";
-                    // Clean up
-                    @unlink($test_file);
-                } else {
-                    echo "<p><span class='error'>✗</span> Could not write to test file</p>";
-                }
-            } catch (Exception $e) {
-                echo "<p><span class='error'>✗</span> Error writing to test file: " . htmlspecialchars($e->getMessage()) . "</p>";
-            }
-        }
-        ?>
-    </div>
-    
-    <div style="margin-top: 20px; padding: 10px; background-color: #f9f9f9; border-radius: 5px;">
-        <p><strong>Need more help?</strong> Check your server's PHP error logs for detailed error messages.</p>
-        <p>Typical error log locations:</p>
-        <ul>
-            <li>Apache: /var/log/apache2/error.log or /var/log/httpd/error_log</li>
-            <li>cPanel: /usr/local/cpanel/logs/ or through cPanel's Error Log interface</li>
         </ul>
     </div>
 </body>
 </html>`;
   };
   
-  const createInstallPHP = () => {
+  const createConfigPHP = () => {
     return `<?php
-// Enable error reporting for troubleshooting
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+// Extremely simple configuration file that should work with most PHP installations
+error_reporting(0); // Disable error reporting in production
 
-// Basic installation checker for API files
-?><!DOCTYPE html>
-<html>
-<head>
-    <title>API Installer</title>
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-        h1 { color: #333; }
-        .button { display: inline-block; background: #4CAF50; color: white; padding: 10px 20px; 
-                 text-decoration: none; border-radius: 4px; }
-        .step { border: 1px solid #ddd; padding: 15px; margin: 15px 0; border-radius: 5px; }
-        .warning { background-color: #fff3cd; border-color: #ffeeba; color: #856404; padding: 10px; border-radius: 4px; }
-        .error { background-color: #f8d7da; border-color: #f5c6cb; color: #721c24; padding: 10px; border-radius: 4px; }
-        .success { background-color: #d4edda; border-color: #c3e6cb; color: #155724; padding: 10px; border-radius: 4px; }
-    </style>
-</head>
-<body>
-    <h1>Data Consolidation API - Installation Check</h1>
+// Simple configuration
+$config = [
+    // API key (change this in production)
+    'api_key' => 'your-secure-api-key-here',
     
-    <div class="warning">
-        <h3>⚠️ Important Installation Information</h3>
-        <p>This installation script is checking if your server meets the requirements to run the API.</p>
-        <p>If you're seeing this page, PHP is working on your server, which is a good first step!</p>
-    </div>
-    
-    <?php if (isset($_GET['debug'])): ?>
-    <div class="error">
-        <h3>🔍 Debug Information</h3>
-        <p>PHP Version: <?php echo phpversion(); ?></p>
-        <p>Server Software: <?php echo $_SERVER['SERVER_SOFTWARE'] ?? 'Unknown'; ?></p>
-        <p>Document Root: <?php echo $_SERVER['DOCUMENT_ROOT'] ?? 'Unknown'; ?></p>
-        <p>Current Script: <?php echo $_SERVER['SCRIPT_FILENAME'] ?? 'Unknown'; ?></p>
-        
-        <h4>Important Environment Variables:</h4>
-        <pre><?php
-            $safe_vars = [
-                'DOCUMENT_ROOT', 'SERVER_SOFTWARE', 'SERVER_NAME', 'SERVER_PROTOCOL',
-                'REQUEST_METHOD', 'REQUEST_URI', 'SCRIPT_NAME', 'SCRIPT_FILENAME',
-                'PHP_SELF', 'HTTP_HOST', 'HTTPS', 'REMOTE_ADDR', 'REMOTE_PORT',
-                'SERVER_ADDR', 'SERVER_PORT', 'SERVER_ADMIN'
-            ];
-            
-            foreach ($safe_vars as $var) {
-                if (isset($_SERVER[$var])) {
-                    echo "$var: " . htmlspecialchars($_SERVER[$var]) . "\n";
-                }
-            }
-        ?></pre>
-        
-        <h4>Loaded PHP Extensions:</h4>
-        <pre><?php echo implode(', ', get_loaded_extensions()); ?></pre>
-    </div>
-    <?php endif; ?>
-    
-    <div class="step">
-        <h2>Step 1: PHP Version Check</h2>
-        <?php
-        $php_version = phpversion();
-        $php_version_ok = version_compare($php_version, '7.0.0', '>=');
-        
-        if ($php_version_ok) {
-            echo '<div class="success">PHP Version: ' . $php_version . ' ✓</div>';
-        } else {
-            echo '<div class="error">PHP Version: ' . $php_version . ' ✗ (Required: 7.0 or higher)</div>';
-        }
-        ?>
-    </div>
-    
-    <div class="step">
-        <h2>Step 2: Required Extensions</h2>
-        <?php
-        $required_extensions = ['curl', 'json'];
-        $missing_extensions = [];
-        
-        foreach ($required_extensions as $ext) {
-            if (!extension_loaded($ext)) {
-                $missing_extensions[] = $ext;
-            }
-        }
-        
-        if (empty($missing_extensions)) {
-            echo '<div class="success">All required extensions are available ✓</div>';
-        } else {
-            echo '<div class="error">Missing extensions: ' . implode(', ', $missing_extensions) . ' ✗</div>';
-            echo '<p>Contact your hosting provider to enable these PHP extensions.</p>';
-        }
-        ?>
-    </div>
-    
-    <div class="step">
-        <h2>Step 3: Directory Structure</h2>
-        <?php
-        $api_dir = './api';
-        $api_dir_exists = is_dir($api_dir);
-        
-        if ($api_dir_exists) {
-            echo '<div class="success">API directory exists ✓</div>';
-            
-            // Check for key files
-            $key_files = [
-                $api_dir . '/index.php' => 'Main API entry point',
-                $api_dir . '/.htaccess' => 'Apache rewrite rules',
-                $api_dir . '/test.php' => 'API test script'
-            ];
-            
-            $missing_files = [];
-            foreach ($key_files as $file => $description) {
-                if (!file_exists($file)) {
-                    $missing_files[] = "$description ($file)";
-                }
-            }
-            
-            if (empty($missing_files)) {
-                echo '<div class="success">All required API files exist ✓</div>';
-            } else {
-                echo '<div class="error">Missing key files: ' . implode(', ', $missing_files) . ' ✗</div>';
-                echo '<p>Make sure all files from the installation package were uploaded.</p>';
-                echo '<p>Note: The .htaccess file may be hidden in your file manager.</p>';
-            }
-            
-            // Check data directory
-            $data_dir = $api_dir . '/data';
-            if (is_dir($data_dir)) {
-                if (is_writable($data_dir)) {
-                    echo '<div class="success">Data directory exists and is writable ✓</div>';
-                } else {
-                    echo '<div class="error">Data directory exists but is not writable ✗</div>';
-                    echo '<p>Fix with: <code>chmod 755 ' . $data_dir . '</code></p>';
-                }
-            } else {
-                echo '<div class="error">Data directory does not exist ✗</div>';
-                echo '<p>Create it with: <code>mkdir -p ' . $data_dir . '</code> and set permissions: <code>chmod 755 ' . $data_dir . '</code></p>';
-            }
-        } else {
-            echo '<div class="error">API directory does not exist ✗</div>';
-            echo '<p>Create the directory or make sure you uploaded the files to the correct location.</p>';
-        }
-        ?>
-    </div>
-    
-    <div class="step">
-        <h2>Step 4: API Connectivity Test</h2>
-        <?php
-        if ($api_dir_exists) {
-            echo '<p>Testing API connectivity...</p>';
-            
-            $status_url = './api/status';
-            $test_successful = false;
-            
-            // Try with file_get_contents first
-            if (function_exists('file_get_contents') && ini_get('allow_url_fopen')) {
-                try {
-                    $context = stream_context_create([
-                        'http' => [
-                            'method' => 'GET',
-                            'header' => "Accept: application/json\r\n"
-                        ]
-                    ]);
-                    
-                    $response = @file_get_contents($status_url, false, $context);
-                    
-                    if ($response !== false) {
-                        $data = json_decode($response, true);
-                        if ($data && isset($data['status']) && $data['status'] === 'ok') {
-                            $test_successful = true;
-                        }
-                    }
-                } catch (Exception $e) {
-                    // Silently fail and try curl
-                }
-            }
-            
-            // Try with curl if file_get_contents didn't work
-            if (!$test_successful && function_exists('curl_init')) {
-                try {
-                    $ch = curl_init($status_url);
-                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                    curl_setopt($ch, CURLOPT_HEADER, false);
-                    $response = curl_exec($ch);
-                    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                    curl_close($ch);
-                    
-                    if ($response !== false && $http_code == 200) {
-                        $data = json_decode($response, true);
-                        if ($data && isset($data['status']) && $data['status'] === 'ok') {
-                            $test_successful = true;
-                        }
-                    }
-                } catch (Exception $e) {
-                    // Silently fail and report the overall result
-                }
-            }
-            
-            if ($test_successful) {
-                echo '<div class="success">API connectivity test passed ✓</div>';
-                echo '<p>The API is responding correctly.</p>';
-            } else {
-                echo '<div class="error">API connectivity test failed ✗</div>';
-                echo '<p>Common causes of API connectivity issues:</p>';
-                echo '<ul>';
-                echo '<li>The .htaccess file is missing or not being processed</li>';
-                echo '<li>mod_rewrite is not enabled in Apache</li>';
-                echo '<li>AllowOverride is not set to All in your Apache configuration</li>';
-                echo '<li>There may be PHP errors in the API scripts</li>';
-                echo '</ul>';
-                echo '<p>Try accessing the <a href="./api/test.php">test script</a> directly for more detailed diagnostics.</p>';
-            }
-        } else {
-            echo '<div class="error">Cannot test API connectivity because API directory does not exist</div>';
-        }
-        ?>
-    </div>
-    
-    <div class="step">
-        <h2>Next Steps</h2>
-        <?php if ($api_dir_exists): ?>
-            <p>For more detailed diagnostics, try the following:</p>
-            <ul>
-                <li><a href="./api/test.php">Run the API test script</a> for detailed diagnostics</li>
-                <li><a href="?debug=1">View debug information</a> to see server environment details</li>
-                <li>Check your server's error logs for PHP or Apache errors</li>
-            </ul>
-            
-            <?php if (file_exists('./api/index.php') && file_exists('./api/.htaccess')): ?>
-                <p>If everything looks good, try accessing:</p>
-                <ul>
-                    <li><a href="./api/status">API Status Endpoint</a> - Should return a JSON response</li>
-                </ul>
-            <?php endif; ?>
-        <?php else: ?>
-            <p>Before proceeding, you need to:</p>
-            <ol>
-                <li>Create the API directory structure</li>
-                <li>Upload all required files from the installation package</li>
-                <li>Set appropriate permissions</li>
-                <li>Run this installation check again</li>
-            </ol>
-        <?php endif; ?>
-    </div>
-    
-    <div class="warning">
-        <h3>Need Help?</h3>
-        <p>If you're experiencing 500 errors:</p>
-        <ol>
-            <li>Check your server's PHP error logs</li>
-            <li>Make sure PHP version 7.0 or higher is installed</li>
-            <li>Verify that all required extensions are enabled</li>
-            <li>Ensure file permissions are correct (644 for files, 755 for directories)</li>
-            <li>Contact your hosting provider if errors persist</li>
-        </ol>
-    </div>
-    
-    <p style="margin-top: 20px;">
-        <small>Installation Check • <?php echo date('Y-m-d H:i:s'); ?></small>
-    </p>
-</body>
-</html>`;
+    // Path to data storage directory
+    'storage_path' => __DIR__ . '/data'
+];
+
+// Create storage directory if it doesn't exist
+if (!file_exists($config['storage_path'])) {
+    @mkdir($config['storage_path'], 0755, true);
+}
+`;
   };
-
+  
   const createHtaccessReadme = () => {
     return `# IMPORTANT: .htaccess File
     
@@ -609,7 +242,7 @@ RewriteRule ^(.*)$ index.php [QSA,L]
 # Add CORS headers
 <IfModule mod_headers.c>
     Header set Access-Control-Allow-Origin "*"
-    Header set Access-Control-Allow-Methods "GET, POST, OPTIONS"
+    Header set Access-Control-Allow-Methods "GET, POST, OPTIONS" 
     Header set Access-Control-Allow-Headers "Content-Type, X-API-Key"
 </IfModule>
 
@@ -622,44 +255,7 @@ RewriteRule ^(.*)$ index.php [QSA,L]
 The .htaccess file is essential for the API to function properly - without it, you'll get 404 errors.
 `;
   };
-
-  const createPhpInfoFile = () => {
-    return `<?php
-// Simple phpinfo script for diagnostics
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
-// Only show the minimal phpinfo for security reasons
-phpinfo(INFO_GENERAL | INFO_CONFIGURATION | INFO_MODULES);
-`;
-  };
-
-  const createConfigPHP = () => {
-    return `<?php
-// Enable error reporting for troubleshooting
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
-// Simple configuration file for Data Consolidation API
-
-$config = [
-    // Allowed origins for CORS
-    'allowed_origins' => ['*'], // Replace with your frontend domain in production
-    
-    // Path to data storage directory
-    'storage_path' => __DIR__ . '/data',
-    
-    // API key (change this in production)
-    'api_key' => 'your-secure-api-key-here'
-];
-
-// Create storage directory if it doesn't exist
-if (!file_exists($config['storage_path'])) {
-    mkdir($config['storage_path'], 0755, true);
-}
-`;
-  };
-
+  
   const createReadme = () => {
     return `# Data Consolidation API
 
@@ -670,7 +266,7 @@ A simple PHP API for collecting and consolidating data from various sources.
 1. Upload all files to your web server
 2. Set appropriate permissions (755 for directories, 644 for files)
 3. Configure your settings in config.php
-4. Test the installation by visiting https://your-domain.com/path/to/api/test.php
+4. Test the installation by visiting install.php
 
 ## IMPORTANT: Hidden .htaccess File
 
@@ -684,16 +280,16 @@ The .htaccess file is CRITICAL but may be hidden in your file browser. See htacc
 ## Configuration
 
 Edit the config.php file to set:
-- Allowed origins for CORS
 - Storage path for data
 - API key for authentication
 
 ## Troubleshooting
 
-If you experience 404 errors:
-- Make sure mod_rewrite is enabled in Apache
-- Check that .htaccess file is uploaded and readable
-- Verify that RewriteBase in .htaccess matches your installation path
+If you experience 500 errors:
+- Check your server's PHP error log
+- Ensure PHP 7.0+ is installed
+- Make sure all required extensions are available (json, curl)
+- Set correct file permissions
 `;
   };
 
@@ -705,7 +301,7 @@ If you experience 404 errors:
       const zip = new JSZip();
       
       // Create root directory structure and files for the simplified package
-      zip.file("install.php", createInstallPHP());
+      zip.file("install.php", createInstallerPHP());
       
       // Create API directory
       const apiDir = zip.folder("api");
@@ -713,7 +309,6 @@ If you experience 404 errors:
       apiDir.file(".htaccess", createHtaccess());
       apiDir.file("test.php", createTestPHP());
       apiDir.file("config.php", createConfigPHP());
-      apiDir.file("phpinfo.php", createPhpInfoFile());
       
       // Add a special readme about the .htaccess file
       apiDir.file("htaccess_readme.md", createHtaccessReadme());
@@ -724,7 +319,7 @@ If you experience 404 errors:
       // Add README
       zip.file("README.md", createReadme());
       
-      // Create sample data file
+      // Create sample data file to ensure directory is created
       dataDir.file(".gitkeep", "");
       
       // Generate the ZIP file
@@ -737,6 +332,7 @@ If you experience 404 errors:
       toast({
         title: "Download started",
         description: "Your installation package is downloading. IMPORTANT: The .htaccess file may be hidden - see htaccess_readme.md in the package.",
+        duration: 5000,
       });
     } catch (error) {
       console.error("Error creating ZIP package:", error);
@@ -809,7 +405,7 @@ If you experience 404 errors:
               <li><strong className="text-amber-700">api/.htaccess</strong> - <span className="text-amber-700">Apache configuration (may be hidden!)</span></li>
               <li><strong>api/htaccess_readme.md</strong> - Instructions if .htaccess is hidden</li>
               <li><strong>api/test.php</strong> - Verify your installation and troubleshoot issues</li>
-              <li><strong>api/phpinfo.php</strong> - Detailed PHP configuration information</li>
+              <li><strong>api/config.php</strong> - Basic configuration file</li>
               <li><strong>api/data/</strong> - Directory for storing data</li>
             </ul>
           </div>

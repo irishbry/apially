@@ -1,4 +1,3 @@
-
 /**
  * Utility functions for generating installation package templates
  */
@@ -11,8 +10,6 @@ export const createInstallerPHP = (): string => {
 // Installation script for Data Consolidation Tool
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
-
-$installDir = __DIR__;
 
 // Function to check system requirements
 function checkRequirements() {
@@ -28,32 +25,55 @@ function checkRequirements() {
 
 // Function to check if the API is accessible
 function testApiConnection() {
+    // Use a safer approach that won't cause 500 errors
     $apiUrl = './api/status';
-    $ch = curl_init($apiUrl);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HEADER, false);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $accessible = false;
     
-    if ($httpCode === 200) {
-        $data = json_decode($response, true);
-        return $data && isset($data['status']) && $data['status'] === 'ok';
-    }
-    
-    return false;
-}
-
-// Check data directory permissions
-function checkDataDirectory() {
-    $dataDir = './api/data';
-    if (!file_exists($dataDir)) {
-        // Try to create it
-        if (!mkdir($dataDir, 0755, true)) {
-            return false;
+    // First try with file_get_contents if allow_url_fopen is enabled
+    if (function_exists('file_get_contents') && ini_get('allow_url_fopen')) {
+        try {
+            $context = stream_context_create(['http' => ['timeout' => 5]]);
+            $response = @file_get_contents($apiUrl, false, $context);
+            if ($response !== false) {
+                $data = json_decode($response, true);
+                $accessible = $data && isset($data['status']) && $data['status'] === 'ok';
+            }
+        } catch (Exception $e) {
+            // Silent catch - we'll try curl next
         }
     }
     
+    // If that didn't work and curl is available, try curl
+    if (!$accessible && function_exists('curl_init')) {
+        try {
+            $ch = curl_init($apiUrl);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_HEADER, false);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // For testing only
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            
+            if ($response !== false && $httpCode === 200) {
+                $data = json_decode($response, true);
+                $accessible = $data && isset($data['status']) && $data['status'] === 'ok';
+            }
+        } catch (Exception $e) {
+            // Silent catch
+        }
+    }
+    
+    return $accessible;
+}
+
+// Check data directory permissions - simplified to avoid errors
+function checkDataDirectory() {
+    $dataDir = './api/data';
+    if (!file_exists($dataDir)) {
+        return false;
+    }
     return is_writable($dataDir);
 }
 
@@ -66,34 +86,40 @@ function checkHtaccess() {
 $status = array(
     'success' => true,
     'message' => 'Installation completed successfully!',
-    'requirements' => checkRequirements(),
+    'requirements' => array(),
     'api_connection' => false,
     'data_directory' => false,
     'htaccess' => false
 );
 
-// Check for critical requirements
-foreach ($status['requirements'] as $requirement => $met) {
-    if (!$met) {
-        $status['success'] = false;
-        $status['message'] = "Requirement not met: " . $requirement;
-        break;
-    }
-}
-
-// Only proceed with further checks if requirements are met
-if ($status['success']) {
-    $status['api_connection'] = testApiConnection();
-    $status['data_directory'] = checkDataDirectory();
-    $status['htaccess'] = checkHtaccess();
+// Check for critical requirements - in a try-catch to prevent fatal errors
+try {
+    $status['requirements'] = checkRequirements();
     
-    if (!$status['api_connection'] || !$status['data_directory'] || !$status['htaccess']) {
-        $status['success'] = false;
-        $status['message'] = "Installation issues detected. Please check the details below.";
+    // Check for critical requirements
+    foreach ($status['requirements'] as $requirement => $met) {
+        if (!$met) {
+            $status['success'] = false;
+            $status['message'] = "Requirement not met: " . $requirement;
+            break;
+        }
     }
+    
+    // Only proceed with further checks if requirements are met
+    if ($status['success']) {
+        $status['api_connection'] = testApiConnection();
+        $status['data_directory'] = checkDataDirectory();
+        $status['htaccess'] = checkHtaccess();
+        
+        if (!$status['api_connection'] || !$status['data_directory'] || !$status['htaccess']) {
+            $status['success'] = false;
+            $status['message'] = "Installation issues detected. Please check the details below.";
+        }
+    }
+} catch (Exception $e) {
+    $status['success'] = false;
+    $status['message'] = "Error during installation checks: " . $e->getMessage();
 }
-
-// Display installation results
 ?>
 <!DOCTYPE html>
 <html>
@@ -120,30 +146,41 @@ if ($status['success']) {
     
     <div class="section">
         <h2>Installation Status</h2>
-        <p><?php echo $status['success'] ? "<span class=\"success\">✓ Success!</span>" : "<span class=\"error\">✗ Issues Found</span>"; ?> <?php echo $status['message']; ?></p>
+        <p><?php echo $status['success'] ? "<span class=\\"success\\">✓ Success!</span>" : "<span class=\\"error\\">✗ Issues Found</span>"; ?> <?php echo $status['message']; ?></p>
     </div>
     
     <div class="section">
         <h2>System Requirements</h2>
-        <div class="req-item <?php echo $status['requirements']['php_version'] ? "met" : "not-met"; ?>">
-            PHP Version: <?php echo $status['requirements']['php_version'] ? "<span class=\"success\">✓ OK</span>" : "<span class=\"error\">✗ Not Met</span>"; ?>
+        <?php if (isset($status['requirements']['php_version'])): ?>
+        <div class="req-item <?php echo $status['requirements']['php_version'] ? \\"met\\" : \\"not-met\\"; ?>">
+            PHP Version: <?php echo $status['requirements']['php_version'] ? "<span class=\\"success\\">✓ OK</span>" : "<span class=\\"error\\">✗ Not Met</span>"; ?>
             - Current: <?php echo PHP_VERSION; ?> (Required: 7.0+)
         </div>
-        <div class="req-item <?php echo $status['requirements']['curl_extension'] ? "met" : "not-met"; ?>">
-            cURL Extension: <?php echo $status['requirements']['curl_extension'] ? "<span class=\"success\">✓ OK</span>" : "<span class=\"error\">✗ Not Available</span>"; ?>
+        <?php endif; ?>
+        
+        <?php if (isset($status['requirements']['curl_extension'])): ?>
+        <div class="req-item <?php echo $status['requirements']['curl_extension'] ? \\"met\\" : \\"not-met\\"; ?>">
+            cURL Extension: <?php echo $status['requirements']['curl_extension'] ? "<span class=\\"success\\">✓ OK</span>" : "<span class=\\"error\\">✗ Not Available</span>"; ?>
         </div>
-        <div class="req-item <?php echo $status['requirements']['json_extension'] ? "met" : "not-met"; ?>">
-            JSON Extension: <?php echo $status['requirements']['json_extension'] ? "<span class=\"success\">✓ OK</span>" : "<span class=\"error\">✗ Not Available</span>"; ?>
+        <?php endif; ?>
+        
+        <?php if (isset($status['requirements']['json_extension'])): ?>
+        <div class="req-item <?php echo $status['requirements']['json_extension'] ? \\"met\\" : \\"not-met\\"; ?>">
+            JSON Extension: <?php echo $status['requirements']['json_extension'] ? "<span class=\\"success\\">✓ OK</span>" : "<span class=\\"error\\">✗ Not Available</span>"; ?>
         </div>
-        <div class="req-item <?php echo $status['requirements']['write_permission'] ? "met" : "not-met"; ?>">
-            Write Permissions: <?php echo $status['requirements']['write_permission'] ? "<span class=\"success\">✓ OK</span>" : "<span class=\"error\">✗ Not Available</span>"; ?>
+        <?php endif; ?>
+        
+        <?php if (isset($status['requirements']['write_permission'])): ?>
+        <div class="req-item <?php echo $status['requirements']['write_permission'] ? \\"met\\" : \\"not-met\\"; ?>">
+            Write Permissions: <?php echo $status['requirements']['write_permission'] ? "<span class=\\"success\\">✓ OK</span>" : "<span class=\\"error\\">✗ Not Available</span>"; ?>
         </div>
+        <?php endif; ?>
     </div>
     
     <div class="section">
         <h2>Installation Components</h2>
-        <div class="req-item <?php echo $status['api_connection'] ? "met" : "not-met"; ?>">
-            API Connection: <?php echo $status['api_connection'] ? "<span class=\"success\">✓ Working</span>" : "<span class=\"error\">✗ Not Working</span>"; ?>
+        <div class="req-item <?php echo $status['api_connection'] ? \\"met\\" : \\"not-met\\"; ?>">
+            API Connection: <?php echo $status['api_connection'] ? "<span class=\\"success\\">✓ Working</span>" : "<span class=\\"error\\">✗ Not Working</span>"; ?>
             <?php if (!$status['api_connection']): ?>
                 <p>The API is not responding correctly. Common issues:</p>
                 <ul>
@@ -155,15 +192,15 @@ if ($status['success']) {
                 <p>Try running the <a href="./api/test.php">API test script</a> for more detailed diagnostics.</p>
             <?php endif; ?>
         </div>
-        <div class="req-item <?php echo $status['data_directory'] ? "met" : "not-met"; ?>">
-            Data Directory: <?php echo $status['data_directory'] ? "<span class=\"success\">✓ OK</span>" : "<span class=\"error\">✗ Issue</span>"; ?>
+        <div class="req-item <?php echo $status['data_directory'] ? \\"met\\" : \\"not-met\\"; ?>">
+            Data Directory: <?php echo $status['data_directory'] ? "<span class=\\"success\\">✓ OK</span>" : "<span class=\\"error\\">✗ Issue</span>"; ?>
             <?php if (!$status['data_directory']): ?>
                 <p>The data directory (./api/data) is not writable. Fix with:</p>
                 <code>mkdir -p ./api/data</code> and <code>chmod 755 ./api/data</code>
             <?php endif; ?>
         </div>
-        <div class="req-item <?php echo $status['htaccess'] ? "met" : "not-met"; ?>">
-            .htaccess File: <?php echo $status['htaccess'] ? "<span class=\"success\">✓ Present</span>" : "<span class=\"error\">✗ Missing</span>"; ?>
+        <div class="req-item <?php echo $status['htaccess'] ? \\"met\\" : \\"not-met\\"; ?>">
+            .htaccess File: <?php echo $status['htaccess'] ? "<span class=\\"success\\">✓ Present</span>" : "<span class=\\"error\\">✗ Missing</span>"; ?>
             <?php if (!$status['htaccess']): ?>
                 <p><strong>Important:</strong> The .htaccess file is missing but is critical for the API to work.</p>
                 <p>This file is often hidden in file managers. Make sure "Show hidden files" is enabled when uploading.</p>
