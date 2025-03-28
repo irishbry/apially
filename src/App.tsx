@@ -26,9 +26,9 @@ const queryClient = new QueryClient({
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      {/* Make sure the Toaster component is correctly positioned */}
-      <Toaster position="top-right" closeButton />
-      <Sonner />
+      {/* Toasters with explicit positions to ensure visibility */}
+      <Toaster position="top-right" closeButton={true} />
+      <Sonner position="top-right" />
       <Routes>
         <Route path="/" element={<Index />} />
         <Route path="/deploy" element={<DeploymentInstructions />} />

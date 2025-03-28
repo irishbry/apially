@@ -28,7 +28,7 @@ export function Toaster({ position = "bottom-right", closeButton = true }: { pos
           </Toast>
         )
       })}
-      <ToastViewport className={position ? `${position}` : ""} />
+      <ToastViewport className={position ? position : "bottom-right"} />
     </ToastProvider>
   )
 }

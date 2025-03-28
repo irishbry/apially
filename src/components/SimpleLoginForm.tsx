@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { User, Lock } from "lucide-react";
 
 const SimpleLoginForm: React.FC = () => {
@@ -26,14 +26,24 @@ const SimpleLoginForm: React.FC = () => {
     setIsLoggingIn(true);
     
     try {
-      // Make a direct fetch call to the login endpoint
-      const response = await fetch('/api/login', {
+      // Use relative path to ensure it works in all environments
+      const apiUrl = window.location.origin + '/api/login';
+      console.log("Attempting login at:", apiUrl);
+      
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ username, password }),
       });
+      
+      // Check for non-JSON responses first
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        console.error("Non-JSON response received:", contentType);
+        throw new Error("Server returned an invalid response format");
+      }
       
       const data = await response.json();
       console.log("Login response:", data);
@@ -64,7 +74,7 @@ const SimpleLoginForm: React.FC = () => {
       console.error('Login error:', err);
       toast({
         title: "Connection Error",
-        description: "Could not connect to the authentication server. Please try again later.",
+        description: "The API endpoint is not responding correctly. Please check your server configuration.",
         variant: "destructive",
       });
     } finally {
