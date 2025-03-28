@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -8,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { AlertTriangle, Download, Filter, Search, SortAsc, SortDesc, Trash2, FileDown } from "lucide-react";
+import { AlertTriangle, Download, Filter, Search, SortAsc, SortDesc, Trash2, FileDown, ListFilter } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import ApiService, { DataEntry, Source } from "@/services/ApiService";
 import { downloadCSV } from "@/utils/csvUtils";
@@ -37,20 +36,18 @@ const EnhancedDataTable: React.FC = () => {
   const [activeFilters, setActiveFilters] = useState<ColumnFilter[]>([]);
   const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
   const [allColumns, setAllColumns] = useState<string[]>([]);
+  const [activeFilterColumn, setActiveFilterColumn] = useState<string | null>(null);
 
   useEffect(() => {
     try {
-      // Get initial data
       setData(ApiService.getData());
       setSources(ApiService.getSources());
       setError(null);
       
-      // Subscribe to data changes
       const unsubscribeData = ApiService.subscribe(newData => {
         setData([...newData]);
       });
       
-      // Subscribe to source changes
       const unsubscribeSources = ApiService.subscribeToSources(newSources => {
         setSources([...newSources]);
       });
@@ -65,7 +62,6 @@ const EnhancedDataTable: React.FC = () => {
     }
   }, []);
 
-  // Initialize columns when data changes
   useEffect(() => {
     if (data.length > 0) {
       const cols = getColumns();
@@ -74,17 +70,13 @@ const EnhancedDataTable: React.FC = () => {
     }
   }, [data]);
   
-  // Apply search, sort, and filters whenever relevant state changes
   useEffect(() => {
-    // Start with all data
     let filtered = [...data];
     
-    // Filter by source
     if (selectedSource !== 'all') {
       filtered = filtered.filter(entry => entry.sourceId === selectedSource);
     }
     
-    // Apply active column filters
     activeFilters.forEach(filter => {
       if (filter.enabled && filter.value) {
         filtered = filtered.filter(entry => {
@@ -95,7 +87,6 @@ const EnhancedDataTable: React.FC = () => {
       }
     });
     
-    // Filter by global search term
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(entry => {
@@ -108,15 +99,12 @@ const EnhancedDataTable: React.FC = () => {
       });
     }
     
-    // Apply sorting
     if (sortConfig) {
       filtered.sort((a, b) => {
-        // Handle undefined or null values
         if (a[sortConfig.key] === undefined && b[sortConfig.key] === undefined) return 0;
         if (a[sortConfig.key] === undefined) return 1;
         if (b[sortConfig.key] === undefined) return -1;
         
-        // Compare values based on their type
         const aVal = a[sortConfig.key];
         const bVal = b[sortConfig.key];
         
@@ -137,14 +125,11 @@ const EnhancedDataTable: React.FC = () => {
   const getColumns = (): string[] => {
     if (data.length === 0) return ['No Data'];
     
-    // Get all unique keys, prioritizing common ones
     const priorityKeys = ['timestamp', 'id', 'sourceId', 'sensorId'];
     const allKeys = new Set<string>();
     
-    // Add priority keys first
     priorityKeys.forEach(key => allKeys.add(key));
     
-    // Add all other keys
     data.forEach(entry => {
       Object.keys(entry).forEach(key => {
         if (!priorityKeys.includes(key)) {
@@ -156,7 +141,6 @@ const EnhancedDataTable: React.FC = () => {
     return Array.from(allKeys);
   };
 
-  // Get source name from ID
   const getSourceName = (sourceId: string | undefined): string => {
     if (!sourceId) return 'Unknown';
     const source = sources.find(s => s.id === sourceId);
@@ -174,7 +158,6 @@ const EnhancedDataTable: React.FC = () => {
     try {
       setIsDownloading(true);
       setTimeout(() => {
-        // Export only filtered data
         downloadCSV(visibleData);
         setIsDownloading(false);
         NotificationService.addNotification(
@@ -213,7 +196,6 @@ const EnhancedDataTable: React.FC = () => {
   };
 
   const handleSort = (key: string) => {
-    // If already sorting by this key, toggle direction or clear
     if (sortConfig && sortConfig.key === key) {
       if (sortConfig.direction === 'asc') {
         setSortConfig({ key, direction: 'desc' });
@@ -221,7 +203,6 @@ const EnhancedDataTable: React.FC = () => {
         setSortConfig(null);
       }
     } else {
-      // Start with ascending sort
       setSortConfig({ key, direction: 'asc' });
     }
   };
@@ -237,11 +218,9 @@ const EnhancedDataTable: React.FC = () => {
 
   const handleFilterChange = (key: string, value: string) => {
     setActiveFilters(prev => {
-      // Find existing filter
       const existingFilterIndex = prev.findIndex(f => f.key === key);
       
       if (existingFilterIndex >= 0) {
-        // Update existing filter
         const newFilters = [...prev];
         newFilters[existingFilterIndex] = {
           ...newFilters[existingFilterIndex],
@@ -250,7 +229,6 @@ const EnhancedDataTable: React.FC = () => {
         };
         return newFilters;
       } else {
-        // Add new filter
         return [...prev, { key, value, enabled: !!value.trim() }];
       }
     });
@@ -270,11 +248,12 @@ const EnhancedDataTable: React.FC = () => {
     return visibleColumns.includes(column);
   };
 
-  // Current filter value for a column
   const getFilterValue = (key: string) => {
     const filter = activeFilters.find(f => f.key === key);
     return filter?.value || '';
   };
+
+  const activeFilterCount = activeFilters.filter(f => f.enabled).length;
 
   return (
     <Card className="w-full shadow-sm hover:shadow-md transition-all duration-300">
@@ -346,23 +325,97 @@ const EnhancedDataTable: React.FC = () => {
             
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="icon">
-                  <Filter className="h-4 w-4" />
+                <Button variant="outline" size="icon" className="relative">
+                  <ListFilter className="h-4 w-4" />
+                  {activeFilterCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground rounded-full w-4 h-4 text-xs flex items-center justify-center">
+                      {activeFilterCount}
+                    </span>
+                  )}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-64 p-3">
-                <h4 className="font-medium mb-2">Show/Hide Columns</h4>
-                <div className="space-y-2 max-h-60 overflow-y-auto mb-4">
-                  {allColumns.map(column => (
-                    <div key={column} className="flex items-center space-x-2">
-                      <Checkbox 
-                        id={`column-${column}`} 
-                        checked={isColumnVisible(column)}
-                        onCheckedChange={(checked) => toggleColumnVisibility(column, !!checked)}
+              <PopoverContent className="w-80 p-4" align="end">
+                <div className="space-y-4">
+                  <h4 className="font-medium">Filter Data</h4>
+                  
+                  <div>
+                    <Label htmlFor="filter-column">Select Column</Label>
+                    <Select 
+                      value={activeFilterColumn || ''} 
+                      onValueChange={(value) => setActiveFilterColumn(value || null)}
+                    >
+                      <SelectTrigger id="filter-column">
+                        <SelectValue placeholder="Select column to filter" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {visibleColumns.map(column => (
+                          <SelectItem key={column} value={column}>
+                            {column === 'sourceId' ? 'Source' : column}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {activeFilterColumn && (
+                    <div>
+                      <Label htmlFor="filter-value">Filter Value</Label>
+                      <Input
+                        id="filter-value"
+                        placeholder={`Enter value to filter by...`}
+                        value={getFilterValue(activeFilterColumn)}
+                        onChange={(e) => handleFilterChange(activeFilterColumn, e.target.value)}
                       />
-                      <Label htmlFor={`column-${column}`}>{column}</Label>
                     </div>
-                  ))}
+                  )}
+                  
+                  {activeFilters.filter(f => f.enabled).length > 0 && (
+                    <div>
+                      <h5 className="text-sm font-medium mb-2">Active Filters</h5>
+                      <div className="space-y-2">
+                        {activeFilters.filter(f => f.enabled).map(filter => (
+                          <div key={filter.key} className="flex items-center justify-between text-sm">
+                            <span>
+                              <span className="font-medium">{filter.key === 'sourceId' ? 'Source' : filter.key}</span>
+                              : {filter.value}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => handleFilterChange(filter.key, '')}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full mt-2"
+                          onClick={() => setActiveFilters([])}
+                        >
+                          Clear All Filters
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div>
+                    <h5 className="text-sm font-medium mb-2">Show/Hide Columns</h5>
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {allColumns.map(column => (
+                        <div key={column} className="flex items-center space-x-2">
+                          <Checkbox 
+                            id={`column-${column}`} 
+                            checked={isColumnVisible(column)}
+                            onCheckedChange={(checked) => toggleColumnVisibility(column, !!checked)}
+                          />
+                          <Label htmlFor={`column-${column}`}>{column}</Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </PopoverContent>
             </Popover>
@@ -376,7 +429,7 @@ const EnhancedDataTable: React.FC = () => {
               <TableHeader className="sticky top-0 bg-secondary">
                 <TableRow>
                   {visibleColumns.map((column) => (
-                    <TableHead key={column} className="whitespace-nowrap group">
+                    <TableHead key={column} className="whitespace-nowrap">
                       <div className="flex items-center">
                         <button 
                           onClick={() => handleSort(column)}
@@ -385,15 +438,34 @@ const EnhancedDataTable: React.FC = () => {
                           {column === 'sourceId' ? 'Source' : column}
                           {getSortIcon(column)}
                         </button>
-                      </div>
-                      {/* Column filter */}
-                      <div className="mt-1">
-                        <Input
-                          className="h-6 text-xs border-dashed"
-                          placeholder={`Filter ${column}...`}
-                          value={getFilterValue(column)}
-                          onChange={(e) => handleFilterChange(column, e.target.value)}
-                        />
+                        {activeFilters.some(f => f.key === column && f.enabled) && (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-6 w-6 ml-1">
+                                <Filter className="h-3 w-3 text-primary" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-60 p-2" align="start">
+                              <div className="space-y-2">
+                                <Label htmlFor={`quick-filter-${column}`}>Filter {column}</Label>
+                                <Input
+                                  id={`quick-filter-${column}`}
+                                  value={getFilterValue(column)}
+                                  onChange={(e) => handleFilterChange(column, e.target.value)}
+                                  placeholder="Filter value..."
+                                />
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="w-full"
+                                  onClick={() => handleFilterChange(column, '')}
+                                >
+                                  Clear
+                                </Button>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        )}
                       </div>
                     </TableHead>
                   ))}
