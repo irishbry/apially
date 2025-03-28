@@ -45,13 +45,13 @@ const ApiUsageStats: React.FC = () => {
     setSourceStats(ApiService.getSourcesStats());
   };
 
-  // Format timestamp
+  // Format timestamp - modified to only show hours and minutes
   const formatTimestamp = (timestamp: string): string => {
     if (timestamp === 'No data received') return 'No data';
     
     try {
       const date = new Date(timestamp);
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     } catch (e) {
       return timestamp;
     }
