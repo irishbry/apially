@@ -31,8 +31,8 @@
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
   
-  # Special handling for API requests
-  RewriteRule ^api(/.*)?$ api/index.php [L,QSA]
+  # For API requests, direct to the API folder
+  RewriteRule ^api(/.*)?$ api/$1 [L,QSA]
   
   # For /installer, serve the index.html
   RewriteRule ^installer/?$ index.html [L]

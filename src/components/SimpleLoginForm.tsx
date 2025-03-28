@@ -26,7 +26,10 @@ const SimpleLoginForm: React.FC = () => {
     setIsLoggingIn(true);
     
     try {
-      // More reliable API path handling
+      // Add debug info
+      console.log("Current URL:", window.location.href);
+      console.log("Trying to log in with username:", username);
+      
       const apiUrl = '/api/login';
       console.log("Attempting login at:", apiUrl);
       
@@ -36,14 +39,20 @@ const SimpleLoginForm: React.FC = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ username, password }),
-        // Add credentials to ensure cookies are sent
         credentials: 'same-origin'
       });
       
+      console.log("Response status:", response.status);
+      console.log("Response headers:", Object.fromEntries([...response.headers.entries()]));
+      
       // Check for non-JSON responses first
       const contentType = response.headers.get("content-type");
+      console.log("Content type:", contentType);
+      
       if (!contentType || !contentType.includes("application/json")) {
         console.error("Non-JSON response received:", contentType);
+        const textResponse = await response.text();
+        console.error("Raw response:", textResponse);
         throw new Error("Server returned an invalid response format");
       }
       
