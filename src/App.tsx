@@ -21,14 +21,7 @@ const queryClient = new QueryClient({
   },
 });
 
-// Remove the test notification that was added on startup
-// setTimeout(() => {
-//   NotificationService.addNotification(
-//     'Welcome to API Manager',
-//     'Explore the new advanced data filtering and historical analytics!',
-//     'info'
-//   );
-// }, 3000);
+// No test notifications - the app will only show notifications for real events
 
 const App = () => (
   <QueryClientProvider client={queryClient}>

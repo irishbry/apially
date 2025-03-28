@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Bell, Check, X, Info, AlertTriangle, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export interface Notification {
@@ -74,6 +74,25 @@ const NotificationsCenter: React.FC<NotificationsCenterProps> = ({
     }).format(date);
   };
 
+  // Close notifications panel when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      // Check if click is outside the notifications panel
+      if (isExpanded && !target.closest('[data-notifications-panel]')) {
+        setIsExpanded(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [isExpanded]);
+
   useEffect(() => {
     // Flash the notification bell when new notifications arrive
     if (unreadCount > 0 && !isExpanded) {
@@ -88,7 +107,7 @@ const NotificationsCenter: React.FC<NotificationsCenterProps> = ({
   }, [unreadCount, isExpanded]);
 
   return (
-    <div className="relative">
+    <div className="relative z-50">
       <Button
         variant="outline"
         size="sm"
@@ -108,7 +127,7 @@ const NotificationsCenter: React.FC<NotificationsCenterProps> = ({
       </Button>
 
       {isExpanded && (
-        <Card className="absolute z-50 top-12 right-0 w-80 sm:w-96 shadow-lg">
+        <Card className="absolute z-50 top-12 right-0 w-80 sm:w-96 shadow-lg" data-notifications-panel>
           <CardHeader className="pb-2">
             <div className="flex justify-between items-center">
               <CardTitle className="text-lg">Notifications</CardTitle>
@@ -219,7 +238,10 @@ const NotificationList: React.FC<NotificationListProps> = ({
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    onClick={() => onMarkRead(notification.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onMarkRead(notification.id);
+                    }}
                     className="h-6 w-6 p-0"
                   >
                     <Check className="h-4 w-4" />
@@ -228,7 +250,10 @@ const NotificationList: React.FC<NotificationListProps> = ({
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  onClick={() => onDeleteNotification(notification.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteNotification(notification.id);
+                  }}
                   className="h-6 w-6 p-0"
                 >
                   <X className="h-4 w-4" />

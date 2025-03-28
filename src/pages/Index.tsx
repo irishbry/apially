@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { Separator } from "@/components/ui/separator";
 import ApiKeyForm from "@/components/ApiKeyForm";
@@ -20,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { LogOut, Bell } from "lucide-react";
 import ApiService from "@/services/ApiService";
 import NotificationService from "@/services/NotificationService";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import SimpleLoginForm from "@/components/SimpleLoginForm";
 
@@ -57,16 +56,7 @@ const Index = () => {
       setNotifications(newNotifications);
     });
     
-    // Add a welcome notification when first logging in
-    if (ApiService.isUserAuthenticated()) {
-      setTimeout(() => {
-        NotificationService.addNotification(
-          'Welcome to the Dashboard',
-          'You can now manage your data sources and view analytics.',
-          'info'
-        );
-      }, 1000);
-    }
+    // No initial welcome notification - only show actual events
     
     return () => {
       window.removeEventListener('storage', checkAuth);
@@ -81,6 +71,7 @@ const Index = () => {
     toast({
       title: "Logged Out",
       description: "You have been logged out successfully.",
+      duration: 5000, // Auto-dismiss after 5 seconds
     });
     navigate('/');
   };

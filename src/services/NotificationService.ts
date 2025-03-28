@@ -1,6 +1,6 @@
 
 import { Notification } from '@/components/NotificationsCenter';
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "@/hooks/use-toast";
 
 class NotificationService {
   private static instance: NotificationService;
@@ -157,16 +157,6 @@ class NotificationService {
 
   private notifySubscribers(): void {
     this.subscribers.forEach(callback => callback([...this.notifications]));
-  }
-
-  // Helper to dispatch event for testing
-  public dispatchTestEvent(type: string, message: string): void {
-    window.dispatchEvent(new CustomEvent('api-event', {
-      detail: {
-        type,
-        message
-      }
-    }));
   }
 }
 

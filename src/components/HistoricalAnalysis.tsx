@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -29,51 +30,58 @@ const HistoricalAnalysis: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Fetch data and update state when component mounts
   useEffect(() => {
-    try {
-      const apiData = ApiService.getData();
-      setData(apiData);
-      setSources(ApiService.getSources());
-      setError(null);
-      
-      if (apiData.length > 0) {
-        const allKeys = new Set<string>();
-        apiData.forEach(entry => {
-          Object.keys(entry).forEach(key => {
-            if (typeof entry[key] === 'number' && 
-                !['id', 'sourceId'].includes(key)) {
-              allKeys.add(key);
-            }
+    const fetchData = () => {
+      try {
+        const apiData = ApiService.getData();
+        setData(apiData);
+        setSources(ApiService.getSources());
+        setError(null);
+        
+        if (apiData.length > 0) {
+          const allKeys = new Set<string>();
+          apiData.forEach(entry => {
+            Object.keys(entry).forEach(key => {
+              if (typeof entry[key] === 'number' && 
+                  !['id', 'sourceId'].includes(key)) {
+                allKeys.add(key);
+              }
+            });
           });
-        });
-        const metrics = Array.from(allKeys);
-        setMetricOptions(metrics);
-        if (metrics.length > 0 && !metrics.includes(selectedMetric)) {
-          setSelectedMetric(metrics[0]);
+          const metrics = Array.from(allKeys);
+          setMetricOptions(metrics);
+          if (metrics.length > 0 && !metrics.includes(selectedMetric)) {
+            setSelectedMetric(metrics[0]);
+          }
         }
+        
+        setLoading(false);
+      } catch (err) {
+        console.error('Error loading data:', err);
+        setError('Error loading data. Please ensure you are logged in.');
+        setLoading(false);
       }
-      
-      setLoading(false);
-      
-      const unsubscribeData = ApiService.subscribe(newData => {
-        setData(newData);
-      });
-      
-      const unsubscribeSources = ApiService.subscribeToSources(newSources => {
-        setSources(newSources);
-      });
-      
-      return () => {
-        unsubscribeData();
-        unsubscribeSources();
-      };
-    } catch (err) {
-      console.error('Error loading data:', err);
-      setError('Error loading data. Please ensure you are logged in.');
-      setLoading(false);
-    }
+    };
+    
+    fetchData();
+    
+    const unsubscribeData = ApiService.subscribe(newData => {
+      setData(newData);
+      fetchData(); // Re-fetch to ensure metrics are updated
+    });
+    
+    const unsubscribeSources = ApiService.subscribeToSources(newSources => {
+      setSources(newSources);
+    });
+    
+    return () => {
+      unsubscribeData();
+      unsubscribeSources();
+    };
   }, []);
 
+  // Recalculate filtered data whenever dependencies change
   const filteredData = useMemo(() => {
     let filtered = [...data];
     
@@ -115,6 +123,7 @@ const HistoricalAnalysis: React.FC = () => {
     return filtered;
   }, [data, selectedSource, timeRange]);
 
+  // Recalculate chart data whenever filtered data or chart settings change
   const chartData = useMemo(() => {
     if (filteredData.length === 0) return [];
     
@@ -294,9 +303,7 @@ const HistoricalAnalysis: React.FC = () => {
           </LineChart>
         </ResponsiveContainer>
       );
-    }
-    
-    if (chartType === 'area') {
+    } else if (chartType === 'area') {
       return (
         <ResponsiveContainer width="100%" height={350}>
           <AreaChart
@@ -344,32 +351,32 @@ const HistoricalAnalysis: React.FC = () => {
           </AreaChart>
         </ResponsiveContainer>
       );
+    } else {
+      return (
+        <ResponsiveContainer width="100%" height={350}>
+          <BarChart
+            data={chartData}
+            margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis 
+              dataKey="name" 
+              tick={{ fontSize: 12 }}
+              height={40}
+              interval="preserveStartEnd"
+            />
+            <YAxis />
+            <Tooltip />
+            <Legend />
+            <Bar
+              dataKey={selectedMetric}
+              name={selectedMetric.charAt(0).toUpperCase() + selectedMetric.slice(1)}
+              fill="#8884d8"
+            />
+          </BarChart>
+        </ResponsiveContainer>
+      );
     }
-    
-    return (
-      <ResponsiveContainer width="100%" height={350}>
-        <BarChart
-          data={chartData}
-          margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-        >
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis 
-            dataKey="name" 
-            tick={{ fontSize: 12 }}
-            height={40}
-            interval="preserveStartEnd"
-          />
-          <YAxis />
-          <Tooltip />
-          <Legend />
-          <Bar
-            dataKey={selectedMetric}
-            name={selectedMetric.charAt(0).toUpperCase() + selectedMetric.slice(1)}
-            fill="#8884d8"
-          />
-        </BarChart>
-      </ResponsiveContainer>
-    );
   };
 
   return (
@@ -441,6 +448,7 @@ const HistoricalAnalysis: React.FC = () => {
                     <h4 className="font-medium">Chart Type</h4>
                     <RadioGroup 
                       defaultValue={chartType} 
+                      value={chartType}
                       onValueChange={(value) => setChartType(value as ChartType)}
                       className="flex gap-4"
                     >
@@ -463,6 +471,7 @@ const HistoricalAnalysis: React.FC = () => {
                     <h4 className="font-medium">Aggregation</h4>
                     <RadioGroup 
                       defaultValue={aggregation} 
+                      value={aggregation}
                       onValueChange={(value) => setAggregation(value as AggregationType)}
                       className="grid grid-cols-2 gap-2"
                     >
@@ -505,7 +514,7 @@ const HistoricalAnalysis: React.FC = () => {
       <CardContent>
         <div className="rounded-md border p-4">
           <Tabs defaultValue="chart" className="w-full">
-            <TabsList className="grid w-[400px] grid-cols-2 mb-4">
+            <TabsList className="grid w-[400px] grid-cols-2 mb-4 max-w-full">
               <TabsTrigger value="chart" className="flex items-center">
                 <LineChartIcon className="mr-2 h-4 w-4" />
                 Chart View
@@ -524,6 +533,11 @@ const HistoricalAnalysis: React.FC = () => {
               {loading ? (
                 <div className="flex items-center justify-center h-64">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : chartData.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
+                  <Info className="h-8 w-8 mb-2" />
+                  <p>No data available for the selected criteria</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
