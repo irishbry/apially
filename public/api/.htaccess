@@ -42,7 +42,7 @@ php_flag log_errors on
     AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css application/javascript application/json
 </IfModule>
 
-# Custom error documents
+# Custom error documents - direct to index.php for handling
 ErrorDocument 400 /api/index.php
 ErrorDocument 401 /api/index.php
 ErrorDocument 403 /api/index.php

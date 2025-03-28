@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Lock, User } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 
 const LoginForm: React.FC = () => {
@@ -37,7 +37,15 @@ const LoginForm: React.FC = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ username, password }),
+        credentials: 'same-origin'
       });
+      
+      // Check for non-JSON responses first
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        console.error("Non-JSON response received:", contentType);
+        throw new Error("Server returned an invalid response format");
+      }
       
       const data = await response.json();
       console.log("Login response:", data);
@@ -75,7 +83,7 @@ const LoginForm: React.FC = () => {
       setError('Error connecting to the server. Please try again later.');
       toast({
         title: "Connection Error",
-        description: "Could not connect to the authentication server. Please try again later.",
+        description: "The API endpoint is not responding correctly. Please check your server configuration.",
         variant: "destructive",
       });
     } finally {

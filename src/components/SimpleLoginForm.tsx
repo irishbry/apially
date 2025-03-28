@@ -26,8 +26,8 @@ const SimpleLoginForm: React.FC = () => {
     setIsLoggingIn(true);
     
     try {
-      // Use relative path to ensure it works in all environments
-      const apiUrl = window.location.origin + '/api/login';
+      // More reliable API path handling
+      const apiUrl = '/api/login';
       console.log("Attempting login at:", apiUrl);
       
       const response = await fetch(apiUrl, {
@@ -36,6 +36,8 @@ const SimpleLoginForm: React.FC = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ username, password }),
+        // Add credentials to ensure cookies are sent
+        credentials: 'same-origin'
       });
       
       // Check for non-JSON responses first
