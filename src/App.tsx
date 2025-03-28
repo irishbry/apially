@@ -9,6 +9,9 @@ import NotFound from "./pages/NotFound";
 import DeploymentInstructions from "./pages/DeploymentInstructions";
 import AutoInstaller from "./components/AutoInstaller";
 
+// Initialize notification listeners
+import NotificationService from "./services/NotificationService";
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -17,6 +20,15 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// Create a test notification after a delay for demo purposes
+setTimeout(() => {
+  NotificationService.addNotification(
+    'Welcome to API Manager',
+    'Explore the new advanced data filtering and historical analytics!',
+    'info'
+  );
+}, 3000);
 
 const App = () => (
   <QueryClientProvider client={queryClient}>

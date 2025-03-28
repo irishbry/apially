@@ -1,0 +1,439 @@
+
+import React, { useState, useEffect, useMemo } from 'react';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { AlertTriangle, Download, Filter, Search, SortAsc, SortDesc, Trash2, FileDown } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import ApiService, { DataEntry, Source } from "@/services/ApiService";
+import { downloadCSV } from "@/utils/csvUtils";
+import NotificationService from "@/services/NotificationService";
+
+type SortConfig = {
+  key: string;
+  direction: 'asc' | 'desc';
+};
+
+type ColumnFilter = {
+  key: string;
+  value: string;
+  enabled: boolean;
+};
+
+const EnhancedDataTable: React.FC = () => {
+  const [data, setData] = useState<DataEntry[]>([]);
+  const [sources, setSources] = useState<Source[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedSource, setSelectedSource] = useState<string>('all');
+  const [visibleData, setVisibleData] = useState<DataEntry[]>([]);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
+  const [activeFilters, setActiveFilters] = useState<ColumnFilter[]>([]);
+  const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
+  const [allColumns, setAllColumns] = useState<string[]>([]);
+
+  useEffect(() => {
+    try {
+      // Get initial data
+      setData(ApiService.getData());
+      setSources(ApiService.getSources());
+      setError(null);
+      
+      // Subscribe to data changes
+      const unsubscribeData = ApiService.subscribe(newData => {
+        setData([...newData]);
+      });
+      
+      // Subscribe to source changes
+      const unsubscribeSources = ApiService.subscribeToSources(newSources => {
+        setSources([...newSources]);
+      });
+      
+      return () => {
+        unsubscribeData();
+        unsubscribeSources();
+      };
+    } catch (err) {
+      console.error('Error loading data:', err);
+      setError('Error loading data. Please ensure you are logged in.');
+    }
+  }, []);
+
+  // Initialize columns when data changes
+  useEffect(() => {
+    if (data.length > 0) {
+      const cols = getColumns();
+      setAllColumns(cols);
+      setVisibleColumns(cols);
+    }
+  }, [data]);
+  
+  // Apply search, sort, and filters whenever relevant state changes
+  useEffect(() => {
+    // Start with all data
+    let filtered = [...data];
+    
+    // Filter by source
+    if (selectedSource !== 'all') {
+      filtered = filtered.filter(entry => entry.sourceId === selectedSource);
+    }
+    
+    // Apply active column filters
+    activeFilters.forEach(filter => {
+      if (filter.enabled && filter.value) {
+        filtered = filtered.filter(entry => {
+          const value = entry[filter.key];
+          if (value === undefined || value === null) return false;
+          return String(value).toLowerCase().includes(filter.value.toLowerCase());
+        });
+      }
+    });
+    
+    // Filter by global search term
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(entry => {
+        return visibleColumns.some(column => {
+          const value = entry[column];
+          return value !== null && 
+                 value !== undefined && 
+                 String(value).toLowerCase().includes(term);
+        });
+      });
+    }
+    
+    // Apply sorting
+    if (sortConfig) {
+      filtered.sort((a, b) => {
+        // Handle undefined or null values
+        if (a[sortConfig.key] === undefined && b[sortConfig.key] === undefined) return 0;
+        if (a[sortConfig.key] === undefined) return 1;
+        if (b[sortConfig.key] === undefined) return -1;
+        
+        // Compare values based on their type
+        const aVal = a[sortConfig.key];
+        const bVal = b[sortConfig.key];
+        
+        let comparison = 0;
+        if (typeof aVal === 'number' && typeof bVal === 'number') {
+          comparison = aVal - bVal;
+        } else {
+          comparison = String(aVal).localeCompare(String(bVal));
+        }
+        
+        return sortConfig.direction === 'asc' ? comparison : -comparison;
+      });
+    }
+    
+    setVisibleData(filtered);
+  }, [data, searchTerm, selectedSource, sortConfig, activeFilters, visibleColumns]);
+
+  const getColumns = (): string[] => {
+    if (data.length === 0) return ['No Data'];
+    
+    // Get all unique keys, prioritizing common ones
+    const priorityKeys = ['timestamp', 'id', 'sourceId', 'sensorId'];
+    const allKeys = new Set<string>();
+    
+    // Add priority keys first
+    priorityKeys.forEach(key => allKeys.add(key));
+    
+    // Add all other keys
+    data.forEach(entry => {
+      Object.keys(entry).forEach(key => {
+        if (!priorityKeys.includes(key)) {
+          allKeys.add(key);
+        }
+      });
+    });
+    
+    return Array.from(allKeys);
+  };
+
+  // Get source name from ID
+  const getSourceName = (sourceId: string | undefined): string => {
+    if (!sourceId) return 'Unknown';
+    const source = sources.find(s => s.id === sourceId);
+    return source ? source.name : sourceId;
+  };
+
+  const formatCellValue = (key: string, value: any) => {
+    if (value === undefined || value === null) return '-';
+    if (key === 'sourceId') return getSourceName(value);
+    if (typeof value === 'object') return JSON.stringify(value);
+    return String(value);
+  };
+
+  const handleExportCSV = () => {
+    try {
+      setIsDownloading(true);
+      setTimeout(() => {
+        // Export only filtered data
+        downloadCSV(visibleData);
+        setIsDownloading(false);
+        NotificationService.addNotification(
+          'CSV Export Complete', 
+          `Successfully exported ${visibleData.length} records to CSV.`,
+          'success'
+        );
+      }, 500);
+    } catch (err) {
+      setError('Error exporting data. Please ensure you are logged in.');
+      setIsDownloading(false);
+      NotificationService.addNotification(
+        'Export Failed', 
+        'Failed to export data to CSV.',
+        'error'
+      );
+    }
+  };
+
+  const handleClearData = () => {
+    try {
+      ApiService.clearData();
+      NotificationService.addNotification(
+        'Data Cleared', 
+        'All data has been cleared successfully.',
+        'info'
+      );
+    } catch (err) {
+      setError('Error clearing data. Please ensure you are logged in.');
+      NotificationService.addNotification(
+        'Operation Failed', 
+        'Failed to clear data.',
+        'error'
+      );
+    }
+  };
+
+  const handleSort = (key: string) => {
+    // If already sorting by this key, toggle direction or clear
+    if (sortConfig && sortConfig.key === key) {
+      if (sortConfig.direction === 'asc') {
+        setSortConfig({ key, direction: 'desc' });
+      } else {
+        setSortConfig(null);
+      }
+    } else {
+      // Start with ascending sort
+      setSortConfig({ key, direction: 'asc' });
+    }
+  };
+
+  const getSortIcon = (key: string) => {
+    if (!sortConfig || sortConfig.key !== key) {
+      return null;
+    }
+    return sortConfig.direction === 'asc' 
+      ? <SortAsc className="h-4 w-4 text-primary ml-1" />
+      : <SortDesc className="h-4 w-4 text-primary ml-1" />;
+  };
+
+  const handleFilterChange = (key: string, value: string) => {
+    setActiveFilters(prev => {
+      // Find existing filter
+      const existingFilterIndex = prev.findIndex(f => f.key === key);
+      
+      if (existingFilterIndex >= 0) {
+        // Update existing filter
+        const newFilters = [...prev];
+        newFilters[existingFilterIndex] = {
+          ...newFilters[existingFilterIndex],
+          value,
+          enabled: !!value.trim()
+        };
+        return newFilters;
+      } else {
+        // Add new filter
+        return [...prev, { key, value, enabled: !!value.trim() }];
+      }
+    });
+  };
+
+  const toggleColumnVisibility = (column: string, visible: boolean) => {
+    if (visible) {
+      setVisibleColumns(prev => [...prev, column].sort((a, b) => 
+        allColumns.indexOf(a) - allColumns.indexOf(b)
+      ));
+    } else {
+      setVisibleColumns(prev => prev.filter(col => col !== column));
+    }
+  };
+
+  const isColumnVisible = (column: string) => {
+    return visibleColumns.includes(column);
+  };
+
+  // Current filter value for a column
+  const getFilterValue = (key: string) => {
+    const filter = activeFilters.find(f => f.key === key);
+    return filter?.value || '';
+  };
+
+  return (
+    <Card className="w-full shadow-sm hover:shadow-md transition-all duration-300">
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <span className="text-xl font-medium">Data Explorer</span>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleClearData}
+              className="hover-lift"
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              Clear
+            </Button>
+            <Button 
+              size="sm"
+              onClick={handleExportCSV}
+              disabled={isDownloading || visibleData.length === 0}
+              className="hover-lift"
+            >
+              {isDownloading ? (
+                <>Downloading...</>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 mr-1" />
+                  Export CSV
+                </>
+              )}
+            </Button>
+          </div>
+        </CardTitle>
+        <CardDescription>
+          Explore and analyze your data with advanced filtering and sorting
+        </CardDescription>
+        {error && (
+          <Alert variant="destructive" className="mt-2">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              {error}
+            </AlertDescription>
+          </Alert>
+        )}
+        <div className="flex flex-col gap-2 sm:flex-row mt-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search across all columns..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-8"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Select value={selectedSource} onValueChange={setSelectedSource}>
+              <SelectTrigger className="w-full sm:w-48">
+                <SelectValue placeholder="Filter by source" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Sources</SelectItem>
+                {sources.map((source) => (
+                  <SelectItem key={source.id} value={source.id}>
+                    {source.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <Filter className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-3">
+                <h4 className="font-medium mb-2">Show/Hide Columns</h4>
+                <div className="space-y-2 max-h-60 overflow-y-auto mb-4">
+                  {allColumns.map(column => (
+                    <div key={column} className="flex items-center space-x-2">
+                      <Checkbox 
+                        id={`column-${column}`} 
+                        checked={isColumnVisible(column)}
+                        onCheckedChange={(checked) => toggleColumnVisibility(column, !!checked)}
+                      />
+                      <Label htmlFor={`column-${column}`}>{column}</Label>
+                    </div>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="rounded-md border">
+          <div className="relative overflow-auto max-h-[400px]">
+            <Table>
+              <TableHeader className="sticky top-0 bg-secondary">
+                <TableRow>
+                  {visibleColumns.map((column) => (
+                    <TableHead key={column} className="whitespace-nowrap group">
+                      <div className="flex items-center">
+                        <button 
+                          onClick={() => handleSort(column)}
+                          className="font-medium flex items-center cursor-pointer hover:text-primary"
+                        >
+                          {column === 'sourceId' ? 'Source' : column}
+                          {getSortIcon(column)}
+                        </button>
+                      </div>
+                      {/* Column filter */}
+                      <div className="mt-1">
+                        <Input
+                          className="h-6 text-xs border-dashed"
+                          placeholder={`Filter ${column}...`}
+                          value={getFilterValue(column)}
+                          onChange={(e) => handleFilterChange(column, e.target.value)}
+                        />
+                      </div>
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visibleData.length > 0 ? (
+                  visibleData.map((entry, index) => (
+                    <TableRow key={entry.id || index} className="animate-fade-in">
+                      {visibleColumns.map(column => (
+                        <TableCell key={`${entry.id || index}-${column}`} className="whitespace-nowrap">
+                          {formatCellValue(column, entry[column])}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={visibleColumns.length} className="h-24 text-center">
+                      {error ? 'Authentication required to view data' : 'No data available'}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      </CardContent>
+      <CardFooter className="py-3 text-sm text-muted-foreground justify-between">
+        <div>
+          Showing {visibleData.length} of {data.length} entries
+          {selectedSource !== 'all' && ` for ${getSourceName(selectedSource)}`}
+        </div>
+        <div className="flex items-center gap-2">
+          <FileDown className="h-4 w-4 text-muted-foreground" />
+          <span>Drag column headers to reorder</span>
+        </div>
+      </CardFooter>
+    </Card>
+  );
+};
+
+export default EnhancedDataTable;

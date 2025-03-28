@@ -4,24 +4,29 @@ import { Separator } from "@/components/ui/separator";
 import ApiKeyForm from "@/components/ApiKeyForm";
 import DropboxLinkForm from "@/components/DropboxLinkForm";
 import ControlPanel from "@/components/ControlPanel";
-import DataTable from "@/components/DataTable";
-import ApiInstructions from "@/components/ApiInstructions";
+import ApiDocumentation from "@/components/ApiDocumentation";
 import ApiUsageStats from "@/components/ApiUsageStats";
 import Header from "@/components/Header";
 import SchemaEditor from "@/components/SchemaEditor";
 import DeploymentGuide from "@/components/DeploymentGuide";
 import SourcesManager from "@/components/SourcesManager";
 import ScheduledExports from "@/components/ScheduledExports";
+import EnhancedDataTable from "@/components/EnhancedDataTable";
+import HistoricalAnalysis from "@/components/HistoricalAnalysis";
+import ApiLogViewer from "@/components/ApiLogViewer";
+import NotificationsCenter, { Notification } from "@/components/NotificationsCenter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { LogOut } from "lucide-react";
+import { LogOut, Bell } from "lucide-react";
 import ApiService from "@/services/ApiService";
+import NotificationService from "@/services/NotificationService";
 import { useToast } from "@/components/ui/use-toast";
 import { useNavigate } from "react-router-dom";
 import SimpleLoginForm from "@/components/SimpleLoginForm";
 
 const Index = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -46,9 +51,27 @@ const Index = () => {
     // Custom auth-change event listener for direct updates
     window.addEventListener('auth-change', checkAuth);
     
+    // Load notifications and subscribe to changes
+    setNotifications(NotificationService.getNotifications());
+    const unsubscribeNotifications = NotificationService.subscribe(newNotifications => {
+      setNotifications(newNotifications);
+    });
+    
+    // Add a welcome notification when first logging in
+    if (ApiService.isUserAuthenticated()) {
+      setTimeout(() => {
+        NotificationService.addNotification(
+          'Welcome to the Dashboard',
+          'You can now manage your data sources and view analytics.',
+          'info'
+        );
+      }, 1000);
+    }
+    
     return () => {
       window.removeEventListener('storage', checkAuth);
       window.removeEventListener('auth-change', checkAuth);
+      unsubscribeNotifications();
     };
   }, []);
 
@@ -60,6 +83,22 @@ const Index = () => {
       description: "You have been logged out successfully.",
     });
     navigate('/');
+  };
+  
+  const handleMarkRead = (id: string) => {
+    NotificationService.markAsRead(id);
+  };
+  
+  const handleMarkAllRead = () => {
+    NotificationService.markAllAsRead();
+  };
+  
+  const handleDeleteNotification = (id: string) => {
+    NotificationService.deleteNotification(id);
+  };
+  
+  const handleClearAllNotifications = () => {
+    NotificationService.clearAll();
   };
 
   if (!isAuthenticated) {
@@ -82,10 +121,19 @@ const Index = () => {
         <div className="py-10 space-y-8 animate-slide-up">
           <div className="flex justify-between items-center">
             <Header />
-            <Button variant="outline" onClick={handleLogout} className="hover-lift">
-              <LogOut className="h-4 w-4 mr-2" />
-              Logout
-            </Button>
+            <div className="flex items-center gap-3">
+              <NotificationsCenter 
+                notifications={notifications}
+                onMarkRead={handleMarkRead}
+                onMarkAllRead={handleMarkAllRead}
+                onDeleteNotification={handleDeleteNotification}
+                onClearAll={handleClearAllNotifications}
+              />
+              <Button variant="outline" onClick={handleLogout} className="hover-lift">
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
+              </Button>
+            </div>
           </div>
           
           <Separator />
@@ -95,48 +143,52 @@ const Index = () => {
           </section>
           
           <section>
-            <ScheduledExports />
-          </section>
-          
-          <section>
-            <SourcesManager />
-          </section>
-          
-          <section>
-            <h2 className="text-xl font-medium mb-4">Configuration</h2>
-            <Tabs defaultValue="basic" className="w-full">
+            <Tabs defaultValue="dashboard" className="w-full">
               <TabsList className="mb-4">
-                <TabsTrigger value="basic">Basic Setup</TabsTrigger>
-                <TabsTrigger value="schema">Data Schema</TabsTrigger>
-                <TabsTrigger value="deployment">Deployment</TabsTrigger>
+                <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+                <TabsTrigger value="sources">Sources</TabsTrigger>
+                <TabsTrigger value="data">Data</TabsTrigger>
+                <TabsTrigger value="analytics">Analytics</TabsTrigger>
+                <TabsTrigger value="logs">API Logs</TabsTrigger>
+                <TabsTrigger value="settings">Settings</TabsTrigger>
               </TabsList>
               
-              <TabsContent value="basic">
+              <TabsContent value="dashboard" className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <ApiKeyForm />
-                  <DropboxLinkForm />
+                  <ScheduledExports />
+                  <ControlPanel />
                 </div>
               </TabsContent>
               
-              <TabsContent value="schema">
-                <SchemaEditor />
+              <TabsContent value="sources" className="space-y-6">
+                <SourcesManager />
               </TabsContent>
               
-              <TabsContent value="deployment">
-                <DeploymentGuide />
+              <TabsContent value="data" className="space-y-6">
+                <EnhancedDataTable />
+              </TabsContent>
+              
+              <TabsContent value="analytics" className="space-y-6">
+                <HistoricalAnalysis />
+              </TabsContent>
+              
+              <TabsContent value="logs" className="space-y-6">
+                <ApiLogViewer />
+              </TabsContent>
+              
+              <TabsContent value="settings">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  <ApiKeyForm />
+                  <DropboxLinkForm />
+                </div>
+                <SchemaEditor />
               </TabsContent>
             </Tabs>
           </section>
           
-          <section className="space-y-6">
-            <h2 className="text-xl font-medium mb-4">Manage & Test</h2>
-            <ControlPanel />
-            <DataTable />
-          </section>
-          
           <section className="space-y-6 pb-10">
-            <h2 className="text-xl font-medium mb-4">Documentation</h2>
-            <ApiInstructions />
+            <h2 className="text-xl font-medium mb-4">API Documentation</h2>
+            <ApiDocumentation />
           </section>
         </div>
       </div>
