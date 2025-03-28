@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Database, Clock, Activity, Users, Layers } from "lucide-react";
 import ApiService from "@/services/ApiService";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const ApiUsageStats: React.FC = () => {
   const [stats, setStats] = useState({
@@ -16,6 +17,8 @@ const ApiUsageStats: React.FC = () => {
     activeSources: 0,
     totalDataPoints: 0
   });
+
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     // Get initial stats
@@ -55,76 +58,78 @@ const ApiUsageStats: React.FC = () => {
   };
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-4">
+    <div className={`grid ${isMobile ? 'grid-cols-2 gap-2' : 'grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-4'}`}>
       <Card className="glass shadow-sm hover:shadow-md transition-all duration-300">
-        <CardContent className="p-6">
+        <CardContent className={`${isMobile ? 'p-3' : 'p-6'}`}>
           <div className="flex items-center justify-between">
             <div className="flex flex-col">
-              <span className="text-sm font-medium text-muted-foreground">Total Data Points</span>
-              <span className="text-2xl font-bold mt-1">{sourceStats.totalDataPoints}</span>
+              <span className={`${isMobile ? 'text-xs' : 'text-sm'} font-medium text-muted-foreground`}>Total Data Points</span>
+              <span className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold mt-1`}>{sourceStats.totalDataPoints}</span>
             </div>
-            <div className="bg-primary/10 p-3 rounded-full">
-              <Activity className="h-5 w-5 text-primary" />
+            <div className={`bg-primary/10 ${isMobile ? 'p-2' : 'p-3'} rounded-full`}>
+              <Activity className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'} text-primary`} />
             </div>
           </div>
         </CardContent>
       </Card>
 
       <Card className="glass shadow-sm hover:shadow-md transition-all duration-300">
-        <CardContent className="p-6">
+        <CardContent className={`${isMobile ? 'p-3' : 'p-6'}`}>
           <div className="flex items-center justify-between">
             <div className="flex flex-col">
-              <span className="text-sm font-medium text-muted-foreground">Active Sources</span>
-              <span className="text-2xl font-bold mt-1">{sourceStats.activeSources}/{sourceStats.totalSources}</span>
+              <span className={`${isMobile ? 'text-xs' : 'text-sm'} font-medium text-muted-foreground`}>Active Sources</span>
+              <span className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold mt-1`}>{sourceStats.activeSources}/{sourceStats.totalSources}</span>
             </div>
-            <div className="bg-primary/10 p-3 rounded-full">
-              <Users className="h-5 w-5 text-primary" />
+            <div className={`bg-primary/10 ${isMobile ? 'p-2' : 'p-3'} rounded-full`}>
+              <Users className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'} text-primary`} />
             </div>
           </div>
         </CardContent>
       </Card>
 
       <Card className="glass shadow-sm hover:shadow-md transition-all duration-300">
-        <CardContent className="p-6">
+        <CardContent className={`${isMobile ? 'p-3' : 'p-6'}`}>
           <div className="flex items-center justify-between">
             <div className="flex flex-col">
-              <span className="text-sm font-medium text-muted-foreground">Unique Sources</span>
-              <span className="text-2xl font-bold mt-1">{stats.uniqueSources}</span>
+              <span className={`${isMobile ? 'text-xs' : 'text-sm'} font-medium text-muted-foreground`}>Unique Sources</span>
+              <span className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold mt-1`}>{stats.uniqueSources}</span>
             </div>
-            <div className="bg-primary/10 p-3 rounded-full">
-              <Database className="h-5 w-5 text-primary" />
+            <div className={`bg-primary/10 ${isMobile ? 'p-2' : 'p-3'} rounded-full`}>
+              <Database className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'} text-primary`} />
             </div>
           </div>
         </CardContent>
       </Card>
 
       <Card className="glass shadow-sm hover:shadow-md transition-all duration-300">
-        <CardContent className="p-6">
+        <CardContent className={`${isMobile ? 'p-3' : 'p-6'}`}>
           <div className="flex items-center justify-between">
             <div className="flex flex-col">
-              <span className="text-sm font-medium text-muted-foreground">Last Received</span>
-              <span className="text-2xl font-bold mt-1">{formatTimestamp(stats.lastReceived)}</span>
+              <span className={`${isMobile ? 'text-xs' : 'text-sm'} font-medium text-muted-foreground`}>Last Received</span>
+              <span className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold mt-1`}>{formatTimestamp(stats.lastReceived)}</span>
             </div>
-            <div className="bg-primary/10 p-3 rounded-full">
-              <Clock className="h-5 w-5 text-primary" />
+            <div className={`bg-primary/10 ${isMobile ? 'p-2' : 'p-3'} rounded-full`}>
+              <Clock className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'} text-primary`} />
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="glass shadow-sm hover:shadow-md transition-all duration-300">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex flex-col">
-              <span className="text-sm font-medium text-muted-foreground">Data Types</span>
-              <span className="text-2xl font-bold mt-1">{Object.keys(ApiService.getSchema().fieldTypes).length}</span>
+      {(!isMobile || (isMobile && sourceStats.totalDataPoints > 0)) && (
+        <Card className="glass shadow-sm hover:shadow-md transition-all duration-300">
+          <CardContent className={`${isMobile ? 'p-3' : 'p-6'}`}>
+            <div className="flex items-center justify-between">
+              <div className="flex flex-col">
+                <span className={`${isMobile ? 'text-xs' : 'text-sm'} font-medium text-muted-foreground`}>Data Types</span>
+                <span className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold mt-1`}>{Object.keys(ApiService.getSchema().fieldTypes).length}</span>
+              </div>
+              <div className={`bg-primary/10 ${isMobile ? 'p-2' : 'p-3'} rounded-full`}>
+                <Layers className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'} text-primary`} />
+              </div>
             </div>
-            <div className="bg-primary/10 p-3 rounded-full">
-              <Layers className="h-5 w-5 text-primary" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

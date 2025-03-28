@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import DeploymentInstructions from "./pages/DeploymentInstructions";
 import AutoInstaller from "./components/AutoInstaller";
+import { Database } from "lucide-react";
 
 // Initialize notification listeners
 import NotificationService from "./services/NotificationService";

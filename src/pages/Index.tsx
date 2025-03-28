@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { Separator } from "@/components/ui/separator";
 import ApiKeyForm from "@/components/ApiKeyForm";
@@ -16,18 +17,22 @@ import ApiLogViewer from "@/components/ApiLogViewer";
 import NotificationsCenter, { Notification } from "@/components/NotificationsCenter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { LogOut, Bell } from "lucide-react";
+import { LogOut, Bell, Menu } from "lucide-react";
 import ApiService from "@/services/ApiService";
 import NotificationService from "@/services/NotificationService";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import SimpleLoginForm from "@/components/SimpleLoginForm";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import MobileDataSummary from "@/components/MobileDataSummary";
 
 const Index = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     // Check auth status on component mount
@@ -109,10 +114,16 @@ const Index = () => {
       </div>
       
       <div className="container max-w-7xl relative">
-        <div className="py-10 space-y-8 animate-slide-up">
+        <div className="py-4 md:py-10 space-y-4 md:space-y-8 animate-slide-up">
+          {/* Mobile-friendly header */}
           <div className="flex justify-between items-center">
-            <Header />
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <div className="bg-primary/10 p-2 rounded-full">
+                <Database className="h-5 w-5 md:h-6 md:w-6 text-primary" />
+              </div>
+              <h1 className="text-2xl md:text-3xl font-medium tracking-tight">ApiAlly</h1>
+            </div>
+            <div className="flex items-center gap-2">
               <NotificationsCenter 
                 notifications={notifications}
                 onMarkRead={handleMarkRead}
@@ -120,28 +131,71 @@ const Index = () => {
                 onDeleteNotification={handleDeleteNotification}
                 onClearAll={handleClearAllNotifications}
               />
-              <Button variant="outline" onClick={handleLogout} className="hover-lift">
-                <LogOut className="h-4 w-4 mr-2" />
-                Logout
-              </Button>
+              {isMobile ? (
+                <Sheet>
+                  <SheetTrigger asChild>
+                    <Button variant="outline" size="icon" className="hover-lift h-9 w-9">
+                      <Menu className="h-4 w-4" />
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent>
+                    <div className="flex flex-col gap-4 pt-8">
+                      <Button variant="outline" onClick={handleLogout} className="w-full">
+                        <LogOut className="h-4 w-4 mr-2" />
+                        Logout
+                      </Button>
+                      <Separator />
+                      <div className="text-sm text-muted-foreground">
+                        Quick navigation
+                      </div>
+                      <nav className="grid gap-2">
+                        {["Dashboard", "Sources", "Data", "Analytics", "API Logs", "Settings"].map((item) => (
+                          <Button 
+                            key={item} 
+                            variant="ghost" 
+                            className="justify-start"
+                            onClick={() => {
+                              const tabId = item.toLowerCase().replace(' ', '-');
+                              document.querySelector(`[value="${tabId}"]`)?.dispatchEvent(
+                                new MouseEvent('click', { bubbles: true })
+                              );
+                            }}
+                          >
+                            {item}
+                          </Button>
+                        ))}
+                      </nav>
+                    </div>
+                  </SheetContent>
+                </Sheet>
+              ) : (
+                <Button variant="outline" onClick={handleLogout} className="hover-lift">
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Logout
+                </Button>
+              )}
             </div>
           </div>
           
-          <Separator />
+          {!isMobile && <Separator />}
           
+          {/* Mobile Data Summary - only show on mobile */}
+          {isMobile && <MobileDataSummary />}
+          
+          {/* API Stats - show smaller on mobile */}
           <section>
             <ApiUsageStats />
           </section>
           
           <section>
             <Tabs defaultValue="dashboard" className="w-full">
-              <TabsList className="mb-4">
-                <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-                <TabsTrigger value="sources">Sources</TabsTrigger>
-                <TabsTrigger value="data">Data</TabsTrigger>
-                <TabsTrigger value="analytics">Analytics</TabsTrigger>
-                <TabsTrigger value="logs">API Logs</TabsTrigger>
-                <TabsTrigger value="settings">Settings</TabsTrigger>
+              <TabsList className="mb-4 overflow-auto flex w-full">
+                <TabsTrigger value="dashboard" className="flex-1">Dashboard</TabsTrigger>
+                <TabsTrigger value="sources" className="flex-1">Sources</TabsTrigger>
+                <TabsTrigger value="data" className="flex-1">Data</TabsTrigger>
+                <TabsTrigger value="analytics" className="flex-1">Analytics</TabsTrigger>
+                <TabsTrigger value="logs" className="flex-1">Logs</TabsTrigger>
+                <TabsTrigger value="settings" className="flex-1">Settings</TabsTrigger>
               </TabsList>
               
               <TabsContent value="dashboard" className="space-y-6">
@@ -177,10 +231,12 @@ const Index = () => {
             </Tabs>
           </section>
           
-          <section className="space-y-6 pb-10">
-            <h2 className="text-xl font-medium mb-4">API Documentation</h2>
-            <ApiDocumentation />
-          </section>
+          {!isMobile && (
+            <section className="space-y-6 pb-10">
+              <h2 className="text-xl font-medium mb-4">API Documentation</h2>
+              <ApiDocumentation />
+            </section>
+          )}
         </div>
       </div>
     </div>

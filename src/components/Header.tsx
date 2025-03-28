@@ -1,8 +1,15 @@
 
 import React from 'react';
-import { ArrowDownToLine, Database } from 'lucide-react';
+import { Database } from 'lucide-react';
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const Header: React.FC = () => {
+  const isMobile = useIsMobile();
+  
+  if (isMobile) {
+    return null; // No separate header for mobile, it's integrated in the Index page
+  }
+  
   return (
     <div className="space-y-4 py-4 animate-fade-in">
       <div className="flex items-center gap-2">
@@ -15,10 +22,6 @@ const Header: React.FC = () => {
         Easily collect real-time data through your API endpoint, automatically consolidate it into CSV files, 
         and export to your Dropbox at the end of each day.
       </p>
-      <div className="flex items-center text-sm text-muted-foreground">
-        <ArrowDownToLine className="mr-1 h-4 w-4" />
-        <span>Configure your API key and Dropbox link below to get started</span>
-      </div>
     </div>
   );
 };
