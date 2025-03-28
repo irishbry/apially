@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -32,13 +31,11 @@ const HistoricalAnalysis: React.FC = () => {
 
   useEffect(() => {
     try {
-      // Get initial data
       const apiData = ApiService.getData();
       setData(apiData);
       setSources(ApiService.getSources());
       setError(null);
       
-      // Detect available metrics from data
       if (apiData.length > 0) {
         const allKeys = new Set<string>();
         apiData.forEach(entry => {
@@ -58,12 +55,10 @@ const HistoricalAnalysis: React.FC = () => {
       
       setLoading(false);
       
-      // Subscribe to data changes
       const unsubscribeData = ApiService.subscribe(newData => {
         setData(newData);
       });
       
-      // Subscribe to source changes
       const unsubscribeSources = ApiService.subscribeToSources(newSources => {
         setSources(newSources);
       });
@@ -79,16 +74,13 @@ const HistoricalAnalysis: React.FC = () => {
     }
   }, []);
 
-  // Filter data by source and time range
   const filteredData = useMemo(() => {
     let filtered = [...data];
     
-    // Filter by source
     if (selectedSource !== 'all') {
       filtered = filtered.filter(entry => entry.sourceId === selectedSource);
     }
     
-    // Filter by time range
     if (timeRange !== 'all' && filtered.length > 0) {
       const now = new Date();
       let cutoffDate: Date;
@@ -107,7 +99,7 @@ const HistoricalAnalysis: React.FC = () => {
           cutoffDate = subDays(now, 90);
           break;
         default:
-          cutoffDate = new Date(0); // beginning of time
+          cutoffDate = new Date(0);
       }
       
       filtered = filtered.filter(entry => {
@@ -123,7 +115,6 @@ const HistoricalAnalysis: React.FC = () => {
     return filtered;
   }, [data, selectedSource, timeRange]);
 
-  // Aggregate data for chart
   const chartData = useMemo(() => {
     if (filteredData.length === 0) return [];
     
@@ -134,7 +125,6 @@ const HistoricalAnalysis: React.FC = () => {
     
     if (!hasValidMetric) return [];
     
-    // Sort data by timestamp
     const sorted = [...filteredData].sort((a, b) => {
       const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
       const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
@@ -149,7 +139,6 @@ const HistoricalAnalysis: React.FC = () => {
       }));
     }
     
-    // Handle aggregation
     const aggregated: Record<string, any> = {};
     
     sorted.forEach(entry => {
@@ -166,7 +155,6 @@ const HistoricalAnalysis: React.FC = () => {
           timeKey = format(date, 'yyyy-MM-dd');
           break;
         case 'weekly':
-          // Use ISO week numbering
           timeKey = format(date, 'yyyy-ww');
           break;
         case 'monthly':
@@ -185,7 +173,6 @@ const HistoricalAnalysis: React.FC = () => {
           displayName: '',
         };
         
-        // Set display name based on aggregation
         switch (aggregation) {
           case 'hourly':
             aggregated[timeKey].displayName = format(date, 'MM/dd HH:00');
@@ -211,7 +198,6 @@ const HistoricalAnalysis: React.FC = () => {
       }
     });
     
-    // Convert to array and calculate averages
     return Object.keys(aggregated).map(key => {
       const item = aggregated[key];
       return {
@@ -224,7 +210,6 @@ const HistoricalAnalysis: React.FC = () => {
     });
   }, [filteredData, selectedMetric, aggregation]);
 
-  // Get source name from ID
   const getSourceName = (sourceId: string | undefined): string => {
     if (!sourceId) return 'Unknown';
     const source = sources.find(s => s.id === sourceId);
@@ -260,17 +245,110 @@ const HistoricalAnalysis: React.FC = () => {
       );
     }
     
-    const ChartComponent = chartType === 'line' ? LineChart : 
-                          chartType === 'area' ? AreaChart : 
-                          BarChart;
+    if (chartType === 'line') {
+      return (
+        <ResponsiveContainer width="100%" height={350}>
+          <LineChart
+            data={chartData}
+            margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis 
+              dataKey="name" 
+              tick={{ fontSize: 12 }}
+              height={40}
+              interval="preserveStartEnd"
+            />
+            <YAxis />
+            <Tooltip />
+            <Legend />
+            <Line
+              type="monotone"
+              dataKey={selectedMetric}
+              name={selectedMetric.charAt(0).toUpperCase() + selectedMetric.slice(1)}
+              stroke="#8884d8"
+              fill="#8884d8"
+              fillOpacity={0.3}
+              activeDot={{ r: 8 }}
+            />
+            {aggregation !== 'none' && (
+              <Area
+                type="monotone"
+                dataKey={`max${selectedMetric}`}
+                stroke="transparent"
+                fill="#8884d8"
+                fillOpacity={0.1}
+                name="Max Range"
+              />
+            )}
+            {aggregation !== 'none' && (
+              <Area
+                type="monotone"
+                dataKey={`min${selectedMetric}`}
+                stroke="transparent"
+                fill="#8884d8"
+                fillOpacity={0.1}
+                name="Min Range"
+              />
+            )}
+          </LineChart>
+        </ResponsiveContainer>
+      );
+    }
     
-    const DataComponent = chartType === 'line' ? Line : 
-                         chartType === 'area' ? Area : 
-                         Bar;
-                         
+    if (chartType === 'area') {
+      return (
+        <ResponsiveContainer width="100%" height={350}>
+          <AreaChart
+            data={chartData}
+            margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis 
+              dataKey="name" 
+              tick={{ fontSize: 12 }}
+              height={40}
+              interval="preserveStartEnd"
+            />
+            <YAxis />
+            <Tooltip />
+            <Legend />
+            <Area
+              type="monotone"
+              dataKey={selectedMetric}
+              name={selectedMetric.charAt(0).toUpperCase() + selectedMetric.slice(1)}
+              stroke="#8884d8"
+              fill="#8884d8"
+              fillOpacity={0.3}
+            />
+            {aggregation !== 'none' && (
+              <Area
+                type="monotone"
+                dataKey={`max${selectedMetric}`}
+                stroke="transparent"
+                fill="#8884d8"
+                fillOpacity={0.1}
+                name="Max Range"
+              />
+            )}
+            {aggregation !== 'none' && (
+              <Area
+                type="monotone"
+                dataKey={`min${selectedMetric}`}
+                stroke="transparent"
+                fill="#8884d8"
+                fillOpacity={0.1}
+                name="Min Range"
+              />
+            )}
+          </AreaChart>
+        </ResponsiveContainer>
+      );
+    }
+    
     return (
       <ResponsiveContainer width="100%" height={350}>
-        <ChartComponent
+        <BarChart
           data={chartData}
           margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
         >
@@ -284,37 +362,12 @@ const HistoricalAnalysis: React.FC = () => {
           <YAxis />
           <Tooltip />
           <Legend />
-          <DataComponent
-            type="monotone"
+          <Bar
             dataKey={selectedMetric}
             name={selectedMetric.charAt(0).toUpperCase() + selectedMetric.slice(1)}
-            stroke="#8884d8"
             fill="#8884d8"
-            fillOpacity={0.3}
-            activeDot={{ r: 8 }}
           />
-          {/* Add min/max range if we're aggregating */}
-          {aggregation !== 'none' && chartType !== 'bar' && (
-            <Area
-              type="monotone"
-              dataKey={`max${selectedMetric}`}
-              stroke="transparent"
-              fill="#8884d8"
-              fillOpacity={0.1}
-              name="Max Range"
-            />
-          )}
-          {aggregation !== 'none' && chartType !== 'bar' && (
-            <Area
-              type="monotone"
-              dataKey={`min${selectedMetric}`}
-              stroke="transparent"
-              fill="#8884d8"
-              fillOpacity={0.1}
-              name="Min Range"
-            />
-          )}
-        </ChartComponent>
+        </BarChart>
       </ResponsiveContainer>
     );
   };
