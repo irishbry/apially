@@ -69,16 +69,35 @@ class NotificationService {
     this.saveNotifications();
     this.notifySubscribers();
 
-    // Show toast with dismiss option and shorter duration
+    // Show toast with explicit dismiss option and shorter duration
     toast({
       title: title,
       description: message,
       variant: type === 'error' ? 'destructive' : 'default',
-      // Auto-dismiss after 5 seconds (matches the TOAST_REMOVE_DELAY we set)
+      // Auto-dismiss after 5 seconds
       duration: 5000,
+      // Ensure the toast is dismissible
+      onOpenChange: (open) => {
+        if (!open) {
+          // When toast is closed, update notification state if needed
+          // For example, we could mark this notification as read
+          this.markAsReadByTitle(title);
+        }
+      },
     });
 
     return newNotification;
+  }
+
+  private markAsReadByTitle(title: string): void {
+    // Find notifications with this title and mark them as read
+    this.notifications.forEach(notification => {
+      if (notification.title === title && !notification.read) {
+        notification.read = true;
+      }
+    });
+    this.saveNotifications();
+    this.notifySubscribers();
   }
 
   private addFromEvent(event: any): void {

@@ -8,7 +8,6 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import DeploymentInstructions from "./pages/DeploymentInstructions";
 import AutoInstaller from "./components/AutoInstaller";
-import { Database } from "lucide-react";
 
 // Initialize notification listeners
 import NotificationService from "./services/NotificationService";
@@ -27,7 +26,8 @@ const queryClient = new QueryClient({
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
+      {/* Make sure the Toaster component is correctly positioned */}
+      <Toaster position="top-right" closeButton />
       <Sonner />
       <Routes>
         <Route path="/" element={<Index />} />

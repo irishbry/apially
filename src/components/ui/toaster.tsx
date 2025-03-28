@@ -1,3 +1,4 @@
+
 import { useToast } from "@/hooks/use-toast"
 import {
   Toast,
@@ -8,7 +9,7 @@ import {
   ToastViewport,
 } from "@/components/ui/toast"
 
-export function Toaster() {
+export function Toaster({ position = "bottom-right", closeButton = true }: { position?: string, closeButton?: boolean }) {
   const { toasts } = useToast()
 
   return (
@@ -23,11 +24,11 @@ export function Toaster() {
               )}
             </div>
             {action}
-            <ToastClose />
+            {closeButton && <ToastClose />}
           </Toast>
         )
       })}
-      <ToastViewport />
+      <ToastViewport className={position ? `${position}` : ""} />
     </ToastProvider>
   )
 }
