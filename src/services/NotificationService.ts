@@ -69,11 +69,13 @@ class NotificationService {
     this.saveNotifications();
     this.notifySubscribers();
 
-    // Also show a toast for immediate feedback
+    // Show toast with dismiss option and shorter duration
     toast({
       title: title,
       description: message,
       variant: type === 'error' ? 'destructive' : 'default',
+      // Auto-dismiss after 5 seconds (matches the TOAST_REMOVE_DELAY we set)
+      duration: 5000,
     });
 
     return newNotification;

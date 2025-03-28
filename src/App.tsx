@@ -21,14 +21,14 @@ const queryClient = new QueryClient({
   },
 });
 
-// Create a test notification after a delay for demo purposes
-setTimeout(() => {
-  NotificationService.addNotification(
-    'Welcome to API Manager',
-    'Explore the new advanced data filtering and historical analytics!',
-    'info'
-  );
-}, 3000);
+// Remove the test notification that was added on startup
+// setTimeout(() => {
+//   NotificationService.addNotification(
+//     'Welcome to API Manager',
+//     'Explore the new advanced data filtering and historical analytics!',
+//     'info'
+//   );
+// }, 3000);
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
