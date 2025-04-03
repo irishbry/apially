@@ -44,6 +44,10 @@ const SignupForm: React.FC = () => {
     try {
       console.log("Attempting signup with:", { email, username });
       
+      // Get the current URL for redirection
+      const redirectTo = window.location.origin;
+      console.log("Redirect URL:", redirectTo);
+      
       // Register with Supabase
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -51,7 +55,8 @@ const SignupForm: React.FC = () => {
         options: {
           data: {
             username,
-          }
+          },
+          emailRedirectTo: `${redirectTo}/auth/callback`
         }
       });
       
@@ -68,7 +73,7 @@ const SignupForm: React.FC = () => {
       });
       
       // Navigate to login page
-      navigate('/login');
+      navigate('/');
       
     } catch (err: any) {
       console.error('Signup error:', err);
@@ -172,12 +177,6 @@ const SignupForm: React.FC = () => {
           className="w-full h-12 text-lg font-bold"
           onClick={handleSignup}
           disabled={isSigningUp}
-          style={{ 
-            position: 'relative', 
-            zIndex: 9999,
-            backgroundColor: 'hsl(var(--primary))',
-            color: 'white'
-          }}
         >
           {isSigningUp ? 'Creating Account...' : 'Sign Up'}
         </Button>
