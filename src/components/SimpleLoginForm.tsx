@@ -51,8 +51,10 @@ const SimpleLoginForm: React.FC = () => {
         // Dispatch auth change event
         window.dispatchEvent(new Event('auth-change'));
         
-        // Navigate to dashboard - this is already pointed to the Index page which is the dashboard
-        navigate('/');
+        // Force navigation to dashboard with a small delay to ensure state is updated
+        setTimeout(() => {
+          navigate('/', { replace: true });
+        }, 100);
       } 
     } catch (err: any) {
       console.error('Login error:', err);

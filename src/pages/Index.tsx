@@ -26,9 +26,11 @@ import SimpleLoginForm from "@/components/SimpleLoginForm";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import MobileDataSummary from "@/components/MobileDataSummary";
+import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -36,24 +38,33 @@ const Index = () => {
 
   useEffect(() => {
     // Check auth status on component mount
-    const checkAuth = () => {
-      const authStatus = ApiService.isUserAuthenticated();
-      console.log("Auth status check:", authStatus);
-      setIsAuthenticated(authStatus);
+    const checkAuth = async () => {
+      try {
+        setIsLoading(true);
+        // Check Supabase session
+        const { data: { session } } = await supabase.auth.getSession();
+        const authStatus = !!session;
+        console.log("Auth status from Supabase:", authStatus);
+        setIsAuthenticated(authStatus);
+      } catch (error) {
+        console.error("Error checking auth status:", error);
+        setIsAuthenticated(false);
+      } finally {
+        setIsLoading(false);
+      }
     };
     
     // Initial check
     checkAuth();
     
-    // Set up event listener for auth changes
-    window.addEventListener('storage', (e) => {
-      if (e.key === 'csv-api-auth') {
-        checkAuth();
+    // Set up event listener for Supabase auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        console.log("Auth state changed:", event, !!session);
+        const newAuthStatus = !!session;
+        setIsAuthenticated(newAuthStatus);
       }
-    });
-    
-    // Custom auth-change event listener for direct updates
-    window.addEventListener('auth-change', checkAuth);
+    );
     
     // Load notifications and subscribe to changes
     setNotifications(NotificationService.getNotifications());
@@ -61,24 +72,30 @@ const Index = () => {
       setNotifications(newNotifications);
     });
     
-    // No initial welcome notification - only show actual events
-    
     return () => {
-      window.removeEventListener('storage', checkAuth);
-      window.removeEventListener('auth-change', checkAuth);
+      subscription.unsubscribe();
       unsubscribeNotifications();
     };
   }, []);
 
-  const handleLogout = () => {
-    ApiService.logout();
-    setIsAuthenticated(false);
-    toast({
-      title: "Logged Out",
-      description: "You have been logged out successfully.",
-      duration: 5000, // Auto-dismiss after 5 seconds
-    });
-    navigate('/');
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      toast({
+        title: "Logged Out",
+        description: "You have been logged out successfully.",
+        duration: 5000, // Auto-dismiss after 5 seconds
+      });
+      setIsAuthenticated(false);
+      navigate('/');
+    } catch (error) {
+      console.error("Error logging out:", error);
+      toast({
+        title: "Logout Error",
+        description: "An error occurred during logout. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
   
   const handleMarkRead = (id: string) => {
@@ -96,6 +113,14 @@ const Index = () => {
   const handleClearAllNotifications = () => {
     NotificationService.clearAll();
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background to-background/95 p-4">
+        <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return (
