@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { User, Lock } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const SimpleLoginForm: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -145,6 +146,13 @@ const SimpleLoginForm: React.FC = () => {
             <span className="font-mono">Username: admin</span> <br />
             <span className="font-mono">Password: password</span>
           </p>
+        </div>
+
+        <div className="text-center text-sm text-muted-foreground">
+          Don't have an account?{" "}
+          <Link to="/signup" className="text-primary hover:underline font-medium">
+            Sign up
+          </Link>
         </div>
       </form>
     </div>

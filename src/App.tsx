@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import DeploymentInstructions from "./pages/DeploymentInstructions";
 import AutoInstaller from "./components/AutoInstaller";
+import Signup from "./pages/Signup";
 
 // Initialize notification listeners
 import NotificationService from "./services/NotificationService";
@@ -33,6 +34,7 @@ const App = () => (
         <Route path="/" element={<Index />} />
         <Route path="/deploy" element={<DeploymentInstructions />} />
         <Route path="/installer" element={<AutoInstaller />} />
+        <Route path="/signup" element={<Signup />} />
         {/* Handle 404 errors */}
         <Route path="/404" element={<NotFound />} />
         {/* Redirect all other routes to the 404 page instead of rendering it directly */}
