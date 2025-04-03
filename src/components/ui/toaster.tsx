@@ -8,9 +8,14 @@ import {
   ToastTitle,
   ToastViewport,
 } from "@/components/ui/toast"
+import { useEffect } from "react"
 
 export function Toaster({ position = "bottom-right", closeButton = true }: { position?: string, closeButton?: boolean }) {
-  const { toasts } = useToast()
+  const { toasts, dismiss } = useToast()
+
+  useEffect(() => {
+    setTimeout(() => {dismiss()}, 5000) // Simulate a delay for the toast to be visible
+  }, [toasts.length])
   
   // Convert position string like "bottom-right" to CSS classes "bottom right"
   const positionClasses = position ? position.replace('-', ' ') : "bottom right"
@@ -27,7 +32,7 @@ export function Toaster({ position = "bottom-right", closeButton = true }: { pos
               )}
             </div>
             {action}
-            {closeButton && <ToastClose />}
+            {closeButton && <ToastClose onClick={()=>dismiss()} />}
           </Toast>
         )
       })}
