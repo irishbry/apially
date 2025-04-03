@@ -51,7 +51,7 @@ const SimpleLoginForm: React.FC = () => {
         // Dispatch auth change event
         window.dispatchEvent(new Event('auth-change'));
         
-        // Navigate to dashboard
+        // Navigate to dashboard - this is already pointed to the Index page which is the dashboard
         navigate('/');
       } 
     } catch (err: any) {
