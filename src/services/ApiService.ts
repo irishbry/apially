@@ -14,10 +14,11 @@ export interface DataSchema {
   fieldTypes: {[key: string]: string};
 }
 
-// Source interface
+// Source interface update
 export interface Source {
   id: string;
   name: string;
+  url?: string;
   apiKey: string;
   createdAt: string;
   dataCount: number;
@@ -198,6 +199,7 @@ class ApiService {
         {
           id: 'source-1',
           name: 'Factory Sensors',
+          url: 'https://factory-sensors.com',
           apiKey: 'demo-key-factory',
           createdAt: new Date().toISOString(),
           dataCount: 4,
@@ -207,6 +209,7 @@ class ApiService {
         {
           id: 'source-2',
           name: 'Warehouse Monitors',
+          url: 'https://warehouse-monitors.com',
           apiKey: 'demo-key-warehouse',
           createdAt: new Date().toISOString(),
           dataCount: 3,
@@ -216,6 +219,7 @@ class ApiService {
         {
           id: 'source-3',
           name: 'Office Environment',
+          url: 'https://office-environment.com',
           apiKey: 'demo-key-office',
           createdAt: new Date().toISOString(),
           dataCount: 3,
@@ -257,6 +261,7 @@ class ApiService {
     const newSource: Source = {
       id,
       name,
+      url: `https://source-${id}.com`,
       apiKey,
       createdAt: new Date().toISOString(),
       active: true,

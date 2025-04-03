@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,13 +6,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Copy, Edit, KeyRound, Plus, Power, RefreshCw, Trash2 } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import ApiService, { Source } from "@/services/ApiService";
 
 const SourcesManager: React.FC = () => {
   const [sources, setSources] = useState<Source[]>([]);
   const [newSourceName, setNewSourceName] = useState('');
+  const [newSourceUrl, setNewSourceUrl] = useState('');
   const [editingSource, setEditingSource] = useState<Source | null>(null);
   const [editName, setEditName] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -21,6 +21,7 @@ const SourcesManager: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     // Check authentication first
@@ -74,25 +75,33 @@ const SourcesManager: React.FC = () => {
         title: "Error",
         description: "Please enter a valid source name.",
         variant: "destructive",
+        duration: 3000,
       });
       return;
     }
     
+    setIsLoading(true);
+    
     try {
-      ApiService.addSource(newSourceName);
+      ApiService.addSource(newSourceName, newSourceUrl);
       setNewSourceName('');
+      setNewSourceUrl('');
       setIsDialogOpen(false);
       
       toast({
         title: "Source Added",
         description: `Source "${newSourceName}" has been added successfully.`,
+        duration: 3000,
       });
     } catch (err) {
       toast({
         title: "Error",
         description: "Failed to add source. Please ensure you are logged in.",
         variant: "destructive",
+        duration: 3000,
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -223,16 +232,29 @@ const SourcesManager: React.FC = () => {
                   Create a new data source and generate an API key for it.
                 </DialogDescription>
               </DialogHeader>
-              <div className="py-4">
-                <Input
-                  value={newSourceName}
-                  onChange={(e) => setNewSourceName(e.target.value)}
-                  placeholder="Enter source name (e.g., Factory Sensors)"
-                />
+              <div className="py-4 space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Source Name</label>
+                  <Input
+                    value={newSourceName}
+                    onChange={(e) => setNewSourceName(e.target.value)}
+                    placeholder="Enter source name (e.g., Factory Sensors)"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Source URL (optional)</label>
+                  <Input
+                    value={newSourceUrl}
+                    onChange={(e) => setNewSourceUrl(e.target.value)}
+                    placeholder="Enter source URL (optional)"
+                  />
+                </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-                <Button onClick={addSource}>Add Source</Button>
+                <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isLoading}>Cancel</Button>
+                <Button onClick={addSource} disabled={isLoading}>
+                  {isLoading ? 'Adding...' : 'Add Source'}
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>

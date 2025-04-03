@@ -30,18 +30,29 @@ function handleSourcesEndpoint() {
         $sources = loadJsonFile($sourcesFile, []);
         
         // Add the new source with unique ID
-        $sources[] = [
+        $newSource = [
             'id' => uniqid(),
             'name' => $data['name'],
             'url' => $data['url'],
             'type' => $data['type'] ?? 'csv',
-            'dateAdded' => date('c')
+            'dateAdded' => date('c'),
+            'apiKey' => generateApiKey(),
+            'active' => true,
+            'dataCount' => 0,
+            'createdAt' => date('c')
         ];
+        
+        $sources[] = $newSource;
         
         // Save updated sources
         saveJsonFile($sourcesFile, $sources);
         
         logApiRequest('sources', 'success', 'Added new source: ' . $data['name']);
-        echo json_encode(['success' => true]);
+        echo json_encode(['success' => true, 'source' => $newSource]);
     }
+}
+
+// Helper function to generate API key
+function generateApiKey() {
+    return bin2hex(random_bytes(16));
 }
