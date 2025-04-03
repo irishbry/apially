@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +21,7 @@ const SimpleLoginForm: React.FC = () => {
         title: "Error",
         description: "Please enter both email and password.",
         variant: "destructive",
-        duration: 3000, // 3 seconds auto-dismiss
+        duration: 3000,
       });
       return;
     }
@@ -47,7 +46,7 @@ const SimpleLoginForm: React.FC = () => {
         toast({
           title: "Login Successful",
           description: "You have been logged in successfully.",
-          duration: 3000, // 3 seconds auto-dismiss
+          duration: 3000,
         });
         
         // Dispatch auth change event
@@ -64,7 +63,7 @@ const SimpleLoginForm: React.FC = () => {
         title: "Login Failed",
         description: err.message || "Invalid email or password. Please try again.",
         variant: "destructive",
-        duration: 3000, // 3 seconds auto-dismiss
+        duration: 3000,
       });
     } finally {
       setIsLoggingIn(false);
@@ -135,4 +134,3 @@ const SimpleLoginForm: React.FC = () => {
 };
 
 export default SimpleLoginForm;
-

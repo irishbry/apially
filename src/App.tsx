@@ -23,13 +23,11 @@ const queryClient = new QueryClient({
   },
 });
 
-// No test notifications - the app will only show notifications for real events
-
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      {/* Toasters with explicit positions to ensure visibility */}
-      <Toaster position="top-right" closeButton={true} />
+      {/* Toasters with explicit positions */}
+      <Toaster position="bottom-right" closeButton={true} />
       <Sonner position="top-right" />
       <Routes>
         <Route path="/" element={<Index />} />
