@@ -250,7 +250,7 @@ class ApiService {
   }
 
   // Add a new source
-  public addSource(name: string): Source {
+  public addSource(name: string, url?: string): Source {
     if (!this.isAuthenticated) {
       throw new Error("Authentication required");
     }
@@ -261,7 +261,7 @@ class ApiService {
     const newSource: Source = {
       id,
       name,
-      url: `https://source-${id}.com`,
+      url: url || `https://source-${id}.com`,
       apiKey,
       createdAt: new Date().toISOString(),
       active: true,

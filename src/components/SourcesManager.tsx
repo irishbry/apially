@@ -24,17 +24,14 @@ const SourcesManager: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Check authentication first
     const authStatus = ApiService.isUserAuthenticated();
     setIsAuthenticated(authStatus);
 
     if (authStatus) {
       try {
-        // Get initial sources only if authenticated
         setSources(ApiService.getSources());
         setError(null);
         
-        // Subscribe to source changes
         const unsubscribe = ApiService.subscribeToSources(newSources => {
           setSources([...newSources]);
           setError(null);
@@ -47,7 +44,6 @@ const SourcesManager: React.FC = () => {
       }
     }
 
-    // Listen for auth changes
     const handleAuthChange = () => {
       const newAuthStatus = ApiService.isUserAuthenticated();
       setIsAuthenticated(newAuthStatus);
