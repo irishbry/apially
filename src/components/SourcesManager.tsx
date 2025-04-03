@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,19 @@ import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Copy, Edit, KeyRound, Plus, Power, RefreshCw, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import ApiService, { Source } from "@/services/ApiService";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+
+export interface Source {
+  id: string;
+  name: string;
+  url?: string;
+  api_key: string;
+  created_at: string;
+  data_count: number;
+  active: boolean;
+  last_active?: string;
+}
 
 const SourcesManager: React.FC = () => {
   const [sources, setSources] = useState<Source[]>([]);
@@ -20,52 +33,55 @@ const SourcesManager: React.FC = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const { user, isAuthenticated } = useAuth();
 
+  // Fetch sources on component mount and when auth state changes
   useEffect(() => {
-    const authStatus = ApiService.isUserAuthenticated();
-    setIsAuthenticated(authStatus);
-
-    if (authStatus) {
-      try {
-        setSources(ApiService.getSources());
-        setError(null);
-        
-        const unsubscribe = ApiService.subscribeToSources(newSources => {
-          setSources([...newSources]);
-          setError(null);
-        });
-        
-        return () => unsubscribe();
-      } catch (err) {
-        console.error('Error loading sources:', err);
-        setError('Error loading sources. Please ensure you are logged in.');
-      }
-    }
-
-    const handleAuthChange = () => {
-      const newAuthStatus = ApiService.isUserAuthenticated();
-      setIsAuthenticated(newAuthStatus);
+    if (isAuthenticated && user) {
+      fetchSources();
       
-      if (newAuthStatus) {
-        try {
-          setSources(ApiService.getSources());
-          setError(null);
-        } catch (err) {
-          console.error('Error loading sources after auth change:', err);
-          setError('Error loading sources. Please try refreshing the page.');
-        }
-      }
-    };
-    
-    window.addEventListener('auth-change', handleAuthChange);
-    return () => {
-      window.removeEventListener('auth-change', handleAuthChange);
-    };
-  }, []);
+      // Subscribe to realtime changes
+      const channel = supabase
+        .channel('public:sources')
+        .on('postgres_changes', 
+          { event: '*', schema: 'public', table: 'sources' }, 
+          (payload) => {
+            fetchSources();
+          }
+        )
+        .subscribe();
+      
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    } else {
+      setSources([]);
+    }
+  }, [isAuthenticated, user]);
 
-  const addSource = () => {
+  const fetchSources = async () => {
+    try {
+      setError(null);
+      const { data, error } = await supabase
+        .from('sources')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('Error fetching sources:', error);
+        setError('Error loading sources. Please try again later.');
+        return;
+      }
+      
+      setSources(data || []);
+    } catch (err) {
+      console.error('Error in fetchSources:', err);
+      setError('An unexpected error occurred while loading sources.');
+    }
+  };
+
+  const addSource = async () => {
     if (!newSourceName.trim()) {
       toast({
         title: "Error",
@@ -79,7 +95,30 @@ const SourcesManager: React.FC = () => {
     setIsLoading(true);
     
     try {
-      ApiService.addSource(newSourceName, newSourceUrl);
+      // Call the generate_unique_api_key function
+      const { data: apiKeyData, error: apiKeyError } = await supabase.rpc('generate_unique_api_key');
+      
+      if (apiKeyError) {
+        throw apiKeyError;
+      }
+      
+      const api_key = apiKeyData;
+      
+      // Insert the new source
+      const { data, error } = await supabase
+        .from('sources')
+        .insert({
+          name: newSourceName,
+          url: newSourceUrl || null,
+          api_key: api_key
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        throw error;
+      }
+      
       setNewSourceName('');
       setNewSourceUrl('');
       setIsDialogOpen(false);
@@ -89,10 +128,14 @@ const SourcesManager: React.FC = () => {
         description: `Source "${newSourceName}" has been added successfully.`,
         duration: 3000,
       });
-    } catch (err) {
+      
+      // Refresh the sources list
+      fetchSources();
+    } catch (err: any) {
+      console.error('Error adding source:', err);
       toast({
         title: "Error",
-        description: "Failed to add source. Please ensure you are logged in.",
+        description: err.message || "Failed to add source. Please try again.",
         variant: "destructive",
         duration: 3000,
       });
@@ -107,7 +150,7 @@ const SourcesManager: React.FC = () => {
     setIsEditDialogOpen(true);
   };
 
-  const updateSource = () => {
+  const updateSource = async () => {
     if (!editingSource || !editName.trim()) {
       toast({
         title: "Error",
@@ -118,7 +161,15 @@ const SourcesManager: React.FC = () => {
     }
     
     try {
-      ApiService.updateSourceName(editingSource.id, editName);
+      const { error } = await supabase
+        .from('sources')
+        .update({ name: editName })
+        .eq('id', editingSource.id);
+      
+      if (error) {
+        throw error;
+      }
+      
       setEditingSource(null);
       setIsEditDialogOpen(false);
       
@@ -126,65 +177,105 @@ const SourcesManager: React.FC = () => {
         title: "Source Updated",
         description: `Source name has been updated successfully.`,
       });
-    } catch (err) {
+      
+      // Refresh the sources list
+      fetchSources();
+    } catch (err: any) {
       toast({
         title: "Error",
-        description: "Failed to update source. Please ensure you are logged in.",
+        description: err.message || "Failed to update source. Please try again.",
         variant: "destructive",
       });
     }
   };
 
-  const toggleSourceActive = (id: string, name: string, currentState: boolean) => {
+  const toggleSourceActive = async (id: string, name: string, currentState: boolean) => {
     try {
-      const success = ApiService.toggleSourceActive(id);
-      if (success) {
-        toast({
-          title: currentState ? "Source Deactivated" : "Source Activated",
-          description: `Source "${name}" has been ${currentState ? "deactivated" : "activated"} successfully.`,
-        });
+      const { error } = await supabase
+        .from('sources')
+        .update({ active: !currentState })
+        .eq('id', id);
+      
+      if (error) {
+        throw error;
       }
-    } catch (err) {
+      
+      toast({
+        title: currentState ? "Source Deactivated" : "Source Activated",
+        description: `Source "${name}" has been ${currentState ? "deactivated" : "activated"} successfully.`,
+      });
+      
+      // Refresh the sources list
+      fetchSources();
+    } catch (err: any) {
       toast({
         title: "Error",
-        description: "Failed to toggle source state. Please ensure you are logged in.",
+        description: err.message || "Failed to toggle source state. Please try again.",
         variant: "destructive",
       });
     }
   };
 
-  const regenerateApiKey = (id: string, name: string) => {
+  const regenerateApiKey = async (id: string, name: string) => {
     try {
-      const newKey = ApiService.regenerateApiKey(id);
-      if (newKey) {
-        toast({
-          title: "API Key Regenerated",
-          description: `A new API key has been generated for source "${name}".`,
-        });
+      // Call the generate_unique_api_key function
+      const { data: apiKeyData, error: apiKeyError } = await supabase.rpc('generate_unique_api_key');
+      
+      if (apiKeyError) {
+        throw apiKeyError;
       }
-    } catch (err) {
+      
+      const api_key = apiKeyData;
+      
+      // Update the source with the new API key
+      const { error } = await supabase
+        .from('sources')
+        .update({ api_key })
+        .eq('id', id);
+      
+      if (error) {
+        throw error;
+      }
+      
+      toast({
+        title: "API Key Regenerated",
+        description: `A new API key has been generated for source "${name}".`,
+      });
+      
+      // Refresh the sources list
+      fetchSources();
+    } catch (err: any) {
       toast({
         title: "Error",
-        description: "Failed to regenerate API key. Please ensure you are logged in.",
+        description: err.message || "Failed to regenerate API key. Please try again.",
         variant: "destructive",
       });
     }
   };
 
-  const deleteSource = (id: string, name: string) => {
+  const deleteSource = async (id: string, name: string) => {
     if (window.confirm(`Are you sure you want to delete source "${name}"? All associated data will also be deleted.`)) {
       try {
-        const success = ApiService.deleteSource(id);
-        if (success) {
-          toast({
-            title: "Source Deleted",
-            description: `Source "${name}" has been deleted successfully.`,
-          });
+        const { error } = await supabase
+          .from('sources')
+          .delete()
+          .eq('id', id);
+        
+        if (error) {
+          throw error;
         }
-      } catch (err) {
+        
+        toast({
+          title: "Source Deleted",
+          description: `Source "${name}" has been deleted successfully.`,
+        });
+        
+        // Refresh the sources list
+        fetchSources();
+      } catch (err: any) {
         toast({
           title: "Error",
-          description: "Failed to delete source. Please ensure you are logged in.",
+          description: err.message || "Failed to delete source. Please try again.",
           variant: "destructive",
         });
       }
@@ -289,12 +380,12 @@ const SourcesManager: React.FC = () => {
                     <TableCell>
                       <div className="flex items-center">
                         <code className="bg-muted px-1 py-0.5 rounded text-xs">
-                          {source.apiKey.substring(0, 8)}...
+                          {source.api_key.substring(0, 8)}...
                         </code>
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => copyApiKey(source.apiKey)}
+                          onClick={() => copyApiKey(source.api_key)}
                           title="Copy API key"
                         >
                           <Copy className="h-3 w-3" />
@@ -310,16 +401,16 @@ const SourcesManager: React.FC = () => {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {source.dataCount > 0 ? (
-                        <Badge variant="outline">{source.dataCount}</Badge>
+                      {source.data_count > 0 ? (
+                        <Badge variant="outline">{source.data_count}</Badge>
                       ) : (
                         <Badge variant="outline" className="text-muted-foreground">0</Badge>
                       )}
                     </TableCell>
                     <TableCell>
-                      {source.lastActive ? formatDate(source.lastActive) : 'Never'}
+                      {source.last_active ? formatDate(source.last_active) : 'Never'}
                     </TableCell>
-                    <TableCell>{formatDate(source.createdAt)}</TableCell>
+                    <TableCell>{formatDate(source.created_at)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
                         <Button

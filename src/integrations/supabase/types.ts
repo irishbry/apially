@@ -9,13 +9,51 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      sources: {
+        Row: {
+          active: boolean
+          api_key: string
+          created_at: string
+          data_count: number
+          id: string
+          last_active: string | null
+          name: string
+          url: string | null
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          api_key: string
+          created_at?: string
+          data_count?: number
+          id?: string
+          last_active?: string | null
+          name: string
+          url?: string | null
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          api_key?: string
+          created_at?: string
+          data_count?: number
+          id?: string
+          last_active?: string | null
+          name?: string
+          url?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      generate_unique_api_key: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
