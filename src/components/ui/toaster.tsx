@@ -11,6 +11,9 @@ import {
 
 export function Toaster({ position = "bottom-right", closeButton = true }: { position?: string, closeButton?: boolean }) {
   const { toasts } = useToast()
+  
+  // Convert position string like "bottom-right" to CSS classes "bottom right"
+  const positionClasses = position ? position.replace('-', ' ') : "bottom right"
 
   return (
     <ToastProvider>
@@ -28,7 +31,7 @@ export function Toaster({ position = "bottom-right", closeButton = true }: { pos
           </Toast>
         )
       })}
-      <ToastViewport className={position ? position.replace('-', ' ') : "bottom right"} />
+      <ToastViewport className={positionClasses} />
     </ToastProvider>
   )
 }
