@@ -91,6 +91,16 @@ const SourcesManager: React.FC = () => {
       });
       return;
     }
+
+    if (!user) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to add a source.",
+        variant: "destructive",
+        duration: 3000,
+      });
+      return;
+    }
     
     setIsLoading(true);
     
@@ -110,7 +120,8 @@ const SourcesManager: React.FC = () => {
         .insert({
           name: newSourceName,
           url: newSourceUrl || null,
-          api_key: api_key
+          api_key: api_key,
+          user_id: user.id
         })
         .select()
         .single();
@@ -359,6 +370,15 @@ const SourcesManager: React.FC = () => {
             </AlertDescription>
           </Alert>
         )}
+        
+        {!isAuthenticated && (
+          <Alert className="mb-4">
+            <AlertDescription>
+              You need to be logged in to manage data sources.
+            </AlertDescription>
+          </Alert>
+        )}
+        
         <div className="rounded-md border">
           <Table>
             <TableHeader>
