@@ -3,22 +3,24 @@ import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { User, Lock } from "lucide-react";
-import { Link } from "react-router-dom";
+import { User, Lock, Mail } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 
 const SimpleLoginForm: React.FC = () => {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!username.trim() || !password.trim()) {
+    if (!email.trim() || !password.trim()) {
       toast({
         title: "Error",
-        description: "Please enter both username and password.",
+        description: "Please enter both email and password.",
         variant: "destructive",
       });
       return;
@@ -27,66 +29,36 @@ const SimpleLoginForm: React.FC = () => {
     setIsLoggingIn(true);
     
     try {
-      // Add debug info
-      console.log("Current URL:", window.location.href);
-      console.log("Trying to log in with username:", username);
+      console.log("Attempting login with:", { email });
       
-      const apiUrl = '/api/login';
-      console.log("Attempting login at:", apiUrl);
-      
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ username, password }),
-        credentials: 'same-origin'
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
       });
       
-      console.log("Response status:", response.status);
-      console.log("Response headers:", Object.fromEntries([...response.headers.entries()]));
-      
-      // Check for non-JSON responses first
-      const contentType = response.headers.get("content-type");
-      console.log("Content type:", contentType);
-      
-      if (!contentType || !contentType.includes("application/json")) {
-        console.error("Non-JSON response received:", contentType);
-        const textResponse = await response.text();
-        console.error("Raw response:", textResponse);
-        throw new Error("Server returned an invalid response format");
+      if (error) {
+        throw error;
       }
       
-      const data = await response.json();
       console.log("Login response:", data);
       
-      if (response.ok && data.success) {
-        // Set auth in local storage
-        localStorage.setItem('csv-api-auth', 'true');
-        
-        // Dispatch auth change event
-        window.dispatchEvent(new Event('auth-change'));
-        
-        // Display success message
+      if (data?.session) {
         toast({
           title: "Login Successful",
           description: "You have been logged in successfully.",
         });
         
-        // Reload the page to refresh with new auth
-        window.location.reload();
-      } else {
-        toast({
-          title: "Login Failed",
-          description: data.message || "Invalid username or password. Please try again.",
-          variant: "destructive",
-        });
-      }
-    } catch (err) {
+        // Dispatch auth change event
+        window.dispatchEvent(new Event('auth-change'));
+        
+        // Navigate to dashboard
+        navigate('/');
+      } 
+    } catch (err: any) {
       console.error('Login error:', err);
       toast({
-        title: "Connection Error",
-        description: "The API endpoint is not responding correctly. Please check your server configuration.",
+        title: "Login Failed",
+        description: err.message || "Invalid email or password. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -104,15 +76,15 @@ const SimpleLoginForm: React.FC = () => {
       <form className="mt-8 space-y-6" onSubmit={handleLogin}>
         <div className="space-y-4">
           <div className="relative">
-            <User className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+            <Mail className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
             <Input
-              id="username"
-              name="username"
-              type="text"
+              id="email"
+              name="email"
+              type="email"
               required
-              placeholder="Username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Email address"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="pl-10 w-full"
             />
           </div>
@@ -142,9 +114,7 @@ const SimpleLoginForm: React.FC = () => {
         
         <div className="p-4 mt-4 bg-muted/30 rounded-md">
           <p className="text-xs text-center text-muted-foreground">
-            For demo purposes, use: <br />
-            <span className="font-mono">Username: admin</span> <br />
-            <span className="font-mono">Password: password</span>
+            For demo purposes, sign up with your email and password.
           </p>
         </div>
 
