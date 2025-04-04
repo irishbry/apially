@@ -105,7 +105,7 @@ const MobileDataSummary: React.FC = () => {
       return current > 0 ? '+100%' : '0%';
     }
     
-    const percentChange = Math.round((current - previous) / previous * 100);
+    const percentChange = Math.round(((current - previous) / previous) * 100);
     return `${percentChange > 0 ? '+' : ''}${percentChange}%`;
   };
   

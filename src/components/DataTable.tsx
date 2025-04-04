@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -28,7 +29,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
-import ApiService, { DataEntry, Source } from "@/services/ApiService";
+import { ApiService, DataEntry, Source } from "@/services/ApiService";
 import { downloadCSV } from "@/utils/csvUtils";
 
 const DataTable: React.FC = () => {

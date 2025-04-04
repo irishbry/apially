@@ -132,7 +132,7 @@ async function receiveData(data: DataEntry, apiKey?: string): Promise<ApiRespons
 }
 
 // Create the ApiService object with all methods
-const ApiService = {
+export const ApiService = {
   // Existing method
   receiveData,
   
@@ -193,6 +193,10 @@ const ApiService = {
     };
   },
   
+  setSchema: (schema: DataSchema) => {
+    // Implementation
+  },
+  
   getApiKey: () => {
     return '';
   },
@@ -213,6 +217,3 @@ const ApiService = {
     // Implementation
   }
 };
-
-// Export as a named export
-export { ApiService };

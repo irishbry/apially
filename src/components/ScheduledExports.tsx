@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { CalendarIcon, Clock, Mail, Download, Trash } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { getFormattedDateTime } from '@/utils/csvUtils';
-import ApiService, { DataEntry } from '@/services/ApiService';
+import { ApiService, DataEntry } from '@/services/ApiService';
 
 interface ScheduledExport {
   id: string;
@@ -38,13 +37,11 @@ const ScheduledExports: React.FC = () => {
   
   const { toast } = useToast();
 
-  // Save exports to localStorage
   const saveExports = (updatedExports: ScheduledExport[]) => {
     localStorage.setItem('scheduled-exports', JSON.stringify(updatedExports));
     setExports(updatedExports);
   };
 
-  // Add new export
   const addExport = () => {
     if (!newExport.name) {
       toast({
@@ -64,19 +61,16 @@ const ScheduledExports: React.FC = () => {
       return;
     }
 
-    // Calculate next export time
     const now = new Date();
     let nextExport = new Date();
     
     if (newExport.frequency === 'daily') {
       nextExport.setDate(now.getDate() + 1);
-      nextExport.setHours(8, 0, 0, 0); // 8:00 AM
+      nextExport.setHours(8, 0, 0, 0);
     } else if (newExport.frequency === 'weekly') {
-      // Next Monday
       nextExport.setDate(now.getDate() + (8 - now.getDay()) % 7);
       nextExport.setHours(8, 0, 0, 0);
     } else if (newExport.frequency === 'monthly') {
-      // 1st of next month
       nextExport.setMonth(now.getMonth() + 1);
       nextExport.setDate(1);
       nextExport.setHours(8, 0, 0, 0);
@@ -96,7 +90,6 @@ const ScheduledExports: React.FC = () => {
     const updatedExports = [...exports, newScheduledExport];
     saveExports(updatedExports);
     
-    // Reset form
     setNewExport({
       frequency: 'daily',
       format: 'csv',
@@ -110,7 +103,6 @@ const ScheduledExports: React.FC = () => {
     });
   };
 
-  // Delete an export
   const deleteExport = (id: string) => {
     const updatedExports = exports.filter(exp => exp.id !== id);
     saveExports(updatedExports);
@@ -121,7 +113,6 @@ const ScheduledExports: React.FC = () => {
     });
   };
 
-  // Toggle export active state
   const toggleActive = (id: string) => {
     const updatedExports = exports.map(exp => {
       if (exp.id === id) {
@@ -141,13 +132,11 @@ const ScheduledExports: React.FC = () => {
     });
   };
 
-  // Run an export manually
   const runExportNow = (export_: ScheduledExport) => {
     const timestamp = getFormattedDateTime();
     const fileName = `${export_.name.replace(/\s+/g, '_')}_${timestamp}`;
     
     if (export_.delivery === 'email' && export_.email) {
-      // Simulate sending email with export
       toast({
         title: "Export Started",
         description: `Preparing to email ${export_.format.toUpperCase()} to ${export_.email}`
@@ -172,7 +161,6 @@ const ScheduledExports: React.FC = () => {
         });
       }, 2000);
     } else {
-      // Download export directly
       const data = ApiService.getData();
       handleDownload(data, export_.format, fileName);
       
@@ -190,15 +178,12 @@ const ScheduledExports: React.FC = () => {
     }
   };
 
-  // Handle download based on format
   const handleDownload = (data: DataEntry[], format: 'csv' | 'json', fileName: string) => {
     let blob, contentType;
     
     if (format === 'csv') {
-      // Use existing CSV download functionality
       ApiService.exportToCsv();
     } else {
-      // JSON format
       const jsonContent = JSON.stringify(data, null, 2);
       blob = new Blob([jsonContent], { type: 'application/json' });
       contentType = 'application/json';
@@ -221,7 +206,6 @@ const ScheduledExports: React.FC = () => {
     }
   };
 
-  // Format frequency for display
   const formatFrequency = (freq: string): string => {
     switch (freq) {
       case 'daily': return 'Daily';

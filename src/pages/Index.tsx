@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { Separator } from "@/components/ui/separator";
 import ApiKeyForm from "@/components/ApiKeyForm";
@@ -17,7 +18,7 @@ import NotificationsCenter, { Notification } from "@/components/NotificationsCen
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { LogOut, Bell, Menu, Database } from "lucide-react";
-import ApiService from "@/services/ApiService";
+import { ApiService } from "@/services/ApiService";
 import NotificationService from "@/services/NotificationService";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";

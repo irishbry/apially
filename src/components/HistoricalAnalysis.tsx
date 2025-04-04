@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Calendar, Clock, Filter, LineChart as LineChartIcon, BarChart as BarChartIcon, Info, Loader2 } from "lucide-react";
-import ApiService, { DataEntry, Source } from "@/services/ApiService";
+import { ApiService, DataEntry, Source } from "@/services/ApiService";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";

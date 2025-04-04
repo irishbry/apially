@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Settings, Plus, Minus, Save, FileJson } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import ApiService, { DataSchema } from "@/services/ApiService";
+import { ApiService, DataSchema } from "@/services/ApiService";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const SchemaEditor: React.FC = () => {
