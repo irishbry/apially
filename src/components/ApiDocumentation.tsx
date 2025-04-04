@@ -6,19 +6,42 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import ApiService from "@/services/ApiService";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
 const ApiDocumentation: React.FC = () => {
   const [apiKey, setApiKey] = useState('');
-  const [domainName, setDomainName] = useState(window.location.origin || 'https://your-domain.com');
+  const [functionUrl, setFunctionUrl] = useState('');
   const { toast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
-    const savedKey = ApiService.getApiKey();
-    if (savedKey) {
-      setApiKey(savedKey);
-    }
-  }, []);
+    const fetchApiKey = async () => {
+      if (!user) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('sources')
+          .select('api_key')
+          .eq('user_id', user.id)
+          .eq('active', true)
+          .limit(1)
+          .single();
+        
+        if (data && !error) {
+          setApiKey(data.api_key);
+        }
+      } catch (err) {
+        console.error('Error fetching API key:', err);
+      }
+    };
+
+    fetchApiKey();
+    
+    // Set the function URL based on the Supabase project
+    const projectRef = supabase.supabaseUrl.split('https://')[1].split('.')[0];
+    setFunctionUrl(`https://${projectRef}.supabase.co/functions/v1/data-receiver`);
+  }, [user]);
 
   const copyToClipboard = (text: string, message: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -29,11 +52,9 @@ const ApiDocumentation: React.FC = () => {
     });
   };
 
-  const apiEndpoint = `${domainName}/api/data`;
-
-  const curlExample = `curl -X POST ${apiEndpoint} \\
+  const curlExample = `curl -X POST ${functionUrl} \\
   -H "Content-Type: application/json" \\
-  -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" \\
+  -H "x-api-key: ${apiKey || 'YOUR_API_KEY'}" \\
   -d '{
     "sensorId": "sensor-1",
     "temperature": 25.4,
@@ -42,7 +63,7 @@ const ApiDocumentation: React.FC = () => {
   }'`;
 
   const jsExample = `// Using fetch API
-const url = '${apiEndpoint}';
+const url = '${functionUrl}';
 const apiKey = '${apiKey || 'YOUR_API_KEY'}';
 
 const data = {
@@ -56,7 +77,7 @@ fetch(url, {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'X-API-Key': apiKey
+    'x-api-key': apiKey
   },
   body: JSON.stringify(data)
 })
@@ -67,12 +88,12 @@ fetch(url, {
   const pythonExample = `import requests
 import json
 
-url = "${apiEndpoint}"
+url = "${functionUrl}"
 api_key = "${apiKey || 'YOUR_API_KEY'}"
 
 headers = {
     'Content-Type': 'application/json',
-    'X-API-Key': api_key
+    'x-api-key': api_key
 }
 
 data = {
@@ -109,11 +130,11 @@ print(response.json())`;
             <div>
               <h3 className="text-lg font-medium mb-2">API Endpoint</h3>
               <div className="flex items-center justify-between bg-secondary p-3 rounded-md">
-                <code className="text-xs sm:text-sm break-all">{apiEndpoint}</code>
+                <code className="text-xs sm:text-sm break-all">{functionUrl}</code>
                 <Button 
                   variant="ghost" 
                   size="sm"
-                  onClick={() => copyToClipboard(apiEndpoint, 'API endpoint copied!')}
+                  onClick={() => copyToClipboard(functionUrl, 'API endpoint copied!')}
                   className="h-8 px-2"
                 >
                   <Copy className="h-3 w-3" />
@@ -124,14 +145,14 @@ print(response.json())`;
             <div>
               <h3 className="text-lg font-medium mb-2">Authentication</h3>
               <p className="text-sm text-muted-foreground mb-2">
-                All requests must include your API key in the <code>X-API-Key</code> header.
+                All requests must include your API key in the <code>x-api-key</code> header.
               </p>
               <div className="flex items-center justify-between bg-secondary p-3 rounded-md">
-                <code className="text-xs sm:text-sm">X-API-Key: {apiKey || 'YOUR_API_KEY'}</code>
+                <code className="text-xs sm:text-sm">x-api-key: {apiKey || 'YOUR_API_KEY'}</code>
                 <Button 
                   variant="ghost" 
                   size="sm"
-                  onClick={() => copyToClipboard(`X-API-Key: ${apiKey || 'YOUR_API_KEY'}`, 'Header copied!')}
+                  onClick={() => copyToClipboard(`x-api-key: ${apiKey || 'YOUR_API_KEY'}`, 'Header copied!')}
                   className="h-8 px-2"
                 >
                   <Copy className="h-3 w-3" />
