@@ -46,6 +46,18 @@ export interface DataSchema {
   requiredFields: string[];
 }
 
+export interface ApiUsageByDay {
+  date: string;
+  count: number;
+  source?: string;
+}
+
+export interface ApiUsageBySource {
+  source: string;
+  count: number;
+  percentage: number;
+}
+
 // Helper functions for backward compatibility
 const usingPhpBackend = (): boolean => {
   // Check if we're using the PHP backend
@@ -206,7 +218,7 @@ export const ApiService = {
       }
       
       // Transform database row to match DataEntry interface
-      const transformedData: DataEntry[] = data.map(item => ({
+      return data.map(item => ({
         id: item.id,
         timestamp: item.timestamp,
         source_id: item.source_id,
@@ -219,12 +231,14 @@ export const ApiService = {
         fileName: item.file_name,
         file_path: item.file_path,
         filePath: item.file_path,
-        // Convert metadata JSON to proper object if it exists
-        metadata: item.metadata ? (typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata) : {},
+        // Safely handle metadata
+        metadata: item.metadata ? 
+          (typeof item.metadata === 'string' ? 
+            JSON.parse(item.metadata) : 
+            item.metadata) : 
+          {},
         ...item // Include all other fields
       }));
-      
-      return transformedData;
     } catch (error) {
       console.error('Error in getData:', error);
       return [];
@@ -247,6 +261,107 @@ export const ApiService = {
       return data || [];
     } catch (error) {
       console.error('Error in getSources:', error);
+      return [];
+    }
+  },
+  
+  // Get API usage by day
+  getApiUsageByDay: async (days: number = 30): Promise<ApiUsageByDay[]> => {
+    try {
+      // Calculate the date range
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - days);
+      
+      const { data, error } = await supabase
+        .from('data_entries')
+        .select('created_at, source_id')
+        .gte('created_at', startDate.toISOString())
+        .lte('created_at', endDate.toISOString());
+        
+      if (error) {
+        console.error('Error fetching API usage by day:', error);
+        return [];
+      }
+      
+      const usageByDay: Record<string, number> = {};
+      
+      // Group by day
+      data.forEach(entry => {
+        const date = new Date(entry.created_at).toISOString().split('T')[0];
+        usageByDay[date] = (usageByDay[date] || 0) + 1;
+      });
+      
+      // Convert to array for charting
+      const result: ApiUsageByDay[] = Object.keys(usageByDay).map(date => ({
+        date,
+        count: usageByDay[date]
+      }));
+      
+      // Sort by date
+      result.sort((a, b) => a.date.localeCompare(b.date));
+      
+      return result;
+    } catch (error) {
+      console.error('Error in getApiUsageByDay:', error);
+      return [];
+    }
+  },
+  
+  // Get API usage by source
+  getApiUsageBySource: async (): Promise<ApiUsageBySource[]> => {
+    try {
+      // Get all data entries with source_id
+      const { data: entries, error: entriesError } = await supabase
+        .from('data_entries')
+        .select('source_id')
+        .not('source_id', 'is', null);
+        
+      if (entriesError) {
+        console.error('Error fetching API usage by source:', entriesError);
+        return [];
+      }
+      
+      // Get all sources
+      const { data: sources, error: sourcesError } = await supabase
+        .from('sources')
+        .select('id, name');
+        
+      if (sourcesError) {
+        console.error('Error fetching sources for API usage:', sourcesError);
+        return [];
+      }
+      
+      // Create a map of source id to name
+      const sourceMap: Record<string, string> = {};
+      sources.forEach(source => {
+        sourceMap[source.id] = source.name;
+      });
+      
+      // Count entries by source
+      const countBySource: Record<string, number> = {};
+      entries.forEach(entry => {
+        if (entry.source_id) {
+          countBySource[entry.source_id] = (countBySource[entry.source_id] || 0) + 1;
+        }
+      });
+      
+      // Calculate total count
+      const totalCount = entries.length;
+      
+      // Convert to array for charting
+      const result: ApiUsageBySource[] = Object.keys(countBySource).map(sourceId => ({
+        source: sourceMap[sourceId] || 'Unknown',
+        count: countBySource[sourceId],
+        percentage: Math.round((countBySource[sourceId] / totalCount) * 100)
+      }));
+      
+      // Sort by count (descending)
+      result.sort((a, b) => b.count - a.count);
+      
+      return result;
+    } catch (error) {
+      console.error('Error in getApiUsageBySource:', error);
       return [];
     }
   },

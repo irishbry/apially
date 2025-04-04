@@ -23,11 +23,15 @@ const ApiUsageStats: React.FC = () => {
   useEffect(() => {
     // Get initial stats
     const fetchStats = async () => {
-      const apiStats = await ApiService.getApiUsageStats();
-      setStats(apiStats);
-      
-      const srcStats = await ApiService.getSourcesStats();
-      setSourceStats(srcStats);
+      try {
+        const apiStats = await ApiService.getApiUsageStats();
+        setStats(apiStats);
+        
+        const srcStats = await ApiService.getSourcesStats();
+        setSourceStats(srcStats);
+      } catch (error) {
+        console.error("Error fetching API stats:", error);
+      }
     };
     
     fetchStats();
@@ -47,11 +51,6 @@ const ApiUsageStats: React.FC = () => {
       unsubscribeSources();
     };
   }, []);
-
-  const updateStats = () => {
-    setStats(ApiService.getApiUsageStats());
-    setSourceStats(ApiService.getSourcesStats());
-  };
 
   // Format timestamp - modified to only show hours and minutes
   const formatTimestamp = (timestamp: string): string => {

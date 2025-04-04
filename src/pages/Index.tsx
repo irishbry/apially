@@ -14,6 +14,7 @@ import ScheduledExports from "@/components/ScheduledExports";
 import EnhancedDataTable from "@/components/EnhancedDataTable";
 import HistoricalAnalysis from "@/components/HistoricalAnalysis";
 import ApiLogViewer from "@/components/ApiLogViewer";
+import ApiAnalytics from "@/components/ApiAnalytics";
 import NotificationsCenter, { Notification } from "@/components/NotificationsCenter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -231,7 +232,7 @@ const Index = () => {
               </TabsContent>
               
               <TabsContent value="analytics" className="space-y-6">
-                <HistoricalAnalysis />
+                <ApiAnalytics />
               </TabsContent>
               
               <TabsContent value="logs" className="space-y-6">
