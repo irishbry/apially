@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -46,22 +45,18 @@ const DataTable: React.FC = () => {
 
   useEffect(() => {
     try {
-      // Get initial data
       setData(ApiService.getData());
       setSources(ApiService.getSources());
       setError(null);
       
-      // Subscribe to data changes
       const unsubscribeData = ApiService.subscribe(newData => {
         setData([...newData]);
       });
       
-      // Subscribe to source changes
       const unsubscribeSources = ApiService.subscribeToSources(newSources => {
         setSources([...newSources]);
       });
       
-      // Initial data refresh
       handleRefreshData();
       
       return () => {
@@ -75,15 +70,12 @@ const DataTable: React.FC = () => {
   }, []);
   
   useEffect(() => {
-    // Filter data based on search term and selected source
     let filtered = data;
     
-    // Filter by source
     if (selectedSource !== 'all') {
       filtered = filtered.filter(entry => entry.sourceId === selectedSource || entry.source_id === selectedSource);
     }
     
-    // Filter by search term
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(entry => {
@@ -102,7 +94,6 @@ const DataTable: React.FC = () => {
     try {
       setIsDownloading(true);
       setTimeout(() => {
-        // Export only filtered data
         downloadCSV(visibleData);
         setIsDownloading(false);
       }, 500);
@@ -162,25 +153,20 @@ const DataTable: React.FC = () => {
     }
   };
 
-  // Get source name from ID
   const getSourceName = (sourceId: string | undefined): string => {
     if (!sourceId) return 'Unknown';
     const source = sources.find(s => s.id === sourceId);
     return source ? source.name : sourceId;
   };
 
-  // Get all columns dynamically from data
   const getColumns = () => {
     if (data.length === 0) return ['No Data'];
     
-    // Get all unique keys, prioritizing common ones
     const priorityKeys = ['timestamp', 'id', 'sourceId', 'source_id', 'sensorId', 'sensor_id', 'fileName', 'file_name'];
     const allKeys = new Set<string>();
     
-    // Add priority keys first
     priorityKeys.forEach(key => allKeys.add(key));
     
-    // Add all other keys
     data.forEach(entry => {
       Object.keys(entry).forEach(key => {
         if (!priorityKeys.includes(key)) {
@@ -296,7 +282,7 @@ const DataTable: React.FC = () => {
             <Table>
               <TableHeader className="sticky top-0 bg-secondary">
                 <TableRow>
-                  <TableHead className="w-10"></TableHead> {/* Action column */}
+                  <TableHead className="w-10"></TableHead>
                   {columns.map((column) => (
                     <TableHead key={column} className="whitespace-nowrap">
                       {column === 'sourceId' || column === 'source_id' ? 'Source' : 

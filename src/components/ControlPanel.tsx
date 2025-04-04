@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CheckCircle, Clock, Database, Send, X } from "lucide-react";
-import ApiService, { DataEntry, Source } from "@/services/ApiService";
+import { ApiService, DataEntry, Source } from "@/services/ApiService";
 import { useToast } from "@/components/ui/use-toast";
 
 const ControlPanel: React.FC = () => {

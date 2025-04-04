@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Clipboard, Copy, KeyRound, RefreshCw } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import ApiService from "@/services/ApiService";
+import { ApiService } from "@/services/ApiService";
 
 const ApiKeyForm: React.FC = () => {
   const [apiKey, setApiKey] = useState('');

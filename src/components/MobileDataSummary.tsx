@@ -1,170 +1,154 @@
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Clock, TrendingUp } from "lucide-react";
-import ApiService, { DataEntry } from "@/services/ApiService";
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
-
-const TIME_PERIODS = [
-  { label: 'Last 24 hours', value: '24h' },
-  { label: 'Last 7 days', value: '7d' },
-  { label: 'Last 30 days', value: '30d' },
-  { label: 'Last 60 days', value: '60d' }
-];
+import { Card, CardContent } from "@/components/ui/card";
+import { BarChart, Bar, XAxis, ResponsiveContainer, Tooltip } from 'recharts';
+import { Activity, Clock, ArrowUpRight } from "lucide-react";
+import { format } from 'date-fns';
+import { ApiService, DataEntry } from "@/services/ApiService";
 
 const MobileDataSummary: React.FC = () => {
   const [data, setData] = useState<DataEntry[]>([]);
-  const [sources, setSources] = useState<{ id: string; name: string }[]>([]);
-  const [timePeriod, setTimePeriod] = useState('24h');
-  const [chartData, setChartData] = useState<any[]>([]);
-
+  const [todayCount, setTodayCount] = useState(0);
+  const [weeklyData, setWeeklyData] = useState<{day: string, count: number}[]>([]);
+  const [lastReceived, setLastReceived] = useState<string | null>(null);
+  
   useEffect(() => {
     // Get initial data
     setData(ApiService.getData());
     
-    // Get sources
-    const sourcesData = ApiService.getSources();
-    setSources(sourcesData.map(s => ({ id: s.id, name: s.name })));
-    
     // Subscribe to data changes
-    const unsubscribeData = ApiService.subscribe(newData => {
+    const unsubscribe = ApiService.subscribe(newData => {
       setData([...newData]);
     });
     
-    // Subscribe to source changes
-    const unsubscribeSources = ApiService.subscribeToSources(newSources => {
-      setSources(newSources.map(s => ({ id: s.id, name: s.name })));
-    });
-    
     return () => {
-      unsubscribeData();
-      unsubscribeSources();
+      unsubscribe();
     };
   }, []);
-
+  
   useEffect(() => {
-    prepareChartData();
-  }, [data, timePeriod]);
-
-  const prepareChartData = () => {
-    if (data.length === 0) {
-      setChartData([]);
-      return;
-    }
-
-    // Filter data based on selected time period
-    const now = new Date();
-    let periodStartMs = now.getTime();
+    if (data.length === 0) return;
     
-    switch (timePeriod) {
-      case '24h':
-        periodStartMs -= 24 * 60 * 60 * 1000;
-        break;
-      case '7d':
-        periodStartMs -= 7 * 24 * 60 * 60 * 1000;
-        break;
-      case '30d':
-        periodStartMs -= 30 * 24 * 60 * 60 * 1000;
-        break;
-      case '60d':
-        periodStartMs -= 60 * 24 * 60 * 60 * 1000;
-        break;
-    }
+    // Count today's data points
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     
-    const periodStart = new Date(periodStartMs);
-    
-    // Filter data for the selected period
-    const filteredData = data.filter(entry => {
+    const todayData = data.filter(entry => {
       if (!entry.timestamp) return false;
       const entryDate = new Date(entry.timestamp);
-      return entryDate >= periodStart && entryDate <= now;
+      return entryDate >= today;
     });
     
-    // Group data by source
-    const dataBySource = filteredData.reduce((acc, entry) => {
-      const sourceId = entry.sourceId || 'unknown';
-      if (!acc[sourceId]) {
-        acc[sourceId] = 0;
-      }
-      acc[sourceId]++;
-      return acc;
-    }, {} as Record<string, number>);
+    setTodayCount(todayData.length);
     
-    // Format for chart
-    const formattedData = Object.entries(dataBySource).map(([sourceId, count]) => {
-      const source = sources.find(s => s.id === sourceId);
-      return {
-        name: source ? source.name : 'Unknown',
-        value: count
-      };
-    });
+    // Find the last received timestamp
+    const timestamps = data
+      .filter(entry => entry.timestamp)
+      .map(entry => entry.timestamp as string);
     
-    // Sort by count descending
-    formattedData.sort((a, b) => b.value - a.value);
+    if (timestamps.length > 0) {
+      const sortedTimestamps = [...timestamps].sort((a, b) => {
+        return new Date(b).getTime() - new Date(a).getTime();
+      });
+      setLastReceived(sortedTimestamps[0]);
+    }
     
-    setChartData(formattedData);
+    // Calculate weekly data
+    const weeklyStats = calculateWeeklyData(data);
+    setWeeklyData(weeklyStats);
+  }, [data]);
+  
+  const calculateWeeklyData = (data: DataEntry[]) => {
+    const result: {day: string, count: number}[] = [];
+    const now = new Date();
+    
+    // Get dates for the last 7 days
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(now.getDate() - i);
+      date.setHours(0, 0, 0, 0);
+      
+      const nextDate = new Date(date);
+      nextDate.setDate(date.getDate() + 1);
+      
+      // Filter data for this day
+      const dayData = data.filter(entry => {
+        if (!entry.timestamp) return false;
+        const entryTime = new Date(entry.timestamp).getTime();
+        return entryTime >= date.getTime() && entryTime < nextDate.getTime();
+      });
+      
+      result.push({
+        day: format(date, 'EEE'),
+        count: dayData.length
+      });
+    }
+    
+    return result;
   };
-
-  const formatLabel = (timePeriod: string) => {
-    const periodMap: Record<string, string> = {
-      '24h': 'Last 24 hours',
-      '7d': 'Last 7 days',
-      '30d': 'Last 30 days',
-      '60d': 'Last 60 days'
-    };
-    return periodMap[timePeriod] || 'Select period';
+  
+  // Format the time
+  const formatTime = (timestamp: string | null) => {
+    if (!timestamp) return 'No data';
+    
+    try {
+      const date = new Date(timestamp);
+      return format(date, 'HH:mm');
+    } catch (e) {
+      return 'Invalid date';
+    }
   };
-
+  
+  // Calculate percentage change (avoiding division by zero)
+  const calculatePercentChange = (current: number, previous: number): string => {
+    if (previous === 0) {
+      return current > 0 ? '+100%' : '0%';
+    }
+    
+    const percentChange = Math.round((current - previous) / previous * 100);
+    return `${percentChange > 0 ? '+' : ''}${percentChange}%`;
+  };
+  
+  // Use a safe previous day count (defaulting to 0 if unavailable)
+  const previousDayCount = weeklyData.length > 1 ? (weeklyData[weeklyData.length - 2]?.count || 0) : 0;
+  
   return (
-    <Card className="shadow-sm hover:shadow-md transition-all duration-300">
-      <CardHeader className="pb-2">
-        <div className="flex justify-between items-center">
-          <CardTitle className="text-md font-medium flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-primary" />
-            Data Summary
-          </CardTitle>
-          <Select value={timePeriod} onValueChange={setTimePeriod}>
-            <SelectTrigger className="w-[150px] h-8">
-              <SelectValue placeholder="Select period" />
-            </SelectTrigger>
-            <SelectContent>
-              {TIME_PERIODS.map(period => (
-                <SelectItem key={period.value} value={period.value}>
-                  {period.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {chartData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
-              <XAxis 
-                dataKey="name" 
-                tick={{ fontSize: 10 }}
-                interval={0}
-                angle={-45}
-                textAnchor="end"
-              />
-              <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip 
-                formatter={(value) => [`${value} entries`, 'Count']}
-                labelFormatter={(label) => `Source: ${label}`}
-              />
-              <Bar dataKey="value" fill="#8884d8" />
-            </BarChart>
-          </ResponsiveContainer>
-        ) : (
-          <div className="h-[180px] flex items-center justify-center">
-            <div className="text-center text-muted-foreground flex flex-col items-center gap-2">
-              <Clock className="h-6 w-6 text-muted-foreground/50" />
-              <p>No data available for this period</p>
-            </div>
+    <Card className="mb-4">
+      <CardContent className="p-4">
+        <div className="flex justify-between items-center mb-1">
+          <h3 className="text-base font-medium">Today's Data</h3>
+          <div className="text-xs text-muted-foreground">
+            Last updated: {formatTime(lastReceived)}
           </div>
-        )}
+        </div>
+        
+        <div className="grid grid-cols-2 gap-2">
+          <div className="flex flex-col">
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-bold">{todayCount}</span>
+              {todayCount !== previousDayCount && (
+                <span className={`text-xs ${todayCount > previousDayCount ? 'text-green-500' : 'text-red-500'} flex items-center`}>
+                  {calculatePercentChange(todayCount, previousDayCount)}
+                  <ArrowUpRight className="h-3 w-3 ml-0.5" />
+                </span>
+              )}
+            </div>
+            <span className="text-xs text-muted-foreground">Data points received</span>
+          </div>
+          
+          <div className="h-16">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={weeklyData}>
+                <XAxis dataKey="day" tick={{ fontSize: 10 }} />
+                <Tooltip 
+                  formatter={(value) => [value, 'Data points']}
+                  labelFormatter={(label) => `${label}`}
+                />
+                <Bar dataKey="count" fill="#7c3aed" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

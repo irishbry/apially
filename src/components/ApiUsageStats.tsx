@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Database, Clock, Activity, Users, Layers } from "lucide-react";
-import ApiService from "@/services/ApiService";
+import { ApiService } from "@/services/ApiService";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 const ApiUsageStats: React.FC = () => {

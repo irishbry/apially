@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { Separator } from "@/components/ui/separator";
 import ApiKeyForm from "@/components/ApiKeyForm";
@@ -37,11 +36,9 @@ const Index = () => {
   const isMobile = useIsMobile();
 
   useEffect(() => {
-    // Check auth status on component mount
     const checkAuth = async () => {
       try {
         setIsLoading(true);
-        // Check Supabase session
         const { data: { session } } = await supabase.auth.getSession();
         const authStatus = !!session;
         console.log("Auth status from Supabase:", authStatus);
@@ -54,10 +51,8 @@ const Index = () => {
       }
     };
     
-    // Initial check
     checkAuth();
     
-    // Set up event listener for Supabase auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         console.log("Auth state changed:", event, !!session);
@@ -66,7 +61,6 @@ const Index = () => {
       }
     );
     
-    // Load notifications and subscribe to changes
     setNotifications(NotificationService.getNotifications());
     const unsubscribeNotifications = NotificationService.subscribe(newNotifications => {
       setNotifications(newNotifications);
@@ -84,7 +78,7 @@ const Index = () => {
       toast({
         title: "Logged Out",
         description: "You have been logged out successfully.",
-        duration: 5000, // Auto-dismiss after 5 seconds
+        duration: 5000,
       });
       setIsAuthenticated(false);
       navigate('/');
@@ -140,7 +134,6 @@ const Index = () => {
       
       <div className="container max-w-7xl relative">
         <div className="py-4 md:py-10 space-y-4 md:space-y-8 animate-slide-up">
-          {/* Mobile-friendly header */}
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
               <div className="bg-primary/10 p-2 rounded-full">
@@ -204,10 +197,8 @@ const Index = () => {
           
           {!isMobile && <Separator />}
           
-          {/* Mobile Data Summary - only show on mobile */}
           {isMobile && <MobileDataSummary />}
           
-          {/* API Stats - show smaller on mobile */}
           <section>
             <ApiUsageStats />
           </section>
