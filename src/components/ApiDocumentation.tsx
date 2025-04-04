@@ -38,8 +38,8 @@ const ApiDocumentation: React.FC = () => {
 
     fetchApiKey();
     
-    // Set the function URL based on the Supabase project
-    const projectRef = supabase.supabaseUrl.split('https://')[1].split('.')[0];
+    // Use environment variable or constants instead of accessing protected property
+    const projectRef = supabase.getUrl().split('https://')[1].split('.')[0];
     setFunctionUrl(`https://${projectRef}.supabase.co/functions/v1/data-receiver`);
   }, [user]);
 
@@ -253,7 +253,7 @@ print(response.json())`;
               </p>
               <div className="bg-secondary p-3 rounded-md overflow-x-auto">
                 <pre className="text-xs sm:text-sm whitespace-pre-wrap">
-{`// POST to ${apiEndpoint}/batch
+{`// POST to ${functionUrl}/batch
 {
   "data": [
     {
