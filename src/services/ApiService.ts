@@ -141,18 +141,17 @@ class ApiService {
       // Then, fetch data from storage bucket
       const bucketName = 'source-data';
       
-      // Try to get all files from storage by listing all paths
+      // Get all data from storage
+      const newData: DataEntry[] = [];
+      
+      // List all files in the bucket
       const { data: filesData, error: filesError } = await supabase
         .storage
         .from(bucketName)
         .list();
       
       if (filesError) {
-        if (filesError.message.includes('bucket does not exist')) {
-          console.log("Storage bucket doesn't exist yet, no data to fetch");
-        } else {
-          console.error("Error listing files in storage:", filesError);
-        }
+        console.error("Error listing files in storage:", filesError);
         return;
       }
       
@@ -161,56 +160,39 @@ class ApiService {
         return;
       }
       
-      // Process each source directory
-      const newData: DataEntry[] = [];
-      
-      for (const source of this.sources) {
-        // List files in the source directory
-        const { data: sourceFiles, error: sourceError } = await supabase
-          .storage
-          .from(bucketName)
-          .list(source.id);
-        
-        if (sourceError) {
-          console.error(`Error listing files for source ${source.id}:`, sourceError);
-          continue;
-        }
-        
-        if (!sourceFiles || sourceFiles.length === 0) {
-          console.log(`No files found for source ${source.id}`);
-          continue;
-        }
-        
-        // Fetch and parse each file
-        for (const file of sourceFiles) {
-          if (file.name.endsWith('.json')) {
-            const filePath = `${source.id}/${file.name}`;
+      // Download and parse each file
+      for (const file of filesData) {
+        if (file.name.endsWith('.json')) {
+          const { data: fileData, error: fileError } = await supabase
+            .storage
+            .from(bucketName)
+            .download(file.name);
+          
+          if (fileError) {
+            console.error(`Error downloading file ${file.name}:`, fileError);
+            continue;
+          }
+          
+          try {
+            const text = await fileData.text();
+            const jsonData = JSON.parse(text);
             
-            const { data: fileData, error: fileError } = await supabase
-              .storage
-              .from(bucketName)
-              .download(filePath);
+            // Add file name as property
+            jsonData.fileName = file.name;
             
-            if (fileError) {
-              console.error(`Error downloading file ${filePath}:`, fileError);
-              continue;
-            }
-            
-            try {
-              const text = await fileData.text();
-              const jsonData = JSON.parse(text);
-              newData.push(jsonData);
-            } catch (error) {
-              console.error(`Error parsing JSON from file ${filePath}:`, error);
-            }
+            newData.push(jsonData);
+          } catch (error) {
+            console.error(`Error parsing JSON from file ${file.name}:`, error);
           }
         }
       }
       
       if (newData.length > 0) {
+        console.log(`Loaded ${newData.length} data entries from Supabase storage`);
         this.data = newData;
         this.notifySubscribers();
-        console.log(`Loaded ${newData.length} data entries from Supabase storage`);
+      } else {
+        console.log("No data loaded from Supabase storage");
       }
       
     } catch (error) {
@@ -677,6 +659,33 @@ class ApiService {
     // Normalize data and add source ID
     const normalizedData = this.normalizeData(data, source.id);
     
+    try {
+      // Store data in Supabase Storage
+      if (this.isAuthenticated) {
+        // Format timestamp for filename
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const fileName = `${timestamp}-${source.id}.json`;
+        
+        // Convert data to JSON string
+        const jsonString = JSON.stringify(normalizedData, null, 2);
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        
+        // Upload to Supabase
+        const { error } = await supabase
+          .storage
+          .from('source-data')
+          .upload(fileName, blob);
+        
+        if (error) {
+          console.error("Error storing data in Supabase:", error);
+          // Continue with local storage as fallback
+        }
+      }
+    } catch (error) {
+      console.error("Error storing data in Supabase:", error);
+      // Continue with local storage as fallback
+    }
+    
     // Add to data store locally
     this.data.unshift(normalizedData);
     
@@ -693,6 +702,8 @@ class ApiService {
   public async refreshData(): Promise<void> {
     if (this.isAuthenticated) {
       await this.fetchSupabaseData();
+    } else {
+      console.log("Cannot refresh data: Not authenticated");
     }
   }
 

@@ -53,6 +53,8 @@ const EnhancedDataTable: React.FC = () => {
         setSources([...newSources]);
       });
       
+      handleRefreshData();
+      
       return () => {
         unsubscribeData();
         unsubscribeSources();
@@ -126,7 +128,7 @@ const EnhancedDataTable: React.FC = () => {
   const getColumns = (): string[] => {
     if (data.length === 0) return ['No Data'];
     
-    const priorityKeys = ['timestamp', 'id', 'sourceId', 'sensorId'];
+    const priorityKeys = ['timestamp', 'id', 'sourceId', 'sensorId', 'fileName'];
     const allKeys = new Set<string>();
     
     priorityKeys.forEach(key => allKeys.add(key));

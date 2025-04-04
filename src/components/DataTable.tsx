@@ -37,6 +37,9 @@ const DataTable: React.FC = () => {
         setSources([...newSources]);
       });
       
+      // Initial data refresh
+      handleRefreshData();
+      
       return () => {
         unsubscribeData();
         unsubscribeSources();
@@ -118,7 +121,7 @@ const DataTable: React.FC = () => {
     if (data.length === 0) return ['No Data'];
     
     // Get all unique keys, prioritizing common ones
-    const priorityKeys = ['timestamp', 'id', 'sourceId', 'sensorId'];
+    const priorityKeys = ['timestamp', 'id', 'sourceId', 'sensorId', 'fileName'];
     const allKeys = new Set<string>();
     
     // Add priority keys first
