@@ -71,7 +71,7 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
   useEffect(() => {
     const loadSchema = async () => {
       try {
-        const schema = await ApiService.getSchema();
+        const schema = await ApiService.getSchema(apiKey);
         setRequiredFields(schema.requiredFields || []);
         setFieldTypes(schema.fieldTypes || {});
       } catch (error) {
@@ -127,6 +127,9 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
       title: "Field Added",
       description: `Added field "${newField}" of type ${newType}`,
     });
+
+    // Validate existing data against the updated schema
+    validateAgainstUpdatedSchema();
   };
 
   // Remove a field from the schema
@@ -143,6 +146,9 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
       title: "Field Removed",
       description: `Removed field "${field}" from schema`,
     });
+
+    // Validate existing data against the updated schema
+    validateAgainstUpdatedSchema();
   };
 
   // Toggle whether a field is required
@@ -159,6 +165,29 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
         title: "Field Updated",
         description: `Field "${field}" is now required`,
       });
+    }
+
+    // Validate existing data against the updated schema
+    validateAgainstUpdatedSchema();
+  };
+
+  // Validate existing test data against updated schema
+  const validateAgainstUpdatedSchema = () => {
+    try {
+      const testDataValue = form.getValues().testData;
+      if (testDataValue) {
+        const parsedData = JSON.parse(testDataValue);
+        const schema: DataSchema = {
+          requiredFields,
+          fieldTypes
+        };
+        
+        // Run validation and update state
+        validateTestDataInternal(parsedData, schema);
+      }
+    } catch (error) {
+      // Ignore validation errors during schema updates
+      console.log("Skipping validation during schema update:", error);
     }
   };
 
@@ -181,6 +210,12 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
             ? "Schema saved successfully and will be used to validate data for this API key" 
             : "Schema saved successfully",
         });
+        
+        // Switch to validator tab after successful save
+        setActiveTab('validator');
+        
+        // Validate existing test data against the saved schema
+        validateAgainstUpdatedSchema();
       } else {
         toast({
           title: "Error",
@@ -200,6 +235,73 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
     }
   };
 
+  // Internal validation function that updates state
+  const validateTestDataInternal = (parsedData: any, schema: DataSchema) => {
+    try {
+      // Run validation directly without API call for immediate feedback
+      const errors: string[] = [];
+      
+      // Check required fields
+      for (const field of schema.requiredFields) {
+        if (parsedData[field] === undefined || parsedData[field] === null || parsedData[field] === '') {
+          errors.push(`Missing required field: ${field}`);
+        }
+      }
+      
+      // Check field types
+      for (const [field, expectedType] of Object.entries(schema.fieldTypes)) {
+        if (parsedData[field] !== undefined && parsedData[field] !== null && parsedData[field] !== '') {
+          const actualType = getDataType(parsedData[field]);
+          if (actualType !== expectedType) {
+            errors.push(`Field ${field} should be type ${expectedType}, got ${actualType}`);
+          }
+        }
+      }
+      
+      // Update validation result state
+      setValidationResult({
+        valid: errors.length === 0,
+        errors
+      });
+      
+      if (errors.length === 0) {
+        toast({
+          title: "Validation Successful",
+          description: "The test data is valid according to the schema",
+        });
+      } else {
+        toast({
+          title: "Validation Failed",
+          description: `Found ${errors.length} errors in the test data`,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error in internal validation:", error);
+      setValidationResult({
+        valid: false,
+        errors: ["Error validating data"]
+      });
+    }
+  };
+
+  // Helper function to determine data type (same as in ConfigService)
+  function getDataType(value: any): string {
+    if (typeof value === 'number') {
+      return 'number';
+    } else if (typeof value === 'boolean') {
+      return 'boolean';
+    } else if (typeof value === 'string') {
+      return 'string';
+    } else if (Array.isArray(value)) {
+      return 'array';
+    } else if (typeof value === 'object' && value !== null) {
+      return 'object';
+    } else {
+      return 'unknown';
+    }
+  }
+
   // Validate test data against the schema
   const validateTestData = async (data: TestDataForm) => {
     try {
@@ -209,22 +311,8 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
         fieldTypes
       };
       
-      // Use the API key if provided
-      const result = await ApiService.validateDataAgainstSchema(parsedData, schema, apiKey);
-      setValidationResult(result);
-      
-      if (result.valid) {
-        toast({
-          title: "Validation Successful",
-          description: "The test data is valid according to the schema",
-        });
-      } else {
-        toast({
-          title: "Validation Failed",
-          description: `Found ${result.errors.length} errors in the test data`,
-          variant: "destructive",
-        });
-      }
+      // Use the internal validation function that updates state
+      validateTestDataInternal(parsedData, schema);
     } catch (error) {
       console.error("Error validating test data:", error);
       setValidationResult({
