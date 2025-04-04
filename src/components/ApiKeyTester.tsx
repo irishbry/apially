@@ -15,7 +15,7 @@ interface ApiKeyTesterProps {
 const ApiKeyTester: React.FC<ApiKeyTesterProps> = ({ apiKey, endpoint }) => {
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{success: boolean; message: string} | null>(null);
-  const [customEndpoint, setCustomEndpoint] = useState(endpoint || 'https://ybionvegojopebtkdgyt.supabase.co/functions/v1/data-receiver');
+  const [customEndpoint, setCustomEndpoint] = useState(endpoint || ApiService.getDefaultEndpoint());
   const { toast } = useToast();
 
   const runTest = async () => {
@@ -32,11 +32,11 @@ const ApiKeyTester: React.FC<ApiKeyTesterProps> = ({ apiKey, endpoint }) => {
     setTestResult(null);
     
     try {
-      // Strip the Bearer prefix if it exists - the endpoint will handle this
+      // Strip the Bearer prefix if it exists - we'll use X-API-Key header instead
       const rawApiKey = apiKey.replace(/^Bearer\s+/i, '').trim();
       
       // Use either the prop endpoint, custom endpoint, or default Supabase function
-      const endpointToTest = customEndpoint || endpoint || 'https://ybionvegojopebtkdgyt.supabase.co/functions/v1/data-receiver';
+      const endpointToTest = customEndpoint || endpoint || ApiService.getDefaultEndpoint();
       
       console.log(`Testing connection to endpoint: ${endpointToTest}`);
       
@@ -54,7 +54,7 @@ const ApiKeyTester: React.FC<ApiKeyTesterProps> = ({ apiKey, endpoint }) => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${rawApiKey}`
+            'X-API-Key': rawApiKey  // Use X-API-Key header instead of Authorization
           },
           body: JSON.stringify(testData)
         });

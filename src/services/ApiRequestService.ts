@@ -1,4 +1,3 @@
-
 import { DataEntry, ApiResponse, ApiLog } from '@/types/api.types';
 
 export const ApiRequestService = {
@@ -171,7 +170,7 @@ export const ApiRequestService = {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
+          'X-API-Key': apiKey
         }
       });
       
@@ -220,117 +219,5 @@ export const ApiRequestService = {
 
 // Helper function to generate demo logs for testing
 function generateDemoLogs(): ApiLog[] {
-  return [
-    {
-      id: 'log-1',
-      timestamp: new Date().toISOString(),
-      method: 'POST',
-      endpoint: '/api/data',
-      status: 'success',
-      statusCode: 200,
-      responseTime: 43,
-      source: 'Factory Sensors',
-      ip: '192.168.1.105',
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      requestBody: JSON.stringify({
-        sensorId: 'sensor-1',
-        temperature: 25.4,
-        humidity: 68,
-        pressure: 1013.2
-      }, null, 2),
-      responseBody: JSON.stringify({
-        success: true,
-        message: "Data received successfully",
-        data: {
-          id: "entry-1625176468-123"
-        }
-      }, null, 2)
-    },
-    {
-      id: 'log-2',
-      timestamp: new Date(Date.now() - 120000).toISOString(),
-      method: 'POST',
-      endpoint: '/api/data',
-      status: 'error',
-      statusCode: 400,
-      responseTime: 38,
-      source: 'Office Environment',
-      ip: '192.168.1.230',
-      userAgent: 'Python-urllib/3.9',
-      requestBody: JSON.stringify({
-        humidity: 68,
-        pressure: 1013.2
-      }, null, 2),
-      responseBody: JSON.stringify({
-        success: false,
-        message: "Data validation failed",
-        errors: ["Missing required field: sensorId"]
-      }, null, 2),
-      error: "Missing required field: sensorId"
-    },
-    {
-      id: 'log-3',
-      timestamp: new Date(Date.now() - 300000).toISOString(),
-      method: 'GET',
-      endpoint: '/api/status',
-      status: 'success',
-      statusCode: 200,
-      responseTime: 12,
-      source: 'System',
-      ip: '127.0.0.1',
-      userAgent: 'curl/7.68.0',
-      responseBody: JSON.stringify({
-        status: "healthy",
-        uptime: "2d 4h 12m",
-        version: "1.0.0"
-      }, null, 2)
-    },
-    {
-      id: 'log-4',
-      timestamp: new Date(Date.now() - 600000).toISOString(),
-      method: 'POST',
-      endpoint: '/api/data',
-      status: 'error',
-      statusCode: 401,
-      responseTime: 22,
-      source: 'Unknown',
-      ip: '203.0.113.42',
-      userAgent: 'PostmanRuntime/7.28.0',
-      requestBody: JSON.stringify({
-        sensorId: 'sensor-x',
-        temperature: 18.2
-      }, null, 2),
-      responseBody: JSON.stringify({
-        success: false,
-        message: "Invalid API key or inactive source",
-        code: "AUTH_FAILED"
-      }, null, 2),
-      error: "Invalid API key or inactive source"
-    },
-    {
-      id: 'log-5',
-      timestamp: new Date(Date.now() - 3600000).toISOString(),
-      method: 'POST',
-      endpoint: '/api/data',
-      status: 'success',
-      statusCode: 200,
-      responseTime: 54,
-      source: 'Warehouse Monitors',
-      ip: '192.168.1.115',
-      userAgent: 'ESP8266HTTPClient',
-      requestBody: JSON.stringify({
-        sensorId: 'sensor-w1',
-        temperature: 22.1,
-        humidity: 45,
-        co2: 612
-      }, null, 2),
-      responseBody: JSON.stringify({
-        success: true,
-        message: "Data received successfully",
-        data: {
-          id: "entry-1625172468-456"
-        }
-      }, null, 2)
-    }
-  ];
+  return [];
 }
