@@ -91,16 +91,30 @@ const ApiKeyTester: React.FC<ApiKeyTesterProps> = ({ apiKey, endpoint }) => {
             variant: "default",
           });
         } else {
-          setTestResult({
-            success: false,
-            message: responseData.error || responseData.message || `API connection failed with status ${response.status}`
-          });
-          
-          toast({
-            title: "Connection Failed",
-            description: responseData.error || responseData.message || "Failed to connect to the API.",
-            variant: "destructive",
-          });
+          // Handle schema validation errors specifically
+          if (response.status === 400 && responseData.error === 'Data validation failed') {
+            setTestResult({
+              success: false,
+              message: `Schema validation failed: ${responseData.details ? responseData.details.join(', ') : 'Unknown validation error'}`
+            });
+            
+            toast({
+              title: "Schema Validation Failed",
+              description: "The test data does not match your schema requirements.",
+              variant: "destructive",
+            });
+          } else {
+            setTestResult({
+              success: false,
+              message: responseData.error || responseData.message || `API connection failed with status ${response.status}`
+            });
+            
+            toast({
+              title: "Connection Failed",
+              description: responseData.error || responseData.message || "Failed to connect to the API.",
+              variant: "destructive",
+            });
+          }
         }
       } catch (error) {
         // If direct fetch fails, try the service method as fallback
@@ -116,11 +130,19 @@ const ApiKeyTester: React.FC<ApiKeyTesterProps> = ({ apiKey, endpoint }) => {
             variant: "default",
           });
         } else {
-          toast({
-            title: "Connection Failed",
-            description: result.message || "Failed to connect to the API.",
-            variant: "destructive",
-          });
+          if (result.message.includes("Schema validation failed")) {
+            toast({
+              title: "Schema Validation Failed",
+              description: "The test data does not match your schema requirements.",
+              variant: "destructive",
+            });
+          } else {
+            toast({
+              title: "Connection Failed",
+              description: result.message || "Failed to connect to the API.",
+              variant: "destructive",
+            });
+          }
         }
       }
     } catch (error) {
@@ -185,7 +207,7 @@ const ApiKeyTester: React.FC<ApiKeyTesterProps> = ({ apiKey, endpoint }) => {
               This will send a test request to verify your API key with the Supabase endpoint.
             </p>
             <p className="text-xs text-muted-foreground">
-              The test will send a small data packet to check if your API key is authorized.
+              The test will send a small data packet to check if your API key is authorized and if the data matches your schema.
             </p>
           </div>
         </div>

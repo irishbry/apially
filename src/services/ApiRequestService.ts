@@ -1,3 +1,4 @@
+
 import { DataEntry, ApiResponse, ApiLog } from '@/types/api.types';
 
 export const ApiRequestService = {
@@ -63,12 +64,21 @@ export const ApiRequestService = {
         ? testEndpoint 
         : new URL(testEndpoint, window.location.origin).toString();
         
+      // Create a small test payload for schema validation
+      const testData = {
+        sensorId: 'test-sensor',
+        timestamp: new Date().toISOString(),
+        temperature: 22.5,
+        test: true
+      };
+      
       const response = await fetch(fullEndpoint, {
-        method: 'GET',
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-API-Key': apiKey
-        }
+          'X-API-Key': apiKey // Use X-API-Key header instead of Authorization
+        },
+        body: JSON.stringify(testData)
       });
       
       // Check content type to ensure we're receiving JSON
@@ -113,7 +123,7 @@ export const ApiRequestService = {
       
       // Create log entry for API connection test
       const logEntry: Partial<ApiLog> = {
-        method: 'GET',
+        method: 'POST', // Changed to POST since we're sending test data
         endpoint: testEndpoint,
         status: response.ok ? 'success' : 'error',
         statusCode: response.status,
@@ -131,9 +141,17 @@ export const ApiRequestService = {
           message: responseData.message || 'API connection successful'
         };
       } else {
+        // Handle schema validation errors specifically
+        if (response.status === 400 && responseData.error === 'Data validation failed') {
+          return {
+            success: false,
+            message: `Schema validation failed: ${responseData.details ? responseData.details.join(', ') : 'Unknown validation error'}`
+          };
+        }
+        
         return {
           success: false,
-          message: responseData.message || `API connection failed with status ${response.status}`
+          message: responseData.error || responseData.message || `API connection failed with status ${response.status}`
         };
       }
     } catch (error) {
@@ -143,7 +161,7 @@ export const ApiRequestService = {
       
       // Create log entry for failed API connection test
       const logEntry: Partial<ApiLog> = {
-        method: 'GET',
+        method: 'POST', // Changed to POST since we're sending test data
         endpoint: endpoint || '/api/status',
         status: 'error',
         statusCode: 0,

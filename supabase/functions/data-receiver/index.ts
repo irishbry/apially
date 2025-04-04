@@ -1,3 +1,4 @@
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 
@@ -13,12 +14,50 @@ const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
 
 // Helper function to determine data type for schema validation
 function getDataType(value: any): string {
-  return 'unknown';
+  if (typeof value === 'number') {
+    return 'number';
+  } else if (typeof value === 'boolean') {
+    return 'boolean';
+  } else if (typeof value === 'string') {
+    return 'string';
+  } else if (Array.isArray(value)) {
+    return 'array';
+  } else if (typeof value === 'object' && value !== null) {
+    return 'object';
+  } else {
+    return 'unknown';
+  }
 }
 
 // Validate data against schema
 function validateDataAgainstSchema(data: any, schema: any): { valid: boolean; errors: string[] } {
-  return { valid: true, errors: [] };
+  const errors: string[] = [];
+  
+  // Check required fields
+  if (schema.requiredFields && Array.isArray(schema.requiredFields)) {
+    for (const field of schema.requiredFields) {
+      if (data[field] === undefined || data[field] === null || data[field] === '') {
+        errors.push(`Missing required field: ${field}`);
+      }
+    }
+  }
+  
+  // Check field types
+  if (schema.fieldTypes && typeof schema.fieldTypes === 'object') {
+    for (const [field, expectedType] of Object.entries(schema.fieldTypes)) {
+      if (data[field] !== undefined && data[field] !== null && data[field] !== '') {
+        const actualType = getDataType(data[field]);
+        if (actualType !== expectedType) {
+          errors.push(`Field ${field} should be type ${expectedType}, got ${actualType}`);
+        }
+      }
+    }
+  }
+  
+  return { 
+    valid: errors.length === 0,
+    errors: errors
+  };
 }
 
 serve(async (req) => {
@@ -114,9 +153,11 @@ serve(async (req) => {
 
     // Validate the data against the schema if a schema exists
     if (source.schema && Object.keys(source.schema).length > 0) {
+      console.log('Validating data against schema:', source.schema);
       const validationResult = validateDataAgainstSchema(body, source.schema);
       
       if (!validationResult.valid) {
+        console.error('Schema validation failed:', validationResult.errors);
         return new Response(
           JSON.stringify({ 
             error: 'Data validation failed', 
@@ -125,6 +166,7 @@ serve(async (req) => {
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
         );
       }
+      console.log('Schema validation passed');
     } else {
       // If no schema is defined, just validate required fields - accept either sensorId or sensor_id
       if (!body.sensorId && !body.sensor_id) {
@@ -234,9 +276,9 @@ serve(async (req) => {
         success: true,
         message: 'Data received and processed successfully',
         receipt: {
-          id: 'test-id',
+          id: entryId,
           timestamp: new Date().toISOString(),
-          source: 'Test Source'
+          source: source.name
         }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
