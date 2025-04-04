@@ -15,7 +15,7 @@ interface ApiKeyTesterProps {
 const ApiKeyTester: React.FC<ApiKeyTesterProps> = ({ apiKey, endpoint }) => {
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{success: boolean; message: string} | null>(null);
-  const [customEndpoint, setCustomEndpoint] = useState(endpoint || '');
+  const [customEndpoint, setCustomEndpoint] = useState(endpoint || 'https://ybionvegojopebtkdgyt.supabase.co/functions/v1/data-receiver');
   const { toast } = useToast();
 
   const runTest = async () => {
@@ -35,24 +35,28 @@ const ApiKeyTester: React.FC<ApiKeyTesterProps> = ({ apiKey, endpoint }) => {
       // Strip the Bearer prefix if it exists - the endpoint will handle this
       const rawApiKey = apiKey.replace(/^Bearer\s+/i, '').trim();
       
-      // Use either the prop endpoint, custom endpoint, or default
-      const endpointToTest = customEndpoint || endpoint || '/api/status';
+      // Use either the prop endpoint, custom endpoint, or default Supabase function
+      const endpointToTest = customEndpoint || endpoint || 'https://ybionvegojopebtkdgyt.supabase.co/functions/v1/data-receiver';
       
-      // Create a real URL to test if it's a relative path
-      const fullEndpoint = endpointToTest.startsWith('http') 
-        ? endpointToTest 
-        : new URL(endpointToTest, window.location.origin).toString();
+      console.log(`Testing connection to endpoint: ${endpointToTest}`);
       
-      console.log(`Testing connection to endpoint: ${fullEndpoint}`);
+      // Create a small test payload
+      const testData = {
+        sensorId: 'test-sensor',
+        timestamp: new Date().toISOString(),
+        temperature: 22.5,
+        test: true
+      };
       
       // Test the connection with a direct fetch first to validate
       try {
-        const response = await fetch(fullEndpoint, {
-          method: 'GET',
+        const response = await fetch(endpointToTest, {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-API-Key': rawApiKey
-          }
+            'Authorization': `Bearer ${rawApiKey}`
+          },
+          body: JSON.stringify(testData)
         });
         
         const contentType = response.headers.get('content-type');
@@ -72,27 +76,52 @@ const ApiKeyTester: React.FC<ApiKeyTesterProps> = ({ apiKey, endpoint }) => {
           setIsTesting(false);
           return;
         }
+        
+        const responseData = await response.json();
+        
+        if (response.ok) {
+          setTestResult({
+            success: true,
+            message: responseData.message || 'API connection successful'
+          });
+          
+          toast({
+            title: "Connection Successful",
+            description: "Your API key is working correctly with the Supabase endpoint!",
+            variant: "default",
+          });
+        } else {
+          setTestResult({
+            success: false,
+            message: responseData.error || responseData.message || `API connection failed with status ${response.status}`
+          });
+          
+          toast({
+            title: "Connection Failed",
+            description: responseData.error || responseData.message || "Failed to connect to the API.",
+            variant: "destructive",
+          });
+        }
       } catch (error) {
-        // Continue with the normal flow, this was just a pre-check
-        console.log("Pre-check failed, continuing with service test", error);
-      }
-      
-      // Use the ApiService to test the connection
-      const result = await ApiService.testApiConnection(rawApiKey, customEndpoint || endpoint);
-      setTestResult(result);
-      
-      if (result.success) {
-        toast({
-          title: "Connection Successful",
-          description: "Your API key is working correctly!",
-          variant: "default",
-        });
-      } else {
-        toast({
-          title: "Connection Failed",
-          description: result.message || "Failed to connect to the API.",
-          variant: "destructive",
-        });
+        // If direct fetch fails, try the service method as fallback
+        console.log("Direct fetch failed, trying service method", error);
+        
+        const result = await ApiService.testApiConnection(rawApiKey, customEndpoint || endpoint);
+        setTestResult(result);
+        
+        if (result.success) {
+          toast({
+            title: "Connection Successful",
+            description: "Your API key is working correctly!",
+            variant: "default",
+          });
+        } else {
+          toast({
+            title: "Connection Failed",
+            description: result.message || "Failed to connect to the API.",
+            variant: "destructive",
+          });
+        }
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -120,17 +149,17 @@ const ApiKeyTester: React.FC<ApiKeyTesterProps> = ({ apiKey, endpoint }) => {
         <div className="space-y-4">
           <div className="space-y-2">
             <label htmlFor="custom-endpoint" className="text-sm font-medium">
-              API Endpoint (optional)
+              API Endpoint
             </label>
             <Input
               id="custom-endpoint"
               value={customEndpoint}
               onChange={(e) => setCustomEndpoint(e.target.value)}
-              placeholder="Enter API endpoint (e.g., /api/status)"
+              placeholder="Enter API endpoint URL"
               className="w-full"
             />
             <p className="text-xs text-muted-foreground">
-              Leave empty to use the default endpoint
+              Default: Supabase data-receiver function endpoint
             </p>
           </div>
           
@@ -153,10 +182,10 @@ const ApiKeyTester: React.FC<ApiKeyTesterProps> = ({ apiKey, endpoint }) => {
           <div className="text-sm space-y-2">
             <p>
               <AlertTriangle className="inline h-4 w-4 mr-1 text-amber-500" />
-              This will send a test request to verify your API key is working correctly.
+              This will send a test request to verify your API key with the Supabase endpoint.
             </p>
             <p className="text-xs text-muted-foreground">
-              The test will send a small data packet to the API endpoint using your API key.
+              The test will send a small data packet to check if your API key is authorized.
             </p>
           </div>
         </div>

@@ -41,5 +41,8 @@ export const ApiService = {
   setApiKey: ConfigService.setApiKey,
   getDropboxLink: ConfigService.getDropboxLink,
   setDropboxLink: ConfigService.setDropboxLink,
-  exportToCsv: ConfigService.exportToCsv
+  exportToCsv: ConfigService.exportToCsv,
+  
+  // Get default Supabase endpoint
+  getDefaultEndpoint: () => 'https://ybionvegojopebtkdgyt.supabase.co/functions/v1/data-receiver'
 };
