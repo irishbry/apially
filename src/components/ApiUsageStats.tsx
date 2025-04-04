@@ -149,8 +149,8 @@ const ApiUsageStats: React.FC = () => {
                 <Layers className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'} text-primary`} />
               </div>
             </div>
-          </div>
-        </CardContent>
+          </CardContent>
+        </Card>
       )}
     </div>
   );
