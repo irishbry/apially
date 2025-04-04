@@ -60,9 +60,8 @@ export const ConfigService = {
       
       // If API key is provided, update schema for that specific source
       if (apiKey) {
-        // Use the updateSchema RPC function to update the schema
-        // This avoids TypeScript errors with direct update
-        const { error } = await supabase.rpc('update_source_schema', { 
+        // Call the update_source_schema function with the correct parameters
+        const { data, error } = await supabase.rpc('update_source_schema', { 
           p_api_key: apiKey,
           p_schema: schema
         });

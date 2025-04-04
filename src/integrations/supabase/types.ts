@@ -101,6 +101,13 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      update_source_schema: {
+        Args: {
+          p_api_key: string
+          p_schema: Json
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
