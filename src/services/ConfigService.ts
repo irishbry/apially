@@ -18,7 +18,7 @@ export const ConfigService = {
         if (error) {
           console.error('Error fetching schema for API key:', error);
         } else if (source && source.schema) {
-          return source.schema as DataSchema;
+          return source.schema as unknown as DataSchema;
         }
       }
       
@@ -60,12 +60,12 @@ export const ConfigService = {
       
       // If API key is provided, update schema for that specific source
       if (apiKey) {
-        const { error } = await supabase
-          .from('sources')
-          .update({ 
-            schema: schema 
-          })
-          .eq('api_key', apiKey);
+        // Use the updateSchema RPC function to update the schema
+        // This avoids TypeScript errors with direct update
+        const { error } = await supabase.rpc('update_source_schema', { 
+          p_api_key: apiKey,
+          p_schema: schema
+        });
         
         if (error) {
           console.error('Error updating schema in Supabase:', error);
