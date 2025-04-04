@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -42,23 +42,21 @@ const DataTable: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
     try {
-      setData(ApiService.getData());
-      setSources(ApiService.getSources());
-      setError(null);
+      setIsLoading(true);
       
       const unsubscribeData = ApiService.subscribe(newData => {
         setData([...newData]);
+        setIsLoading(false);
       });
       
       const unsubscribeSources = ApiService.subscribeToSources(newSources => {
         setSources([...newSources]);
       });
-      
-      handleRefreshData();
       
       return () => {
         unsubscribeData();
@@ -67,6 +65,7 @@ const DataTable: React.FC = () => {
     } catch (err) {
       console.error('Error loading data:', err);
       setError('Error loading data. Please ensure you are logged in.');
+      setIsLoading(false);
     }
   }, []);
   
@@ -280,64 +279,70 @@ const DataTable: React.FC = () => {
       <CardContent className="p-0">
         <div className="rounded-md border">
           <div className="relative overflow-auto max-h-[400px]">
-            <Table>
-              <TableHeader className="sticky top-0 bg-secondary">
-                <TableRow>
-                  <TableHead className="w-10"></TableHead>
-                  {columns.map((column) => (
-                    <TableHead key={column} className="whitespace-nowrap">
-                      {column === 'sourceId' || column === 'source_id' ? 'Source' : 
-                       column === 'sensorId' || column === 'sensor_id' ? 'Sensor ID' :
-                       column === 'fileName' || column === 'file_name' ? 'File Name' :
-                       column}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {visibleData.length > 0 ? (
-                  visibleData.map((entry, index) => (
-                    <TableRow key={entry.id || index} className="animate-fade-in">
-                      <TableCell className="w-10">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7"
-                                onClick={() => handleDeleteEntry(entry.id!)}
-                                disabled={isDeleting === entry.id}
-                              >
-                                {isDeleting === entry.id ? (
-                                  <RefreshCw className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Trash className="h-4 w-4 text-destructive" />
-                                )}
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Delete entry</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </TableCell>
-                      {columns.map(column => (
-                        <TableCell key={`${entry.id || index}-${column}`} className="whitespace-nowrap">
-                          {formatCellValue(column, entry[column])}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))
-                ) : (
+            {isLoading ? (
+              <div className="flex justify-center items-center p-8">
+                <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader className="sticky top-0 bg-secondary">
                   <TableRow>
-                    <TableCell colSpan={columns.length + 1} className="h-24 text-center">
-                      {error ? 'Authentication required to view data' : 'No data available'}
-                    </TableCell>
+                    <TableHead className="w-10"></TableHead>
+                    {columns.map((column) => (
+                      <TableHead key={column} className="whitespace-nowrap">
+                        {column === 'sourceId' || column === 'source_id' ? 'Source' : 
+                         column === 'sensorId' || column === 'sensor_id' ? 'Sensor ID' :
+                         column === 'fileName' || column === 'file_name' ? 'File Name' :
+                         column}
+                      </TableHead>
+                    ))}
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {visibleData.length > 0 ? (
+                    visibleData.map((entry, index) => (
+                      <TableRow key={entry.id || index} className="animate-fade-in">
+                        <TableCell className="w-10">
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() => handleDeleteEntry(entry.id!)}
+                                  disabled={isDeleting === entry.id}
+                                >
+                                  {isDeleting === entry.id ? (
+                                    <RefreshCw className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Trash className="h-4 w-4 text-destructive" />
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Delete entry</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </TableCell>
+                        {columns.map(column => (
+                          <TableCell key={`${entry.id || index}-${column}`} className="whitespace-nowrap">
+                            {formatCellValue(column, entry[column])}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={columns.length + 1} className="h-24 text-center">
+                        {error ? 'Authentication required to view data' : 'No data available'}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            )}
           </div>
         </div>
       </CardContent>

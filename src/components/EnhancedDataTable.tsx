@@ -42,19 +42,16 @@ const EnhancedDataTable: React.FC = () => {
 
   useEffect(() => {
     try {
-      setData(ApiService.getData());
-      setSources(ApiService.getSources());
-      setError(null);
+      setIsLoading(true);
       
       const unsubscribeData = ApiService.subscribe(newData => {
         setData([...newData]);
+        setIsLoading(false);
       });
       
       const unsubscribeSources = ApiService.subscribeToSources(newSources => {
         setSources([...newSources]);
       });
-      
-      handleRefreshData();
       
       return () => {
         unsubscribeData();
@@ -63,8 +60,11 @@ const EnhancedDataTable: React.FC = () => {
     } catch (err) {
       console.error('Error loading data:', err);
       setError('Error loading data. Please ensure you are logged in.');
+      setIsLoading(false);
     }
   }, []);
+
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (data.length > 0) {
@@ -78,7 +78,9 @@ const EnhancedDataTable: React.FC = () => {
     let filtered = [...data];
     
     if (selectedSource !== 'all') {
-      filtered = filtered.filter(entry => entry.sourceId === selectedSource);
+      filtered = filtered.filter(entry => 
+        entry.sourceId === selectedSource || entry.source_id === selectedSource
+      );
     }
     
     activeFilters.forEach(filter => {
@@ -129,7 +131,7 @@ const EnhancedDataTable: React.FC = () => {
   const getColumns = (): string[] => {
     if (data.length === 0) return ['No Data'];
     
-    const priorityKeys = ['timestamp', 'id', 'sourceId', 'sensorId', 'fileName'];
+    const priorityKeys = ['timestamp', 'id', 'sourceId', 'source_id', 'sensorId', 'sensor_id', 'fileName', 'file_name'];
     const allKeys = new Set<string>();
     
     priorityKeys.forEach(key => allKeys.add(key));
@@ -153,7 +155,15 @@ const EnhancedDataTable: React.FC = () => {
 
   const formatCellValue = (key: string, value: any) => {
     if (value === undefined || value === null) return '-';
-    if (key === 'sourceId') return getSourceName(value);
+    if (key === 'sourceId' || key === 'source_id') return getSourceName(value);
+    if (key === 'metadata' && typeof value === 'object') {
+      // Format metadata as a string with newlines
+      try {
+        return JSON.stringify(value, null, 2);
+      } catch (e) {
+        return JSON.stringify(value);
+      }
+    }
     if (typeof value === 'object') return JSON.stringify(value);
     return String(value);
   };
@@ -181,9 +191,9 @@ const EnhancedDataTable: React.FC = () => {
     }
   };
 
-  const handleClearData = () => {
+  const handleClearData = async () => {
     try {
-      ApiService.clearData();
+      await ApiService.clearData();
       NotificationService.addNotification(
         'Data Cleared', 
         'All data has been cleared successfully.',
@@ -396,7 +406,7 @@ const EnhancedDataTable: React.FC = () => {
                       <SelectContent>
                         {visibleColumns.map(column => (
                           <SelectItem key={column} value={column}>
-                            {column === 'sourceId' ? 'Source' : column}
+                            {column === 'sourceId' || column === 'source_id' ? 'Source' : column}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -422,7 +432,9 @@ const EnhancedDataTable: React.FC = () => {
                         {activeFilters.filter(f => f.enabled).map(filter => (
                           <div key={filter.key} className="flex items-center justify-between text-sm">
                             <span>
-                              <span className="font-medium">{filter.key === 'sourceId' ? 'Source' : filter.key}</span>
+                              <span className="font-medium">
+                                {filter.key === 'sourceId' || filter.key === 'source_id' ? 'Source' : filter.key}
+                              </span>
                               : {filter.value}
                             </span>
                             <Button
@@ -471,72 +483,81 @@ const EnhancedDataTable: React.FC = () => {
       <CardContent className="p-0">
         <div className="rounded-md border">
           <div className="relative overflow-auto max-h-[400px]">
-            <Table>
-              <TableHeader className="sticky top-0 bg-secondary">
-                <TableRow>
-                  {visibleColumns.map((column) => (
-                    <TableHead key={column} className="whitespace-nowrap">
-                      <div className="flex items-center">
-                        <button 
-                          onClick={() => handleSort(column)}
-                          className="font-medium flex items-center cursor-pointer hover:text-primary"
-                        >
-                          {column === 'sourceId' ? 'Source' : column}
-                          {getSortIcon(column)}
-                        </button>
-                        {activeFilters.some(f => f.key === column && f.enabled) && (
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-6 w-6 ml-1">
-                                <Filter className="h-3 w-3 text-primary" />
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-60 p-2" align="start">
-                              <div className="space-y-2">
-                                <Label htmlFor={`quick-filter-${column}`}>Filter {column}</Label>
-                                <Input
-                                  id={`quick-filter-${column}`}
-                                  value={getFilterValue(column)}
-                                  onChange={(e) => handleFilterChange(column, e.target.value)}
-                                  placeholder="Filter value..."
-                                />
-                                <Button 
-                                  variant="outline" 
-                                  size="sm" 
-                                  className="w-full"
-                                  onClick={() => handleFilterChange(column, '')}
-                                >
-                                  Clear
-                                </Button>
-                              </div>
-                            </PopoverContent>
-                          </Popover>
-                        )}
-                      </div>
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {visibleData.length > 0 ? (
-                  visibleData.map((entry, index) => (
-                    <TableRow key={entry.id || index} className="animate-fade-in">
-                      {visibleColumns.map(column => (
-                        <TableCell key={`${entry.id || index}-${column}`} className="whitespace-nowrap">
-                          {formatCellValue(column, entry[column])}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))
-                ) : (
+            {isLoading ? (
+              <div className="flex justify-center items-center p-8">
+                <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader className="sticky top-0 bg-secondary">
                   <TableRow>
-                    <TableCell colSpan={visibleColumns.length} className="h-24 text-center">
-                      {error ? 'Authentication required to view data' : 'No data available'}
-                    </TableCell>
+                    {visibleColumns.map((column) => (
+                      <TableHead key={column} className="whitespace-nowrap">
+                        <div className="flex items-center">
+                          <button 
+                            onClick={() => handleSort(column)}
+                            className="font-medium flex items-center cursor-pointer hover:text-primary"
+                          >
+                            {column === 'sourceId' || column === 'source_id' ? 'Source' : 
+                             column === 'sensorId' || column === 'sensor_id' ? 'Sensor ID' :
+                             column === 'fileName' || column === 'file_name' ? 'File Name' :
+                             column}
+                            {getSortIcon(column)}
+                          </button>
+                          {activeFilters.some(f => f.key === column && f.enabled) && (
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-6 w-6 ml-1">
+                                  <Filter className="h-3 w-3 text-primary" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-60 p-2" align="start">
+                                <div className="space-y-2">
+                                  <Label htmlFor={`quick-filter-${column}`}>Filter {column}</Label>
+                                  <Input
+                                    id={`quick-filter-${column}`}
+                                    value={getFilterValue(column)}
+                                    onChange={(e) => handleFilterChange(column, e.target.value)}
+                                    placeholder="Filter value..."
+                                  />
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    className="w-full"
+                                    onClick={() => handleFilterChange(column, '')}
+                                  >
+                                    Clear
+                                  </Button>
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                          )}
+                        </div>
+                      </TableHead>
+                    ))}
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {visibleData.length > 0 ? (
+                    visibleData.map((entry, index) => (
+                      <TableRow key={entry.id || index} className="animate-fade-in">
+                        {visibleColumns.map(column => (
+                          <TableCell key={`${entry.id || index}-${column}`} className="whitespace-nowrap">
+                            {formatCellValue(column, entry[column])}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={visibleColumns.length} className="h-24 text-center">
+                        {error ? 'Authentication required to view data' : 'No data available'}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            )}
           </div>
         </div>
       </CardContent>
