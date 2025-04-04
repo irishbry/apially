@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -126,8 +125,7 @@ const ApiKeyForm: React.FC = () => {
                 <Button onClick={saveApiKey} className="hover-lift">Save Key</Button>
               </div>
               
-              {/* Add the API Key Tester component */}
-              {apiKey && <ApiKeyTester apiKey={apiKey} className="mt-4" />}
+              {apiKey && <ApiKeyTester apiKey={apiKey} />}
             </TabsContent>
             
             <TabsContent value="schema">

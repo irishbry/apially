@@ -1,3 +1,4 @@
+
 import { DataSchema } from '@/types/api.types';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -8,13 +9,15 @@ export const ConfigService = {
     try {
       if (apiKey) {
         // If API key is provided, try to fetch schema associated with that API key
-        const { data: source } = await supabase
+        const { data: source, error } = await supabase
           .from('sources')
           .select('schema')
           .eq('api_key', apiKey)
           .single();
         
-        if (source && source.schema) {
+        if (error) {
+          console.error('Error fetching schema for API key:', error);
+        } else if (source && source.schema) {
           return source.schema as DataSchema;
         }
       }
@@ -59,7 +62,9 @@ export const ConfigService = {
       if (apiKey) {
         const { error } = await supabase
           .from('sources')
-          .update({ schema })
+          .update({ 
+            schema: schema 
+          })
           .eq('api_key', apiKey);
         
         if (error) {

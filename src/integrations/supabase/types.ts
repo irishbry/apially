@@ -62,6 +62,7 @@ export type Database = {
           id: string
           last_active: string | null
           name: string
+          schema: Json | null
           url: string | null
           user_id: string
         }
@@ -73,6 +74,7 @@ export type Database = {
           id?: string
           last_active?: string | null
           name: string
+          schema?: Json | null
           url?: string | null
           user_id: string
         }
@@ -84,6 +86,7 @@ export type Database = {
           id?: string
           last_active?: string | null
           name?: string
+          schema?: Json | null
           url?: string | null
           user_id?: string
         }
