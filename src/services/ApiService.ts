@@ -428,6 +428,7 @@ export const ApiService = {
   
   deleteDataEntry: async (id: string): Promise<boolean> => {
     try {
+      // Type casting to handle Supabase's type constraints
       const { error } = await supabase
         .from('data_entries')
         .delete()
