@@ -50,10 +50,12 @@ const ApiKeyForm: React.FC = () => {
   };
 
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(apiKey).then(() => {
+    // Add the Bearer prefix when copying to make it easy for users to use in external tools
+    const formattedKey = apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`;
+    navigator.clipboard.writeText(formattedKey).then(() => {
       toast({
         title: "Copied!",
-        description: "API key copied to clipboard.",
+        description: "API key with Bearer prefix copied to clipboard.",
       });
     });
   };
@@ -89,6 +91,11 @@ const ApiKeyForm: React.FC = () => {
                 >
                   <Copy className="h-4 w-4" />
                 </button>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                <p>
+                  For use in external API calls, use the format: <code className="bg-muted px-1 py-0.5 rounded">Bearer {apiKey || 'your-api-key'}</code>
+                </p>
               </div>
             </div>
           </div>

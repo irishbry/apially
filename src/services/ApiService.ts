@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 // Define the types needed across the application
@@ -54,8 +53,8 @@ const usingPhpBackend = (): boolean => {
 
 const receivePhpApiData = async (data: DataEntry, apiKey?: string): Promise<ApiResponse> => {
   try {
-    // Format the API key with Bearer prefix if it doesn't already have it
-    const formattedApiKey = apiKey && !apiKey.startsWith('Bearer ') ? `Bearer ${apiKey}` : apiKey || '';
+    // Always ensure API key is properly formatted with Bearer prefix
+    const formattedApiKey = apiKey ? (apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`) : '';
     
     const response = await fetch('/api/endpoints/data_endpoint.php', {
       method: 'POST',
@@ -96,7 +95,7 @@ async function receiveData(data: DataEntry, apiKey?: string): Promise<ApiRespons
       'Content-Type': 'application/json',
     };
     
-    // Format the API key with Bearer prefix if it doesn't already have it
+    // Always ensure API key has Bearer prefix
     if (apiKey) {
       headers['Authorization'] = apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`;
     }
@@ -161,6 +160,7 @@ export async function testApiConnection(apiKey: string, endpoint?: string): Prom
     console.log(`Testing API connection to ${apiUrl}...`);
     console.log(`Using authorization header: ${apiKey}`);
     
+    // Note: apiKey is already formatted with Bearer prefix in the component
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {

@@ -30,7 +30,7 @@ const ApiKeyTester: React.FC<ApiKeyTesterProps> = ({ apiKey, endpoint }) => {
     setTestResult(null);
     
     try {
-      // Format the API key with Bearer prefix for the test
+      // Make sure the API key has the Bearer prefix before testing
       const formattedApiKey = apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`;
       const result = await testApiConnection(formattedApiKey, endpoint);
       setTestResult(result);
