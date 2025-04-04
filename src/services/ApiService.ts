@@ -431,7 +431,7 @@ export const ApiService = {
       const { error } = await supabase
         .from('data_entries')
         .delete()
-        .eq('id', id);
+        .eq('id', id as unknown as any);
       
       if (error) {
         console.error('Error deleting entry:', error);
