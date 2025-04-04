@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertTriangle, CheckCircle, XCircle } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { testApiConnection } from "@/services/ApiService";
+import { ApiService } from "@/services/ApiService";
 
 interface ApiKeyTesterProps {
   apiKey: string;
@@ -32,7 +32,7 @@ const ApiKeyTester: React.FC<ApiKeyTesterProps> = ({ apiKey, endpoint }) => {
     try {
       // Strip the Bearer prefix if it exists - the endpoint will handle this
       const rawApiKey = apiKey.replace(/^Bearer\s+/i, '').trim();
-      const result = await testApiConnection(rawApiKey, endpoint);
+      const result = await ApiService.testApiConnection(rawApiKey, endpoint);
       setTestResult(result);
       
       if (result.success) {
