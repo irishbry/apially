@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertTriangle, Download, Filter, Search, Trash2 } from "lucide-react";
+import { AlertTriangle, Download, Filter, Search, Trash2, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import ApiService, { DataEntry, Source } from "@/services/ApiService";
 import { downloadCSV } from "@/utils/csvUtils";
@@ -17,6 +17,7 @@ const DataTable: React.FC = () => {
   const [selectedSource, setSelectedSource] = useState<string>('all');
   const [visibleData, setVisibleData] = useState<DataEntry[]>([]);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -92,6 +93,19 @@ const DataTable: React.FC = () => {
     }
   };
 
+  const handleRefreshData = async () => {
+    try {
+      setIsRefreshing(true);
+      setError(null);
+      await ApiService.refreshData();
+      setIsRefreshing(false);
+    } catch (err) {
+      console.error('Error refreshing data:', err);
+      setError('Error refreshing data. Please ensure you are logged in.');
+      setIsRefreshing(false);
+    }
+  };
+
   // Get source name from ID
   const getSourceName = (sourceId: string | undefined): string => {
     if (!sourceId) return 'Unknown';
@@ -137,6 +151,25 @@ const DataTable: React.FC = () => {
         <CardTitle className="flex items-center justify-between">
           <span className="text-xl font-medium">Received Data</span>
           <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleRefreshData}
+              disabled={isRefreshing}
+              className="hover-lift"
+            >
+              {isRefreshing ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
+                  Refreshing...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                  Refresh
+                </>
+              )}
+            </Button>
             <Button 
               variant="outline" 
               size="sm"

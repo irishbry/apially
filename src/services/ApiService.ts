@@ -1,4 +1,5 @@
 import { toast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 // Type for incoming data
 export interface DataEntry {
@@ -80,8 +81,141 @@ class ApiService {
       if (this.isAuthenticated) {
         console.log("Loading sources after authentication change");
         this.loadSources();
+        this.fetchSupabaseData();
       }
     });
+    
+    // Subscribe to auth state changes from Supabase
+    supabase.auth.onAuthStateChange((event, session) => {
+      console.log("Supabase auth state changed:", event, !!session);
+      const isAuthNow = !!session;
+      if (isAuthNow !== this.isAuthenticated) {
+        this.isAuthenticated = isAuthNow;
+        window.dispatchEvent(new Event('auth-change'));
+      }
+      
+      if (isAuthNow) {
+        this.fetchSupabaseData();
+      }
+    });
+    
+    // Initial fetch if authenticated
+    if (this.isAuthenticated) {
+      this.fetchSupabaseData();
+    }
+  }
+
+  // Fetch data from Supabase storage
+  private async fetchSupabaseData() {
+    try {
+      console.log("Fetching data from Supabase storage...");
+      
+      // First, fetch sources from the database
+      const { data: sourcesData, error: sourcesError } = await supabase
+        .from('sources')
+        .select('*');
+      
+      if (sourcesError) {
+        console.error("Error fetching sources:", sourcesError);
+        return;
+      }
+      
+      if (sourcesData && sourcesData.length > 0) {
+        // Transform to our Source interface
+        this.sources = sourcesData.map(source => ({
+          id: source.id,
+          name: source.name,
+          url: source.url || undefined,
+          apiKey: source.api_key,
+          createdAt: source.created_at,
+          dataCount: source.data_count,
+          active: source.active,
+          lastActive: source.last_active || undefined
+        }));
+        
+        // Save sources and notify subscribers
+        this.saveSources();
+        this.notifySourceSubscribers();
+      }
+      
+      // Then, fetch data from storage bucket
+      const bucketName = 'source-data';
+      
+      // Try to get all files from storage by listing all paths
+      const { data: filesData, error: filesError } = await supabase
+        .storage
+        .from(bucketName)
+        .list();
+      
+      if (filesError) {
+        if (filesError.message.includes('bucket does not exist')) {
+          console.log("Storage bucket doesn't exist yet, no data to fetch");
+        } else {
+          console.error("Error listing files in storage:", filesError);
+        }
+        return;
+      }
+      
+      if (!filesData || filesData.length === 0) {
+        console.log("No files found in storage");
+        return;
+      }
+      
+      // Process each source directory
+      const newData: DataEntry[] = [];
+      
+      for (const source of this.sources) {
+        // List files in the source directory
+        const { data: sourceFiles, error: sourceError } = await supabase
+          .storage
+          .from(bucketName)
+          .list(source.id);
+        
+        if (sourceError) {
+          console.error(`Error listing files for source ${source.id}:`, sourceError);
+          continue;
+        }
+        
+        if (!sourceFiles || sourceFiles.length === 0) {
+          console.log(`No files found for source ${source.id}`);
+          continue;
+        }
+        
+        // Fetch and parse each file
+        for (const file of sourceFiles) {
+          if (file.name.endsWith('.json')) {
+            const filePath = `${source.id}/${file.name}`;
+            
+            const { data: fileData, error: fileError } = await supabase
+              .storage
+              .from(bucketName)
+              .download(filePath);
+            
+            if (fileError) {
+              console.error(`Error downloading file ${filePath}:`, fileError);
+              continue;
+            }
+            
+            try {
+              const text = await fileData.text();
+              const jsonData = JSON.parse(text);
+              newData.push(jsonData);
+            } catch (error) {
+              console.error(`Error parsing JSON from file ${filePath}:`, error);
+            }
+          }
+        }
+      }
+      
+      if (newData.length > 0) {
+        this.data = newData;
+        this.notifySubscribers();
+        console.log(`Loaded ${newData.length} data entries from Supabase storage`);
+      }
+      
+    } catch (error) {
+      console.error("Error fetching data from Supabase:", error);
+    }
   }
 
   // Singleton pattern
@@ -117,12 +251,24 @@ class ApiService {
 
   // Check if user is authenticated
   private checkAuthentication(): void {
+    // First check Supabase auth
+    supabase.auth.getSession().then(({ data }) => {
+      const isAuth = !!data.session;
+      if (isAuth !== this.isAuthenticated) {
+        this.isAuthenticated = isAuth;
+        console.log("Auth status from Supabase check:", isAuth);
+      }
+    });
+    
+    // Then check local storage as fallback
     const authStatus = localStorage.getItem('csv-api-auth');
-    console.log("Checking auth status:", authStatus);
-    this.isAuthenticated = authStatus === 'true';
+    console.log("Checking local auth status:", authStatus);
+    if (!this.isAuthenticated) {
+      this.isAuthenticated = authStatus === 'true';
+    }
   }
 
-  // Login function
+  // Login function (for non-Supabase auth)
   public login(username: string, password: string): boolean {
     // In a real app, this should validate against a secure backend
     // For demo, we'll use a simple check
@@ -141,25 +287,32 @@ class ApiService {
 
   // Logout function
   public logout(): void {
-    this.isAuthenticated = false;
-    localStorage.removeItem('csv-api-auth');
-    
-    // Clear sources on logout for security
-    this.sources = [];
-    
-    // Dispatch auth change event
-    window.dispatchEvent(new Event('auth-change'));
-    console.log("Logout successful, auth state updated");
+    // First try to logout from Supabase
+    supabase.auth.signOut().then(() => {
+      this.isAuthenticated = false;
+      localStorage.removeItem('csv-api-auth');
+      
+      // Clear sources on logout for security
+      this.sources = [];
+      this.data = [];
+      
+      // Dispatch auth change event
+      window.dispatchEvent(new Event('auth-change'));
+      console.log("Logout successful, auth state updated");
+    });
   }
 
   // Check if user is authenticated
   public isUserAuthenticated(): boolean {
     const authStatus = localStorage.getItem('csv-api-auth') === 'true';
-    return authStatus;
+    return this.isAuthenticated || authStatus;
   }
 
   // Generate some demo data
   private generateDemoData() {
+    // Only generate demo data if we have no real data
+    if (this.data.length > 0) return;
+    
     const demoData: DataEntry[] = [];
     const now = new Date();
     
@@ -250,29 +403,70 @@ class ApiService {
   }
 
   // Add a new source
-  public addSource(name: string, url?: string): Source {
+  public async addSource(name: string, url?: string): Promise<Source> {
     if (!this.isAuthenticated) {
       throw new Error("Authentication required");
     }
     
-    const id = `source-${Date.now()}`;
-    const apiKey = this.generateApiKey();
-    
-    const newSource: Source = {
-      id,
-      name,
-      url: url || `https://source-${id}.com`,
-      apiKey,
-      createdAt: new Date().toISOString(),
-      active: true,
-      dataCount: 0
-    };
-    
-    this.sources.push(newSource);
-    this.saveSources();
-    this.notifySourceSubscribers();
-    
-    return newSource;
+    try {
+      // Generate a new API key
+      const apiKey = this.generateApiKey();
+      
+      // Create source in Supabase
+      const { data, error } = await supabase
+        .from('sources')
+        .insert([{
+          name,
+          url,
+          api_key: apiKey,
+          active: true,
+          data_count: 0
+        }])
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      // Create the source object from the response
+      const newSource: Source = {
+        id: data.id,
+        name: data.name,
+        url: data.url || undefined,
+        apiKey: data.api_key,
+        createdAt: data.created_at,
+        dataCount: data.data_count,
+        active: data.active,
+        lastActive: data.last_active || undefined
+      };
+      
+      // Add to local sources array
+      this.sources.push(newSource);
+      this.saveSources();
+      this.notifySourceSubscribers();
+      
+      return newSource;
+    } catch (error) {
+      console.error("Error adding source:", error);
+      // Fallback to local implementation
+      const id = `source-${Date.now()}`;
+      const apiKey = this.generateApiKey();
+      
+      const newSource: Source = {
+        id,
+        name,
+        url: url || `https://source-${id}.com`,
+        apiKey,
+        createdAt: new Date().toISOString(),
+        active: true,
+        dataCount: 0
+      };
+      
+      this.sources.push(newSource);
+      this.saveSources();
+      this.notifySourceSubscribers();
+      
+      return newSource;
+    }
   }
 
   // Update a source name
@@ -462,7 +656,7 @@ class ApiService {
   }
 
   // Receive data from API endpoint
-  public receiveData(data: DataEntry, apiKey: string): { success: boolean; message: string } {
+  public async receiveData(data: DataEntry, apiKey: string): Promise<{ success: boolean; message: string }> {
     // Find source by API key
     const source = this.findSourceByApiKey(apiKey);
     if (!source) {
@@ -478,7 +672,7 @@ class ApiService {
     // Normalize data and add source ID
     const normalizedData = this.normalizeData(data, source.id);
     
-    // Add to data store
+    // Add to data store locally
     this.data.unshift(normalizedData);
     
     // Update source stats
@@ -488,6 +682,13 @@ class ApiService {
     this.notifySubscribers();
     
     return { success: true, message: "Data received successfully" };
+  }
+
+  // Refresh data from Supabase
+  public async refreshData(): Promise<void> {
+    if (this.isAuthenticated) {
+      await this.fetchSupabaseData();
+    }
   }
 
   // Get all data

@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { AlertTriangle, Download, Filter, Search, SortAsc, SortDesc, Trash2, FileDown, ListFilter } from "lucide-react";
+import { AlertTriangle, Download, Filter, Search, SortAsc, SortDesc, Trash2, FileDown, ListFilter, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import ApiService, { DataEntry, Source } from "@/services/ApiService";
 import { downloadCSV } from "@/utils/csvUtils";
@@ -31,6 +31,7 @@ const EnhancedDataTable: React.FC = () => {
   const [selectedSource, setSelectedSource] = useState<string>('all');
   const [visibleData, setVisibleData] = useState<DataEntry[]>([]);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
   const [activeFilters, setActiveFilters] = useState<ColumnFilter[]>([]);
@@ -195,6 +196,29 @@ const EnhancedDataTable: React.FC = () => {
     }
   };
 
+  const handleRefreshData = async () => {
+    try {
+      setIsRefreshing(true);
+      setError(null);
+      await ApiService.refreshData();
+      setIsRefreshing(false);
+      NotificationService.addNotification(
+        'Data Refreshed', 
+        'Successfully refreshed data from storage.',
+        'success'
+      );
+    } catch (err) {
+      console.error('Error refreshing data:', err);
+      setError('Error refreshing data. Please ensure you are logged in.');
+      setIsRefreshing(false);
+      NotificationService.addNotification(
+        'Refresh Failed', 
+        'Failed to refresh data from storage.',
+        'error'
+      );
+    }
+  };
+
   const handleSort = (key: string) => {
     if (sortConfig && sortConfig.key === key) {
       if (sortConfig.direction === 'asc') {
@@ -261,6 +285,25 @@ const EnhancedDataTable: React.FC = () => {
         <CardTitle className="flex items-center justify-between">
           <span className="text-xl font-medium">Data Explorer</span>
           <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleRefreshData}
+              disabled={isRefreshing}
+              className="hover-lift"
+            >
+              {isRefreshing ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
+                  Refreshing...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                  Refresh
+                </>
+              )}
+            </Button>
             <Button 
               variant="outline" 
               size="sm"
