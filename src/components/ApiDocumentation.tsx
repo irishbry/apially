@@ -54,7 +54,7 @@ const ApiDocumentation: React.FC = () => {
 
   const curlExample = `curl -X POST ${functionUrl} \\
   -H "Content-Type: application/json" \\
-  -H "x-api-key: ${apiKey || 'YOUR_API_KEY'}" \\
+  -H "Authorization: ${apiKey || 'YOUR_API_KEY'}" \\
   -d '{
     "sensorId": "sensor-1",
     "temperature": 25.4,
@@ -77,7 +77,7 @@ fetch(url, {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'x-api-key': apiKey
+    'Authorization': apiKey // Send the API key in the Authorization header
   },
   body: JSON.stringify(data)
 })
@@ -93,7 +93,7 @@ api_key = "${apiKey || 'YOUR_API_KEY'}"
 
 headers = {
     'Content-Type': 'application/json',
-    'x-api-key': api_key
+    'Authorization': api_key
 }
 
 data = {
@@ -145,19 +145,22 @@ print(response.json())`;
             <div>
               <h3 className="text-lg font-medium mb-2">Authentication</h3>
               <p className="text-sm text-muted-foreground mb-2">
-                All requests must include your API key in the <code>x-api-key</code> header.
+                All requests must include your API key in the <code>Authorization</code> header.
               </p>
               <div className="flex items-center justify-between bg-secondary p-3 rounded-md">
-                <code className="text-xs sm:text-sm">x-api-key: {apiKey || 'YOUR_API_KEY'}</code>
+                <code className="text-xs sm:text-sm">Authorization: {apiKey || 'YOUR_API_KEY'}</code>
                 <Button 
                   variant="ghost" 
                   size="sm"
-                  onClick={() => copyToClipboard(`x-api-key: ${apiKey || 'YOUR_API_KEY'}`, 'Header copied!')}
+                  onClick={() => copyToClipboard(`Authorization: ${apiKey || 'YOUR_API_KEY'}`, 'Header copied!')}
                   className="h-8 px-2"
                 >
                   <Copy className="h-3 w-3" />
                 </Button>
               </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                <span className="font-medium">Important:</span> You can also use the <code>x-api-key</code> header instead of <code>Authorization</code> if preferred.
+              </p>
             </div>
             
             <div>
@@ -245,6 +248,26 @@ print(response.json())`;
                 </Button>
               </TabsContent>
             </Tabs>
+            
+            <div>
+              <h3 className="text-lg font-medium mb-2">Postman Instructions</h3>
+              <p className="text-sm text-muted-foreground mb-2">
+                When using Postman or similar API tools:
+              </p>
+              <div className="bg-secondary p-3 rounded-md overflow-x-auto">
+                <ol className="text-xs sm:text-sm list-decimal list-inside space-y-1">
+                  <li>Set request method to <strong>POST</strong></li>
+                  <li>Enter URL: <code>{functionUrl}</code></li>
+                  <li>In Headers tab, add:
+                    <ul className="list-disc list-inside ml-4 space-y-1">
+                      <li><code>Content-Type: application/json</code></li>
+                      <li><code>Authorization: {apiKey || 'YOUR_API_KEY'}</code> (plain text, no Bearer prefix)</li>
+                    </ul>
+                  </li>
+                  <li>In Body tab, select "raw" and "JSON", then enter your data payload</li>
+                </ol>
+              </div>
+            </div>
             
             <div>
               <h3 className="text-lg font-medium mb-2">Batch Upload Example</h3>

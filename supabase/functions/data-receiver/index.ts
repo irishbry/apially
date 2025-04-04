@@ -27,17 +27,30 @@ serve(async (req) => {
   }
 
   try {
-    // Extract API Key from headers
-    const apiKey = req.headers.get('x-api-key') || req.headers.get('authorization');
-    if (!apiKey) {
+    // Extract API Key from headers - check multiple possible header locations
+    const apiKeyHeader = req.headers.get('authorization') || 
+                         req.headers.get('Authorization') || 
+                         req.headers.get('x-api-key') || 
+                         req.headers.get('X-API-Key');
+    
+    console.log('Headers received:', Object.fromEntries([...req.headers.entries()]));
+    
+    if (!apiKeyHeader) {
       return new Response(
-        JSON.stringify({ error: 'API key is required', code: 401, message: 'Missing authorization header' }),
+        JSON.stringify({ 
+          error: 'API key is required', 
+          code: 401, 
+          message: 'Missing authorization header',
+          help: 'Please provide your API key in either the "Authorization" header or "x-api-key" header'
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
       );
     }
 
     // Clean the API key if it's in the Authorization header format "Bearer <token>"
-    const cleanApiKey = apiKey.startsWith('Bearer ') ? apiKey.substring(7).trim() : apiKey;
+    const cleanApiKey = apiKeyHeader.startsWith('Bearer ') ? apiKeyHeader.substring(7).trim() : apiKeyHeader;
+
+    console.log('API Key received and cleaned (first 4 chars):', cleanApiKey.substring(0, 4) + '...');
 
     // Create a Supabase client with the admin key
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
@@ -55,8 +68,12 @@ serve(async (req) => {
       .single();
 
     if (sourceError || !source) {
+      console.error('Source validation error:', sourceError);
       return new Response(
-        JSON.stringify({ error: 'Invalid or inactive API key' }),
+        JSON.stringify({ 
+          error: 'Invalid or inactive API key',
+          details: sourceError ? sourceError.message : 'No active source found with this API key' 
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
       );
     }
@@ -70,7 +87,7 @@ serve(async (req) => {
       );
     }
 
-    // Validate required fields
+    // Validate required fields - accept either sensorId or sensor_id
     if (!body.sensorId && !body.sensor_id) {
       return new Response(
         JSON.stringify({ error: 'Missing required field: sensorId or sensor_id' }),
@@ -153,7 +170,7 @@ serve(async (req) => {
     if (dbError) {
       console.error('Database error:', dbError);
       return new Response(
-        JSON.stringify({ error: 'Failed to store data in database' }),
+        JSON.stringify({ error: 'Failed to store data in database', details: dbError.message }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
       );
     }
@@ -187,7 +204,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Unexpected error:', error);
     return new Response(
-      JSON.stringify({ error: 'An internal server error occurred' }),
+      JSON.stringify({ error: 'An internal server error occurred', details: error.message }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }

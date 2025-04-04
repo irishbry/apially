@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 
 // Define the types needed across the application
@@ -77,7 +78,7 @@ const receivePhpApiData = async (data: DataEntry, apiKey?: string): Promise<ApiR
   }
 };
 
-// This method needs to be updated to properly send the API key as an authorization header
+// This method sends data to the API with proper authorization headers
 async function receiveData(data: DataEntry, apiKey?: string): Promise<ApiResponse> {
   try {
     // If we're in a test environment with the PHP API backend
@@ -92,10 +93,9 @@ async function receiveData(data: DataEntry, apiKey?: string): Promise<ApiRespons
       'Content-Type': 'application/json',
     };
     
-    // Add API key as Authorization header if provided
+    // Add API key as Authorization header if provided - don't prefix with Bearer 
     if (apiKey) {
-      headers['Authorization'] = apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`;
-      headers['x-api-key'] = apiKey; // Adding both for compatibility
+      headers['Authorization'] = apiKey; // Send as plain API key, no Bearer prefix
     }
     
     const response = await fetch(`${window.location.origin}/api/v1/data-receiver`, {
@@ -104,16 +104,27 @@ async function receiveData(data: DataEntry, apiKey?: string): Promise<ApiRespons
       body: JSON.stringify(data),
     });
     
+    // If we got an error, try to parse it properly
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ 
-        error: `HTTP error ${response.status}` 
-      }));
+      let errorMessage = `HTTP error ${response.status}`;
       
-      console.error('API error:', errorData);
-      return {
-        success: false,
-        message: errorData.error || errorData.message || 'Failed to submit data',
-      };
+      try {
+        const errorData = await response.json();
+        console.error('API error:', errorData);
+        errorMessage = errorData.error || errorData.message || errorMessage;
+        
+        return {
+          success: false,
+          message: errorMessage,
+          data: errorData
+        };
+      } catch (parseError) {
+        console.error('Failed to parse error response:', parseError);
+        return {
+          success: false,
+          message: errorMessage
+        };
+      }
     }
     
     const result = await response.json();
@@ -131,12 +142,53 @@ async function receiveData(data: DataEntry, apiKey?: string): Promise<ApiRespons
   }
 }
 
+// Direct helper to test the API with a given API key and endpoint URL
+export async function testApiConnection(apiKey: string, endpoint?: string): Promise<ApiResponse> {
+  try {
+    const testData: DataEntry = {
+      sensorId: 'test-sensor',
+      timestamp: new Date().toISOString(),
+      temperature: 22.5,
+      humidity: 45,
+    };
+    
+    // Determine the endpoint URL
+    const apiUrl = endpoint || 'https://ybionvegojopebtkdgyt.supabase.co/functions/v1/data-receiver';
+    
+    console.log(`Testing API connection to ${apiUrl}...`);
+    
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': apiKey, // Send as plain API key
+      },
+      body: JSON.stringify(testData),
+    });
+    
+    const result = await response.json();
+    
+    return {
+      success: response.ok,
+      message: result.message || (response.ok ? 'Connection test successful' : 'Connection test failed'),
+      data: result
+    };
+  } catch (error) {
+    console.error('API connection test error:', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Unknown error occurred during connection test',
+    };
+  }
+}
+
 // Create the ApiService object with all methods
 export const ApiService = {
-  // Existing method
+  // Data handling methods
   receiveData,
+  testApiConnection,
   
-  // Add other methods that are used across components
+  // Mock implementations or actual implementations for other methods
   getData: (): DataEntry[] => {
     // Mock implementation or actual implementation
     return [];
