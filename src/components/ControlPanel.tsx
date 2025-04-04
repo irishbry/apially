@@ -68,6 +68,9 @@ const ControlPanel: React.FC = () => {
     };
     
     try {
+      // Log the API key being used
+      console.log("Using API key for source:", source.name, "Key:", source.apiKey ? source.apiKey.substring(0, 5) + "..." : "missing");
+      
       // Await the result of the API call
       const result = await ApiService.receiveData(testData, source.apiKey);
       
@@ -85,12 +88,12 @@ const ControlPanel: React.FC = () => {
       console.error("Error sending test data:", error);
       setLastResult({
         success: false,
-        message: "An error occurred while sending test data.",
+        message: error instanceof Error ? error.message : "An error occurred while sending test data.",
       });
       
       toast({
         title: "Error",
-        description: "An error occurred while sending test data.",
+        description: error instanceof Error ? error.message : "An error occurred while sending test data.",
         variant: "destructive",
       });
     } finally {

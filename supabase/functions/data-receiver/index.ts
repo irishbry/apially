@@ -28,13 +28,16 @@ serve(async (req) => {
 
   try {
     // Extract API Key from headers
-    const apiKey = req.headers.get('x-api-key');
+    const apiKey = req.headers.get('x-api-key') || req.headers.get('authorization');
     if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: 'API key is required' }),
+        JSON.stringify({ error: 'API key is required', code: 401, message: 'Missing authorization header' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
       );
     }
+
+    // Clean the API key if it's in the Authorization header format "Bearer <token>"
+    const cleanApiKey = apiKey.startsWith('Bearer ') ? apiKey.substring(7).trim() : apiKey;
 
     // Create a Supabase client with the admin key
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
@@ -47,7 +50,7 @@ serve(async (req) => {
     const { data: source, error: sourceError } = await supabase
       .from('sources')
       .select('id, name, user_id')
-      .eq('api_key', apiKey)
+      .eq('api_key', cleanApiKey)
       .eq('active', true)
       .single();
 

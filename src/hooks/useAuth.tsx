@@ -35,11 +35,17 @@ export function useAuth() {
     await supabase.auth.signOut();
   };
 
+  // Get the access token for API requests
+  const getAccessToken = () => {
+    return session?.access_token || null;
+  };
+
   return {
     session,
     user,
     isLoading,
     signOut,
     isAuthenticated: !!user,
+    getAccessToken,
   };
 }
