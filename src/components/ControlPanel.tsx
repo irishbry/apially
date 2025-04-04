@@ -37,7 +37,7 @@ const ControlPanel: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  const sendTestData = () => {
+  const sendTestData = async () => {
     setIsSending(true);
     setLastResult(null);
     
@@ -67,9 +67,9 @@ const ControlPanel: React.FC = () => {
       pressure: Math.round((Math.random() * 50 + 970) * 10) / 10,
     };
     
-    // Simulate API call delay
-    setTimeout(() => {
-      const result = ApiService.receiveData(testData, source.apiKey);
+    try {
+      // Await the result of the API call
+      const result = await ApiService.receiveData(testData, source.apiKey);
       
       setLastResult({
         success: result.success,
@@ -81,9 +81,21 @@ const ControlPanel: React.FC = () => {
         description: result.message,
         variant: result.success ? "default" : "destructive",
       });
+    } catch (error) {
+      console.error("Error sending test data:", error);
+      setLastResult({
+        success: false,
+        message: "An error occurred while sending test data.",
+      });
       
+      toast({
+        title: "Error",
+        description: "An error occurred while sending test data.",
+        variant: "destructive",
+      });
+    } finally {
       setIsSending(false);
-    }, 800);
+    }
   };
 
   const triggerExport = () => {

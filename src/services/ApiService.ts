@@ -412,16 +412,21 @@ class ApiService {
       // Generate a new API key
       const apiKey = this.generateApiKey();
       
+      // Get the current user's ID from Supabase
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not found");
+      
       // Create source in Supabase
       const { data, error } = await supabase
         .from('sources')
-        .insert([{
+        .insert({
           name,
           url,
           api_key: apiKey,
           active: true,
-          data_count: 0
-        }])
+          data_count: 0,
+          user_id: user.id
+        })
         .select()
         .single();
       
