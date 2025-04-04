@@ -172,7 +172,8 @@ class ApiService {
             file_path: entry.file_path,
             sensorId: entry.sensor_id,
             sensor_id: entry.sensor_id,
-            ...entry.metadata
+            // Use spread operator only if metadata is an object
+            ...(entry.metadata && typeof entry.metadata === 'object' ? entry.metadata : {})
           };
           
           return dataEntry;
