@@ -36,6 +36,7 @@ export const ApiService = {
   // Config Service functions
   getSchema: ConfigService.getSchema,
   setSchema: ConfigService.setSchema,
+  validateDataAgainstSchema: ConfigService.validateDataAgainstSchema,
   getApiKey: ConfigService.getApiKey,
   setApiKey: ConfigService.setApiKey,
   getDropboxLink: ConfigService.getDropboxLink,
