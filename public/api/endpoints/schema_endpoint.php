@@ -1,4 +1,3 @@
-
 <?php
 // Schema endpoint handler
 
@@ -12,11 +11,22 @@ function handleSchemaEndpoint() {
     $method = $_SERVER['REQUEST_METHOD'];
     $schemaFile = $config['storage_path'] . '/schema.json';
     
+    // Extract API key from request if present
+    $apiKey = $_SERVER['HTTP_X_API_KEY'] ?? $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+    $apiKey = str_replace('Bearer ', '', $apiKey);
+    
     // Get schema
     if ($method === 'GET') {
-        $schema = loadSchema($schemaFile);
+        // If API key is provided, get schema for that key
+        if (!empty($apiKey)) {
+            $schema = getSchemaForApiKey($apiKey);
+        } else {
+            // Otherwise get the default schema
+            $schema = loadSchema($schemaFile);
+        }
+        
         echo json_encode(['schema' => $schema]);
-        logApiRequest('schema', 'success', 'Retrieved schema');
+        logApiRequest('schema', 'success', 'Retrieved schema' . (!empty($apiKey) ? ' for API key: ' . substr($apiKey, 0, 8) . '...' : ''));
     } 
     // Update schema
     else if ($method === 'POST') {
@@ -37,14 +47,27 @@ function handleSchemaEndpoint() {
             return;
         }
         
-        // Save schema
-        if (saveSchema($schemaFile, $data)) {
-            logApiRequest('schema', 'success', 'Updated schema');
-            echo json_encode(['success' => true]);
-        } else {
-            http_response_code(500);
-            echo json_encode(['error' => 'Failed to save schema']);
-            logApiRequest('schema', 'error', 'Failed to save schema');
+        // If API key is provided, save schema for that key
+        if (!empty($apiKey)) {
+            if (saveSchemaForApiKey($apiKey, $data)) {
+                logApiRequest('schema', 'success', 'Updated schema for API key: ' . substr($apiKey, 0, 8) . '...');
+                echo json_encode(['success' => true]);
+            } else {
+                http_response_code(500);
+                echo json_encode(['error' => 'Failed to save schema for API key']);
+                logApiRequest('schema', 'error', 'Failed to save schema for API key: ' . substr($apiKey, 0, 8) . '...');
+            }
+        } 
+        // Otherwise save to the default schema file
+        else {
+            if (saveSchema($schemaFile, $data)) {
+                logApiRequest('schema', 'success', 'Updated default schema');
+                echo json_encode(['success' => true]);
+            } else {
+                http_response_code(500);
+                echo json_encode(['error' => 'Failed to save schema']);
+                logApiRequest('schema', 'error', 'Failed to save default schema');
+            }
         }
     }
     // Validate data against schema
@@ -58,7 +81,14 @@ function handleSchemaEndpoint() {
             return;
         }
         
-        $schema = loadSchema($schemaFile);
+        // If API key is provided, get schema for that key
+        if (!empty($apiKey)) {
+            $schema = getSchemaForApiKey($apiKey);
+        } else {
+            // Otherwise get the default schema
+            $schema = loadSchema($schemaFile);
+        }
+        
         $validationResult = validateDataAgainstSchema($requestData['data'], $schema);
         
         echo json_encode([

@@ -43,8 +43,8 @@ function handleDataEndpoint() {
         return;
     }
     
-    // 5. Validate data against schema
-    $validationResult = validateDataAgainstSchema($data);
+    // 5. Validate data against schema for this API key
+    $validationResult = validateDataAgainstSchemaForApiKey($data, $apiKey);
     if (!$validationResult['valid']) {
         http_response_code(400); // Bad Request
         echo json_encode([
@@ -125,54 +125,13 @@ function validateApiKey($apiKey) {
     return false;
 }
 
-// Helper function to validate data against schema
-function validateDataAgainstSchema($data) {
-    $errors = [];
-    $valid = true;
+// Helper function to validate data against schema for a specific API key
+function validateDataAgainstSchemaForApiKey($data, $apiKey) {
+    // Get schema for this API key
+    $schema = getSchemaForApiKey($apiKey);
     
-    // Load schema from file
-    $schemaFile = dirname(__DIR__) . '/data/schema.json';
-    if (!file_exists($schemaFile)) {
-        // Default schema if none is defined
-        $schema = [
-            'requiredFields' => ['sensorId'],
-            'fieldTypes' => [
-                'sensorId' => 'string',
-                'temperature' => 'number',
-                'humidity' => 'number',
-                'pressure' => 'number'
-            ]
-        ];
-    } else {
-        $schema = json_decode(file_get_contents($schemaFile), true);
-    }
-    
-    // Check required fields
-    foreach ($schema['requiredFields'] as $field) {
-        if (!isset($data[$field]) || $data[$field] === null || $data[$field] === '') {
-            $errors[] = "Missing required field: {$field}";
-            $valid = false;
-        }
-    }
-    
-    // Check field types
-    foreach ($schema['fieldTypes'] as $field => $expectedType) {
-        if (isset($data[$field]) && $data[$field] !== null && $data[$field] !== '') {
-            $actualType = getDataType($data[$field]);
-            if ($actualType !== $expectedType) {
-                $errors[] = "Field {$field} should be type {$expectedType}, got {$actualType}";
-                $valid = false;
-            }
-        }
-    }
-    
-    // Additional business validation rules can be added here
-    // For example: range validation, format validation, etc.
-    
-    return [
-        'valid' => $valid,
-        'errors' => $errors
-    ];
+    // Validate data against the schema
+    return validateDataAgainstSchema($data, $schema);
 }
 
 // Helper function to determine data type

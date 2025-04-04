@@ -1,27 +1,43 @@
-
 import { DataSchema } from '@/types/api.types';
 import { supabase } from '@/integrations/supabase/client';
 
 const SCHEMA_KEY = 'data_schema';
 
 export const ConfigService = {
-  getSchema: async (): Promise<DataSchema> => {
+  getSchema: async (apiKey?: string): Promise<DataSchema> => {
     try {
-      // Try to get schema from local storage first
+      if (apiKey) {
+        // If API key is provided, try to fetch schema associated with that API key
+        const { data: source } = await supabase
+          .from('sources')
+          .select('schema')
+          .eq('api_key', apiKey)
+          .single();
+        
+        if (source && source.schema) {
+          return source.schema as DataSchema;
+        }
+      }
+      
+      // Try to get schema from local storage as fallback
       const storedSchema = localStorage.getItem(SCHEMA_KEY);
       if (storedSchema) {
         return JSON.parse(storedSchema);
       }
       
       // If not in local storage, try to fetch from the API
-      const response = await fetch('/api/endpoints/schema_endpoint.php');
-      if (response.ok) {
-        const data = await response.json();
-        if (data && data.schema) {
-          // Cache the schema in local storage
-          localStorage.setItem(SCHEMA_KEY, JSON.stringify(data.schema));
-          return data.schema;
+      try {
+        const response = await fetch('/api/schema');
+        if (response.ok) {
+          const data = await response.json();
+          if (data && data.schema) {
+            // Cache the schema in local storage
+            localStorage.setItem(SCHEMA_KEY, JSON.stringify(data.schema));
+            return data.schema;
+          }
         }
+      } catch (apiError) {
+        console.error('Error fetching schema from API:', apiError);
       }
     } catch (error) {
       console.error('Error fetching schema:', error);
@@ -34,51 +50,82 @@ export const ConfigService = {
     };
   },
   
-  setSchema: async (schema: DataSchema): Promise<boolean> => {
+  setSchema: async (schema: DataSchema, apiKey?: string): Promise<boolean> => {
     try {
       // Save to local storage for immediate use
       localStorage.setItem(SCHEMA_KEY, JSON.stringify(schema));
       
-      // Save to API endpoint
-      const response = await fetch('/api/endpoints/schema_endpoint.php', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(schema),
-      });
+      // If API key is provided, update schema for that specific source
+      if (apiKey) {
+        const { error } = await supabase
+          .from('sources')
+          .update({ schema })
+          .eq('api_key', apiKey);
+        
+        if (error) {
+          console.error('Error updating schema in Supabase:', error);
+          return false;
+        }
+      }
       
-      return response.ok;
+      // Also save to API endpoint for PHP backend
+      try {
+        const response = await fetch('/api/schema', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(schema),
+        });
+        
+        return response.ok;
+      } catch (apiError) {
+        console.error('Error saving schema to API:', apiError);
+        return false;
+      }
     } catch (error) {
       console.error('Error saving schema:', error);
       return false;
     }
   },
   
-  validateDataAgainstSchema: (data: any, schema: DataSchema): { valid: boolean; errors: string[] } => {
-    const errors: string[] = [];
-    
-    // Check required fields
-    schema.requiredFields.forEach(field => {
-      if (!data[field] && data[field] !== 0 && data[field] !== false) {
-        errors.push(`Missing required field: ${field}`);
+  validateDataAgainstSchema: async (data: any, schema?: DataSchema, apiKey?: string): Promise<{ valid: boolean; errors: string[] }> => {
+    try {
+      // If schema is not provided, try to get it
+      if (!schema) {
+        schema = await ConfigService.getSchema(apiKey);
       }
-    });
-    
-    // Check field types
-    Object.entries(schema.fieldTypes).forEach(([field, expectedType]) => {
-      if (data[field] !== undefined && data[field] !== null) {
-        const actualType = getDataType(data[field]);
-        if (actualType !== expectedType) {
-          errors.push(`Field ${field} should be type ${expectedType}, got ${actualType}`);
+      
+      const errors: string[] = [];
+      
+      // Check required fields
+      for (const field of schema.requiredFields) {
+        if (data[field] === undefined || data[field] === null || data[field] === '') {
+          errors.push(`Missing required field: ${field}`);
         }
       }
-    });
-    
-    return {
-      valid: errors.length === 0,
-      errors
-    };
+      
+      // Check field types
+      for (const [field, expectedType] of Object.entries(schema.fieldTypes)) {
+        if (data[field] !== undefined && data[field] !== null && data[field] !== '') {
+          const actualType = getDataType(data[field]);
+          if (actualType !== expectedType) {
+            errors.push(`Field ${field} should be type ${expectedType}, got ${actualType}`);
+          }
+        }
+      }
+      
+      return {
+        valid: errors.length === 0,
+        errors
+      };
+    } catch (error) {
+      console.error('Error validating data:', error);
+      return {
+        valid: false,
+        errors: ['Error validating data against schema']
+      };
+    }
   },
   
   getApiKey: (): string => {
