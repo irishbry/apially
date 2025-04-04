@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { Json } from '@/integrations/supabase/types';
 
@@ -431,7 +430,7 @@ export const ApiService = {
       const { error } = await supabase
         .from('data_entries')
         .delete()
-        .eq('id', id as any);
+        .eq('id', id);
       
       if (error) {
         console.error('Error deleting entry:', error);
