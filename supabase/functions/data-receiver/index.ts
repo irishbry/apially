@@ -127,7 +127,7 @@ serve(async (req) => {
     const { 
       sourceId, source_id, id, 
       sensorId, sensor_id, 
-      timestamp, userId, user_id,
+      timestamp: dataTimestamp, userId, user_id,
       ...metadata 
     } = enhancedData;
 

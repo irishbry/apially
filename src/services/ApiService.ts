@@ -1,6 +1,7 @@
 
 import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { Database } from "@/integrations/supabase/types";
 
 // Type for incoming data
 export interface DataEntry {
@@ -170,6 +171,7 @@ class ApiService {
             file_name: entry.file_name,
             file_path: entry.file_path,
             sensorId: entry.sensor_id,
+            sensor_id: entry.sensor_id,
             ...entry.metadata
           };
           
@@ -809,8 +811,8 @@ class ApiService {
       }
       
       // Format timestamp for filename
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const fileName = `${timestamp}-${source.id}.json`;
+      const fileTimestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const fileName = `${fileTimestamp}-${source.id}.json`;
       const filePath = `source-data/${fileName}`;
       
       // Convert data to JSON string
