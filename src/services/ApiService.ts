@@ -54,11 +54,14 @@ const usingPhpBackend = (): boolean => {
 
 const receivePhpApiData = async (data: DataEntry, apiKey?: string): Promise<ApiResponse> => {
   try {
+    // Format the API key with Bearer prefix if it doesn't already have it
+    const formattedApiKey = apiKey && !apiKey.startsWith('Bearer ') ? `Bearer ${apiKey}` : apiKey || '';
+    
     const response = await fetch('/api/endpoints/data_endpoint.php', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': apiKey || '',
+        'Authorization': formattedApiKey,
       },
       body: JSON.stringify(data),
     });
@@ -93,9 +96,9 @@ async function receiveData(data: DataEntry, apiKey?: string): Promise<ApiRespons
       'Content-Type': 'application/json',
     };
     
-    // Add API key as Authorization header if provided - don't prefix with Bearer 
+    // Format the API key with Bearer prefix if it doesn't already have it
     if (apiKey) {
-      headers['Authorization'] = apiKey; // Send as plain API key, no Bearer prefix
+      headers['Authorization'] = apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`;
     }
     
     const response = await fetch(`${window.location.origin}/api/v1/data-receiver`, {
@@ -156,17 +159,19 @@ export async function testApiConnection(apiKey: string, endpoint?: string): Prom
     const apiUrl = endpoint || 'https://ybionvegojopebtkdgyt.supabase.co/functions/v1/data-receiver';
     
     console.log(`Testing API connection to ${apiUrl}...`);
+    console.log(`Using authorization header: ${apiKey}`);
     
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': apiKey, // Send as plain API key
+        'Authorization': apiKey, // Already formatted with Bearer prefix in component
       },
       body: JSON.stringify(testData),
     });
     
     const result = await response.json();
+    console.log('API test response:', result);
     
     return {
       success: response.ok,

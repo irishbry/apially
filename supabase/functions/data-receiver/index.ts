@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 
@@ -28,29 +27,54 @@ serve(async (req) => {
 
   try {
     // Extract API Key from headers - check multiple possible header locations
-    const apiKeyHeader = req.headers.get('authorization') || 
-                         req.headers.get('Authorization') || 
-                         req.headers.get('x-api-key') || 
-                         req.headers.get('X-API-Key');
+    const authHeader = req.headers.get('authorization') || 
+                       req.headers.get('Authorization') || 
+                       req.headers.get('x-api-key') || 
+                       req.headers.get('X-API-Key');
     
     console.log('Headers received:', Object.fromEntries([...req.headers.entries()]));
     
-    if (!apiKeyHeader) {
+    if (!authHeader) {
       return new Response(
         JSON.stringify({ 
           error: 'API key is required', 
           code: 401, 
           message: 'Missing authorization header',
-          help: 'Please provide your API key in either the "Authorization" header or "x-api-key" header'
+          help: 'Please provide your API key in the "Authorization" header with format "Bearer YOUR_API_KEY"'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
       );
     }
 
-    // Clean the API key if it's in the Authorization header format "Bearer <token>"
-    const cleanApiKey = apiKeyHeader.startsWith('Bearer ') ? apiKeyHeader.substring(7).trim() : apiKeyHeader;
+    // Validate that the Authorization header is in the format "Bearer <token>"
+    if (!authHeader.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ 
+          error: 'Invalid authorization format', 
+          code: 401, 
+          message: 'Auth header is not \'Bearer {token}\'',
+          help: 'Please provide your API key in the format "Bearer YOUR_API_KEY"'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+      );
+    }
 
-    console.log('API Key received and cleaned (first 4 chars):', cleanApiKey.substring(0, 4) + '...');
+    // Extract the API key from the "Bearer <token>" format
+    const apiKey = authHeader.replace('Bearer ', '').trim();
+
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({ 
+          error: 'Empty API key', 
+          code: 401, 
+          message: 'Authorization header contains no token',
+          help: 'Please provide your API key in the format "Bearer YOUR_API_KEY"'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+      );
+    }
+
+    console.log('API Key received (first 4 chars):', apiKey.substring(0, 4) + '...');
 
     // Create a Supabase client with the admin key
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
@@ -63,7 +87,7 @@ serve(async (req) => {
     const { data: source, error: sourceError } = await supabase
       .from('sources')
       .select('id, name, user_id')
-      .eq('api_key', cleanApiKey)
+      .eq('api_key', apiKey)
       .eq('active', true)
       .single();
 
@@ -194,8 +218,8 @@ serve(async (req) => {
         success: true,
         message: 'Data received and processed successfully',
         receipt: {
-          id: entryId,
-          timestamp: enhancedData.timestamp,
+          id: body.id || 'test-id',
+          timestamp: body.timestamp || new Date().toISOString(),
           source: source.name
         }
       }),
