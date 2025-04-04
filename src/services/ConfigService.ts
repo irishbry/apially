@@ -9,7 +9,8 @@ export const ConfigService = {
     try {
       if (apiKey) {
         // If API key is provided, try to fetch schema from schema_configs table first
-        const { data: schemaConfig, error: schemaConfigError } = await supabase
+        // Using any type as a workaround since the schema_configs table is not in the generated types
+        const { data: schemaConfig, error: schemaConfigError } = await (supabase as any)
           .from('schema_configs')
           .select('field_types, required_fields')
           .eq('api_key', apiKey)
@@ -75,7 +76,7 @@ export const ConfigService = {
       // If API key is provided, update schema in the schema_configs table
       if (apiKey) {
         // Check if entry exists in schema_configs
-        const { data: existingConfig, error: checkError } = await supabase
+        const { data: existingConfig, error: checkError } = await (supabase as any)
           .from('schema_configs')
           .select('id')
           .eq('api_key', apiKey)
@@ -88,7 +89,7 @@ export const ConfigService = {
         
         if (existingConfig) {
           // Update existing record
-          const { error: updateError } = await supabase
+          const { error: updateError } = await (supabase as any)
             .from('schema_configs')
             .update({
               field_types: schema.fieldTypes,
@@ -113,7 +114,7 @@ export const ConfigService = {
             return false;
           }
           
-          const { error: insertError } = await supabase
+          const { error: insertError } = await (supabase as any)
             .from('schema_configs')
             .insert({
               name: `Schema for ${source.name}`,
