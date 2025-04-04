@@ -60,12 +60,10 @@ export const DataService = {
   
   deleteDataEntry: async (id: string): Promise<boolean> => {
     try {
-      // Fix the type issue by using 'as const' to specify the column type
-      // and cast the id value to any to satisfy TypeScript
       const { error } = await supabase
         .from('data_entries')
         .delete()
-        .eq('id' as string, id as any);
+        .eq('id', id);
       
       if (error) {
         console.error('Error deleting entry:', error);

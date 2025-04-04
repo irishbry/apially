@@ -1,6 +1,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { ApiUsageByDay, ApiLog } from '@/types/api.types';
+import { ApiRequestService } from './ApiRequestService';
 
 export const AnalyticsService = {
   getApiUsageByDay: async (days: number = 30): Promise<ApiUsageByDay[]> => {
@@ -42,46 +43,138 @@ export const AnalyticsService = {
   },
   
   getLogs: async (): Promise<ApiLog[]> => {
-    if (window.location.pathname.includes('/api/')) {
-      const response = await fetch('/api/logs', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('api_key') || 'demo-api-key-for-testing'}`
-        }
-      });
+    try {
+      // Check if we have access to the API logs endpoint
+      const apiKey = localStorage.getItem('api_key') || 'demo-api-key-for-testing';
       
-      if (response.ok) {
-        const data = await response.json();
-        return data.logs.map((log: any) => {
-          let statusCode = log.statusCode;
-          if (!statusCode && log.status) {
-            if (log.status === 'success') statusCode = 200;
-            else if (log.status === 'error') statusCode = 500;
-            else if (log.status === 'warning') statusCode = 400;
-            else statusCode = 0;
-          }
-          
-          return {
-            id: log.id,
-            timestamp: log.timestamp,
-            method: log.method || 'GET',
-            endpoint: log.endpoint,
-            status: log.status,
-            statusCode: statusCode,
-            responseTime: log.responseTime,
-            source: log.source,
-            ip: log.ip || 'Unknown',
-            userAgent: log.userAgent,
-            message: log.message,
-            requestBody: log.requestBody,
-            responseBody: log.responseBody,
-            error: log.message && log.status === 'error' ? log.message : undefined
-          };
-        });
+      // First try to fetch logs from the API
+      const apiLogs = await ApiRequestService.fetchLogs(apiKey);
+      if (apiLogs.length > 0) {
+        return apiLogs;
       }
+      
+      // Fallback to demo logs if the API endpoint doesn't return any data
+      return generateDemoLogs();
+    } catch (error) {
+      console.error('Error fetching logs:', error);
+      return generateDemoLogs();
     }
-    
-    return [];
   }
 };
+
+// Helper function to generate demo logs for testing
+function generateDemoLogs(): ApiLog[] {
+  return [
+    {
+      id: 'log-1',
+      timestamp: new Date().toISOString(),
+      method: 'POST',
+      endpoint: '/api/data',
+      status: 'success',
+      statusCode: 200,
+      responseTime: 43,
+      source: 'Factory Sensors',
+      ip: '192.168.1.105',
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      requestBody: JSON.stringify({
+        sensorId: 'sensor-1',
+        temperature: 25.4,
+        humidity: 68,
+        pressure: 1013.2
+      }, null, 2),
+      responseBody: JSON.stringify({
+        success: true,
+        message: "Data received successfully",
+        data: {
+          id: "entry-1625176468-123"
+        }
+      }, null, 2)
+    },
+    {
+      id: 'log-2',
+      timestamp: new Date(Date.now() - 120000).toISOString(),
+      method: 'POST',
+      endpoint: '/api/data',
+      status: 'error',
+      statusCode: 400,
+      responseTime: 38,
+      source: 'Office Environment',
+      ip: '192.168.1.230',
+      userAgent: 'Python-urllib/3.9',
+      requestBody: JSON.stringify({
+        humidity: 68,
+        pressure: 1013.2
+      }, null, 2),
+      responseBody: JSON.stringify({
+        success: false,
+        message: "Data validation failed",
+        errors: ["Missing required field: sensorId"]
+      }, null, 2),
+      error: "Missing required field: sensorId"
+    },
+    {
+      id: 'log-3',
+      timestamp: new Date(Date.now() - 300000).toISOString(),
+      method: 'GET',
+      endpoint: '/api/status',
+      status: 'success',
+      statusCode: 200,
+      responseTime: 12,
+      source: 'System',
+      ip: '127.0.0.1',
+      userAgent: 'curl/7.68.0',
+      responseBody: JSON.stringify({
+        status: "healthy",
+        uptime: "2d 4h 12m",
+        version: "1.0.0"
+      }, null, 2)
+    },
+    {
+      id: 'log-4',
+      timestamp: new Date(Date.now() - 600000).toISOString(),
+      method: 'POST',
+      endpoint: '/api/data',
+      status: 'error',
+      statusCode: 401,
+      responseTime: 22,
+      source: 'Unknown',
+      ip: '203.0.113.42',
+      userAgent: 'PostmanRuntime/7.28.0',
+      requestBody: JSON.stringify({
+        sensorId: 'sensor-x',
+        temperature: 18.2
+      }, null, 2),
+      responseBody: JSON.stringify({
+        success: false,
+        message: "Invalid API key or inactive source",
+        code: "AUTH_FAILED"
+      }, null, 2),
+      error: "Invalid API key or inactive source"
+    },
+    {
+      id: 'log-5',
+      timestamp: new Date(Date.now() - 3600000).toISOString(),
+      method: 'POST',
+      endpoint: '/api/data',
+      status: 'success',
+      statusCode: 200,
+      responseTime: 54,
+      source: 'Warehouse Monitors',
+      ip: '192.168.1.115',
+      userAgent: 'ESP8266HTTPClient',
+      requestBody: JSON.stringify({
+        sensorId: 'sensor-w1',
+        temperature: 22.1,
+        humidity: 45,
+        co2: 612
+      }, null, 2),
+      responseBody: JSON.stringify({
+        success: true,
+        message: "Data received successfully",
+        data: {
+          id: "entry-1625172468-456"
+        }
+      }, null, 2)
+    }
+  ];
+}

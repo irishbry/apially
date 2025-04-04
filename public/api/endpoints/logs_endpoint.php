@@ -5,8 +5,12 @@ require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../utils/api_utils.php';
 
 function handleLogsEndpoint() {
+    // Log the request
+    logApiRequest('logs', 'success', 'Logs API accessed');
+    
     // Check method
     if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+        logApiRequest('logs', 'error', 'Method not allowed');
         sendErrorResponse('Method not allowed', 405);
     }
     
@@ -14,10 +18,22 @@ function handleLogsEndpoint() {
     // Use the same authentication as other endpoints for consistency
     $authHeader = getAuthHeader();
     if (!$authHeader || $authHeader !== 'Bearer ' . $GLOBALS['config']['api_key']) {
+        logApiRequest('logs', 'error', 'Unauthorized access attempt');
         sendErrorResponse('Unauthorized', 401);
     }
     
-    // Path to the log file
+    // Try to get structured logs first (they contain more details)
+    $structuredLogsPath = $GLOBALS['config']['storage_path'] . '/structured_logs.json';
+    
+    if (file_exists($structuredLogsPath)) {
+        $structuredLogs = json_decode(file_get_contents($structuredLogsPath), true);
+        if ($structuredLogs) {
+            sendJsonResponse(['logs' => $structuredLogs], 200);
+            return;
+        }
+    }
+    
+    // Fallback to parsing the regular log file
     $logFilePath = $GLOBALS['config']['storage_path'] . '/api_log.txt';
     
     if (!file_exists($logFilePath)) {
@@ -34,8 +50,23 @@ function handleLogsEndpoint() {
     
     $logs = [];
     foreach ($logLines as $line) {
-        // Parse log entry format: [timestamp] endpoint - Status: status - Optional message
-        if (preg_match('/\[(.*?)\] (.*?) - Status: (.*?)(?:\s-\s(.*))?$/', $line, $matches)) {
+        // Parse log entry with enhanced format
+        if (preg_match('/\[(.*?)\] (.*?) - Method: (.*?) - Status: (.*?)(?:\s-\s(.*?))?(?:\s-\sResponse time: (\d+)ms)?(?:\s-\sIP: (.*?))?(?:\s-\sSource: (.*?))?(?:\s-\sUser-Agent: (.*?))?$/', $line, $matches)) {
+            $logs[] = [
+                'id' => md5($matches[0]),
+                'timestamp' => $matches[1],
+                'endpoint' => $matches[2],
+                'method' => $matches[3],
+                'status' => $matches[4],
+                'message' => isset($matches[5]) ? $matches[5] : '',
+                'responseTime' => isset($matches[6]) ? (int)$matches[6] : null,
+                'ip' => isset($matches[7]) ? $matches[7] : 'N/A',
+                'source' => isset($matches[8]) ? $matches[8] : 'Unknown',
+                'userAgent' => isset($matches[9]) ? $matches[9] : 'Unknown',
+                'statusCode' => getStatusCodeFromStatus($matches[4])
+            ];
+        } else if (preg_match('/\[(.*?)\] (.*?) - Status: (.*?)(?:\s-\s(.*))?$/', $line, $matches)) {
+            // Fallback for old log format
             $logs[] = [
                 'id' => md5($matches[0]),
                 'timestamp' => $matches[1],
@@ -43,9 +74,10 @@ function handleLogsEndpoint() {
                 'status' => $matches[3],
                 'message' => isset($matches[4]) ? $matches[4] : '',
                 'method' => determineMethodFromEndpoint($matches[2]),
-                'responseTime' => rand(10, 200), // We don't have actual timing in the current logs
-                'ip' => 'N/A', // Not stored in current log format
+                'responseTime' => rand(10, 200), // No timing info in old logs
+                'ip' => 'N/A', // Not stored in old log format
                 'source' => determineSourceFromEndpoint($matches[2]),
+                'statusCode' => getStatusCodeFromStatus($matches[3])
             ];
         }
     }
@@ -64,6 +96,8 @@ function determineMethodFromEndpoint($endpoint) {
         return 'POST';
     } else if (strpos($endpoint, 'schema') !== false) {
         return strpos($endpoint, 'get') !== false ? 'GET' : 'PUT';
+    } else if (strpos($endpoint, 'logs') !== false) {
+        return 'GET';
     } else {
         return 'POST'; // Default to POST for unknown endpoints
     }
@@ -79,6 +113,8 @@ function determineSourceFromEndpoint($endpoint) {
         return 'Authentication';
     } else if (strpos($endpoint, 'sources') !== false) {
         return 'Sources Manager';
+    } else if (strpos($endpoint, 'logs') !== false) {
+        return 'Logs Service';
     } else {
         return 'Unknown';
     }
