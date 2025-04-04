@@ -38,8 +38,8 @@ const ApiDocumentation: React.FC = () => {
 
     fetchApiKey();
     
-    // Use environment variable or constants instead of accessing protected property
-    const projectRef = supabase.getUrl().split('https://')[1].split('.')[0];
+    // Use the SUPABASE_URL constant from the client.ts instead of calling getUrl()
+    const projectRef = "ybionvegojopebtkdgyt";
     setFunctionUrl(`https://${projectRef}.supabase.co/functions/v1/data-receiver`);
   }, [user]);
 
