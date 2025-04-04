@@ -1,3 +1,4 @@
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 
@@ -39,36 +40,23 @@ serve(async (req) => {
         JSON.stringify({ 
           error: 'API key is required', 
           code: 401, 
-          message: 'Missing authorization header',
-          help: 'Please provide your API key in the "Authorization" header with format "Bearer YOUR_API_KEY"'
+          message: 'Missing API key header',
+          help: 'Please provide your API key in the "Authorization" or "X-API-Key" header'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
       );
     }
 
-    // Validate that the Authorization header is in the format "Bearer <token>"
-    if (!authHeader.startsWith('Bearer ')) {
-      return new Response(
-        JSON.stringify({ 
-          error: 'Invalid authorization format', 
-          code: 401, 
-          message: 'Auth header is not \'Bearer {token}\'',
-          help: 'Please provide your API key in the format "Bearer YOUR_API_KEY"'
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-      );
-    }
-
-    // Extract the API key from the "Bearer <token>" format
-    const apiKey = authHeader.replace('Bearer ', '').trim();
+    // Extract the raw API key, removing "Bearer " prefix if present
+    const apiKey = authHeader.replace(/^Bearer\s+/i, '').trim();
 
     if (!apiKey) {
       return new Response(
         JSON.stringify({ 
           error: 'Empty API key', 
           code: 401, 
-          message: 'Authorization header contains no token',
-          help: 'Please provide your API key in the format "Bearer YOUR_API_KEY"'
+          message: 'API key cannot be empty',
+          help: 'Please provide a valid API key'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
       );

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,12 +49,11 @@ const ApiKeyForm: React.FC = () => {
   };
 
   const copyToClipboard = () => {
-    // Add the Bearer prefix when copying to make it easy for users to use in external tools
-    const formattedKey = apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`;
-    navigator.clipboard.writeText(formattedKey).then(() => {
+    // Just copy the raw API key without the Bearer prefix
+    navigator.clipboard.writeText(apiKey).then(() => {
       toast({
         title: "Copied!",
-        description: "API key with Bearer prefix copied to clipboard.",
+        description: "API key copied to clipboard.",
       });
     });
   };
@@ -94,7 +92,7 @@ const ApiKeyForm: React.FC = () => {
               </div>
               <div className="text-xs text-muted-foreground">
                 <p>
-                  For use in external API calls, use the format: <code className="bg-muted px-1 py-0.5 rounded">Bearer {apiKey || 'your-api-key'}</code>
+                  Your API key should be sent in the "X-API-Key" header of your requests.
                 </p>
               </div>
             </div>

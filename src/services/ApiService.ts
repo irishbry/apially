@@ -53,14 +53,12 @@ const usingPhpBackend = (): boolean => {
 
 const receivePhpApiData = async (data: DataEntry, apiKey?: string): Promise<ApiResponse> => {
   try {
-    // Always ensure API key is properly formatted with Bearer prefix
-    const formattedApiKey = apiKey ? (apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`) : '';
-    
+    // We'll send the raw API key - the endpoint will handle any formatting needed
     const response = await fetch('/api/endpoints/data_endpoint.php', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': formattedApiKey,
+        ...(apiKey ? { 'X-API-Key': apiKey } : {}),
       },
       body: JSON.stringify(data),
     });
@@ -95,9 +93,9 @@ async function receiveData(data: DataEntry, apiKey?: string): Promise<ApiRespons
       'Content-Type': 'application/json',
     };
     
-    // Always ensure API key has Bearer prefix
+    // Add the API key as a header if provided (backend will handle any Bearer prefix)
     if (apiKey) {
-      headers['Authorization'] = apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`;
+      headers['X-API-Key'] = apiKey;
     }
     
     const response = await fetch(`${window.location.origin}/api/v1/data-receiver`, {
@@ -158,14 +156,14 @@ export async function testApiConnection(apiKey: string, endpoint?: string): Prom
     const apiUrl = endpoint || 'https://ybionvegojopebtkdgyt.supabase.co/functions/v1/data-receiver';
     
     console.log(`Testing API connection to ${apiUrl}...`);
-    console.log(`Using authorization header: ${apiKey}`);
+    console.log(`Using API key: ${apiKey}`);
     
-    // Note: apiKey is already formatted with Bearer prefix in the component
+    // Send the API key in the headers, letting the backend handle formatting
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': apiKey, // Already formatted with Bearer prefix in component
+        'X-API-Key': apiKey,
       },
       body: JSON.stringify(testData),
     });
