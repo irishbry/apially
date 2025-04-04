@@ -158,7 +158,7 @@ const ApiAnalytics: React.FC = () => {
           <CardContent>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart
+                <LineChart
                   data={completedData}
                   margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
                 >
@@ -174,7 +174,7 @@ const ApiAnalytics: React.FC = () => {
                     width={30}
                   />
                   <Tooltip content={renderCustomTooltip} />
-                  <Area 
+                  <Line 
                     type="monotone" 
                     dataKey="count" 
                     name="API Requests"
@@ -183,7 +183,7 @@ const ApiAnalytics: React.FC = () => {
                     activeDot={{ r: 8 }}
                     isAnimationActive={true}
                   />
-                </AreaChart>
+                </LineChart>
               </ResponsiveContainer>
             </div>
           </CardContent>

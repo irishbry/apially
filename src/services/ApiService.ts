@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 // Define the types needed across the application
@@ -20,7 +19,7 @@ export interface DataEntry {
   temperature?: number;
   humidity?: number;
   pressure?: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, any> | null;
   [key: string]: any;
 }
 
@@ -218,27 +217,39 @@ export const ApiService = {
       }
       
       // Transform database row to match DataEntry interface
-      return data.map(item => ({
-        id: item.id,
-        timestamp: item.timestamp,
-        source_id: item.source_id,
-        sourceId: item.source_id,
-        user_id: item.user_id,
-        userId: item.user_id,
-        sensor_id: item.sensor_id,
-        sensorId: item.sensor_id,
-        file_name: item.file_name,
-        fileName: item.file_name,
-        file_path: item.file_path,
-        filePath: item.file_path,
-        // Safely handle metadata
-        metadata: item.metadata ? 
-          (typeof item.metadata === 'string' ? 
-            JSON.parse(item.metadata) : 
-            item.metadata) : 
-          {},
-        ...item // Include all other fields
-      }));
+      return data.map(item => {
+        let parsedMetadata: Record<string, any> | null = null;
+        
+        // Safely handle metadata field
+        if (item.metadata) {
+          if (typeof item.metadata === 'string') {
+            try {
+              parsedMetadata = JSON.parse(item.metadata);
+            } catch (e) {
+              parsedMetadata = { raw: item.metadata };
+            }
+          } else {
+            parsedMetadata = item.metadata as Record<string, any>;
+          }
+        }
+        
+        return {
+          id: item.id,
+          timestamp: item.timestamp,
+          source_id: item.source_id,
+          sourceId: item.source_id,
+          user_id: item.user_id,
+          userId: item.user_id,
+          sensor_id: item.sensor_id,
+          sensorId: item.sensor_id,
+          file_name: item.file_name,
+          fileName: item.file_name,
+          file_path: item.file_path,
+          filePath: item.file_path,
+          metadata: parsedMetadata,
+          ...item // Include all other fields
+        };
+      });
     } catch (error) {
       console.error('Error in getData:', error);
       return [];
@@ -439,7 +450,7 @@ export const ApiService = {
       const { error } = await supabase
         .from('data_entries')
         .delete()
-        .eq('id', id);
+        .eq('id', id as any);
       
       if (error) {
         console.error('Error deleting entry:', error);
