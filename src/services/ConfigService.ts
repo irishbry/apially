@@ -1,6 +1,7 @@
 
 import { DataSchema } from '@/types/api.types';
 import { supabase } from '@/integrations/supabase/client';
+import { Json } from '@/integrations/supabase/types';
 
 const SCHEMA_KEY = 'data_schema';
 
@@ -139,10 +140,12 @@ export const ConfigService = {
         }
         
         // Also update legacy schema in sources table for backward compatibility
+        // Cast the schema to Json type for the sources table
+        const schemaAsJson = schema as unknown as Json;
         const { error } = await supabase
           .from('sources')
           .update({ 
-            schema: schema 
+            schema: schemaAsJson
           })
           .eq('api_key', apiKey);
         
