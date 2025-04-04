@@ -68,26 +68,33 @@ serve(async (req) => {
     }
 
     // Validate required fields
-    if (!body.sensorId) {
+    if (!body.sensorId && !body.sensor_id) {
       return new Response(
-        JSON.stringify({ error: 'Missing required field: sensorId' }),
+        JSON.stringify({ error: 'Missing required field: sensorId or sensor_id' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       );
     }
 
+    // Generate a unique ID if not provided
+    const entryId = body.id || crypto.randomUUID();
+
     // Add metadata to the data
     const enhancedData = {
       ...body,
+      id: entryId,
       sourceId: source.id,
+      source_id: source.id,
       userId: source.user_id,
+      user_id: source.user_id,
       receivedAt: new Date().toISOString(),
-      clientIp: req.headers.get('x-forwarded-for') || 'unknown',
-      id: crypto.randomUUID()
+      timestamp: body.timestamp || new Date().toISOString(),
+      clientIp: req.headers.get('x-forwarded-for') || 'unknown'
     };
 
-    // Generate a filename with timestamp and random ID
+    // Generate a filename with timestamp and ID
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `${source.id}/${timestamp}_${enhancedData.id}.json`;
+    const filename = `${timestamp}_${entryId}.json`;
+    const filePath = `${source.id}/${filename}`;
     const bucketName = 'source-data';
 
     // Create the bucket if it doesn't exist (will do nothing if it exists)
@@ -106,20 +113,49 @@ serve(async (req) => {
     const { data: storedFile, error: storageError } = await supabase
       .storage
       .from(bucketName)
-      .upload(filename, JSON.stringify(enhancedData, null, 2), {
+      .upload(filePath, JSON.stringify(enhancedData, null, 2), {
         contentType: 'application/json',
         upsert: false
       });
 
     if (storageError) {
       console.error('Storage error:', storageError);
+      // Continue with database insert even if storage fails
+    }
+
+    // Extract metadata for database
+    const { 
+      sourceId, source_id, id, 
+      sensorId, sensor_id, 
+      timestamp, userId, user_id,
+      ...metadata 
+    } = enhancedData;
+
+    // Insert into the data_entries table
+    const { data: dbEntry, error: dbError } = await supabase
+      .from('data_entries')
+      .insert({
+        id: entryId,
+        source_id: source.id,
+        user_id: source.user_id,
+        file_name: filename,
+        file_path: filePath,
+        timestamp: enhancedData.timestamp,
+        sensor_id: enhancedData.sensorId || enhancedData.sensor_id,
+        metadata: metadata
+      })
+      .select()
+      .single();
+
+    if (dbError) {
+      console.error('Database error:', dbError);
       return new Response(
-        JSON.stringify({ error: 'Failed to store data' }),
+        JSON.stringify({ error: 'Failed to store data in database' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
       );
     }
 
-    // Update source statistics directly (without using the increment-counter function)
+    // Update source statistics
     const { error: updateError } = await supabase
       .from('sources')
       .update({
@@ -138,8 +174,8 @@ serve(async (req) => {
         success: true,
         message: 'Data received and processed successfully',
         receipt: {
-          id: enhancedData.id,
-          timestamp: enhancedData.receivedAt,
+          id: entryId,
+          timestamp: enhancedData.timestamp,
           source: source.name
         }
       }),

@@ -1,3 +1,4 @@
+
 import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -6,6 +7,13 @@ export interface DataEntry {
   id?: string;
   timestamp?: string;
   sourceId?: string;
+  source_id?: string; // For database compatibility
+  user_id?: string;
+  file_name?: string;
+  file_path?: string;
+  sensor_id?: string;
+  sensorId?: string; // For backward compatibility
+  metadata?: any;
   [key: string]: any;
 }
 
@@ -105,10 +113,10 @@ class ApiService {
     }
   }
 
-  // Fetch data from Supabase storage
+  // Fetch data from Supabase database and storage
   private async fetchSupabaseData() {
     try {
-      console.log("Fetching data from Supabase storage...");
+      console.log("Fetching data from Supabase...");
       
       // First, fetch sources from the database
       const { data: sourcesData, error: sourcesError } = await supabase
@@ -138,65 +146,148 @@ class ApiService {
         this.notifySourceSubscribers();
       }
       
-      // Then, fetch data from storage bucket
-      const bucketName = 'source-data';
+      // Now fetch from the new data_entries table
+      const { data: entriesData, error: entriesError } = await supabase
+        .from('data_entries')
+        .select('*')
+        .order('created_at', { ascending: false });
       
-      // Get all data from storage
-      const newData: DataEntry[] = [];
-      
-      // List all files in the bucket
-      const { data: filesData, error: filesError } = await supabase
-        .storage
-        .from(bucketName)
-        .list();
-      
-      if (filesError) {
-        console.error("Error listing files in storage:", filesError);
+      if (entriesError) {
+        console.error("Error fetching data entries:", entriesError);
         return;
       }
       
-      if (!filesData || filesData.length === 0) {
-        console.log("No files found in storage");
-        return;
-      }
-      
-      // Download and parse each file
-      for (const file of filesData) {
-        if (file.name.endsWith('.json')) {
-          const { data: fileData, error: fileError } = await supabase
-            .storage
-            .from(bucketName)
-            .download(file.name);
+      if (entriesData && entriesData.length > 0) {
+        // Process the entries and transform them to match our DataEntry interface
+        const newData = await Promise.all(entriesData.map(async (entry) => {
+          // For entries with metadata, merge it with the base entry
+          const dataEntry: DataEntry = {
+            id: entry.id,
+            timestamp: entry.timestamp,
+            sourceId: entry.source_id,
+            source_id: entry.source_id,
+            user_id: entry.user_id,
+            file_name: entry.file_name,
+            file_path: entry.file_path,
+            sensorId: entry.sensor_id,
+            ...entry.metadata
+          };
           
-          if (fileError) {
-            console.error(`Error downloading file ${file.name}:`, fileError);
-            continue;
-          }
-          
-          try {
-            const text = await fileData.text();
-            const jsonData = JSON.parse(text);
-            
-            // Add file name as property
-            jsonData.fileName = file.name;
-            
-            newData.push(jsonData);
-          } catch (error) {
-            console.error(`Error parsing JSON from file ${file.name}:`, error);
-          }
-        }
-      }
-      
-      if (newData.length > 0) {
-        console.log(`Loaded ${newData.length} data entries from Supabase storage`);
+          return dataEntry;
+        }));
+        
+        console.log(`Loaded ${newData.length} data entries from Supabase database`);
         this.data = newData;
         this.notifySubscribers();
       } else {
-        console.log("No data loaded from Supabase storage");
+        console.log("No data loaded from Supabase database, trying storage as fallback...");
+        
+        // Fallback: try to load data from storage if no entries in database
+        // This helps with backward compatibility
+        const bucketName = 'source-data';
+        
+        try {
+          // List all files in the bucket
+          const { data: filesData, error: filesError } = await supabase
+            .storage
+            .from(bucketName)
+            .list();
+          
+          if (filesError) {
+            console.error("Error listing files in storage:", filesError);
+            return;
+          }
+          
+          if (!filesData || filesData.length === 0) {
+            console.log("No files found in storage");
+            return;
+          }
+          
+          // Download and parse each file
+          const storageData: DataEntry[] = [];
+          
+          for (const file of filesData) {
+            if (file.name.endsWith('.json')) {
+              const { data: fileData, error: fileError } = await supabase
+                .storage
+                .from(bucketName)
+                .download(file.name);
+              
+              if (fileError) {
+                console.error(`Error downloading file ${file.name}:`, fileError);
+                continue;
+              }
+              
+              try {
+                const text = await fileData.text();
+                const jsonData = JSON.parse(text);
+                
+                // Add file name as property
+                jsonData.fileName = file.name;
+                jsonData.file_name = file.name;
+                jsonData.file_path = `${bucketName}/${file.name}`;
+                
+                storageData.push(jsonData);
+                
+                // Also insert this data into our new database table for future use
+                await this.migrateStorageEntryToDatabase(jsonData, file.name);
+              } catch (error) {
+                console.error(`Error parsing JSON from file ${file.name}:`, error);
+              }
+            }
+          }
+          
+          if (storageData.length > 0) {
+            console.log(`Migrated ${storageData.length} data entries from storage to database`);
+            // Refresh data from database after migration
+            this.fetchSupabaseData();
+          }
+        } catch (storageError) {
+          console.error("Error accessing storage:", storageError);
+        }
       }
-      
     } catch (error) {
       console.error("Error fetching data from Supabase:", error);
+    }
+  }
+
+  // Helper method to migrate storage entries to the database
+  private async migrateStorageEntryToDatabase(entry: DataEntry, fileName: string): Promise<void> {
+    try {
+      // Get the current user's ID
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.error("No authenticated user found for migration");
+        return;
+      }
+
+      // Extract relevant data
+      const { sourceId, source_id, id, timestamp, sensorId, sensor_id, ...metadata } = entry;
+      
+      // Create a new entry in the data_entries table
+      const { error } = await supabase
+        .from('data_entries')
+        .insert({
+          id: id || undefined, // Use existing ID if available
+          source_id: sourceId || source_id,
+          user_id: user.id,
+          file_name: fileName,
+          file_path: `source-data/${fileName}`,
+          timestamp: timestamp || new Date().toISOString(),
+          sensor_id: sensorId || sensor_id,
+          metadata
+        });
+      
+      if (error) {
+        // Skip duplicates
+        if (error.code === '23505') { // Duplicate key value violates unique constraint
+          console.log(`Entry already exists in database: ${fileName}`);
+          return;
+        }
+        console.error("Error migrating storage entry to database:", error);
+      }
+    } catch (error) {
+      console.error("Error in migration process:", error);
     }
   }
 
@@ -506,17 +597,43 @@ class ApiService {
   }
 
   // Delete a source
-  public deleteSource(id: string): boolean {
+  public async deleteSource(id: string): Promise<boolean> {
     if (!this.isAuthenticated) {
       throw new Error("Authentication required");
     }
     
+    // Try to delete from Supabase first
+    try {
+      // Delete source from database
+      const { error: sourceError } = await supabase
+        .from('sources')
+        .delete()
+        .eq('id', id);
+        
+      if (sourceError) {
+        console.error("Error deleting source from database:", sourceError);
+      }
+      
+      // Delete associated data entries
+      const { error: entriesError } = await supabase
+        .from('data_entries')
+        .delete()
+        .eq('source_id', id);
+        
+      if (entriesError) {
+        console.error("Error deleting associated data entries:", entriesError);
+      }
+    } catch (error) {
+      console.error("Error during source deletion:", error);
+    }
+    
+    // Update local state regardless of Supabase result
     const initialLength = this.sources.length;
     this.sources = this.sources.filter(s => s.id !== id);
     
     if (this.sources.length !== initialLength) {
       // Also delete all data associated with this source
-      this.data = this.data.filter(d => d.sourceId !== id);
+      this.data = this.data.filter(d => d.sourceId !== id && d.source_id !== id);
       
       this.saveSources();
       this.notifySourceSubscribers();
@@ -617,6 +734,14 @@ class ApiService {
     
     // Add source ID
     normalized.sourceId = sourceId;
+    normalized.source_id = sourceId;
+    
+    // Set sensorId consistently (handle both camelCase and snake_case)
+    if (normalized.sensorId && !normalized.sensor_id) {
+      normalized.sensor_id = normalized.sensorId;
+    } else if (normalized.sensor_id && !normalized.sensorId) {
+      normalized.sensorId = normalized.sensor_id;
+    }
     
     return normalized;
   }
@@ -632,7 +757,7 @@ class ApiService {
   }
 
   // Update source stats after receiving data
-  private updateSourceStats(sourceId: string): void {
+  private async updateSourceStats(sourceId: string): Promise<void> {
     const sourceIndex = this.sources.findIndex(s => s.id === sourceId);
     if (sourceIndex === -1) return;
     
@@ -640,6 +765,23 @@ class ApiService {
     this.sources[sourceIndex].lastActive = new Date().toISOString();
     this.saveSources();
     this.notifySourceSubscribers();
+    
+    // Also update in Supabase
+    try {
+      const { error } = await supabase
+        .from('sources')
+        .update({
+          data_count: this.sources[sourceIndex].dataCount,
+          last_active: this.sources[sourceIndex].lastActive
+        })
+        .eq('id', sourceId);
+        
+      if (error) {
+        console.error("Error updating source stats in Supabase:", error);
+      }
+    } catch (error) {
+      console.error("Error updating source stats:", error);
+    }
   }
 
   // Receive data from API endpoint
@@ -660,42 +802,68 @@ class ApiService {
     const normalizedData = this.normalizeData(data, source.id);
     
     try {
-      // Store data in Supabase Storage
-      if (this.isAuthenticated) {
-        // Format timestamp for filename
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const fileName = `${timestamp}-${source.id}.json`;
-        
-        // Convert data to JSON string
-        const jsonString = JSON.stringify(normalizedData, null, 2);
-        const blob = new Blob([jsonString], { type: 'application/json' });
-        
-        // Upload to Supabase
-        const { error } = await supabase
-          .storage
-          .from('source-data')
-          .upload(fileName, blob);
-        
-        if (error) {
-          console.error("Error storing data in Supabase:", error);
-          // Continue with local storage as fallback
-        }
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("User not authenticated");
       }
+      
+      // Format timestamp for filename
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const fileName = `${timestamp}-${source.id}.json`;
+      const filePath = `source-data/${fileName}`;
+      
+      // Convert data to JSON string
+      const jsonString = JSON.stringify(normalizedData, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      
+      // Upload to Supabase Storage
+      const { error: storageError } = await supabase
+        .storage
+        .from('source-data')
+        .upload(fileName, blob);
+      
+      if (storageError) {
+        console.error("Error storing data in Supabase storage:", storageError);
+        // Continue with database insert anyway
+      }
+      
+      // Extract fields for database entry
+      const { sourceId, source_id, sensorId, sensor_id, id, timestamp, ...metadata } = normalizedData;
+      
+      // Insert into data_entries table
+      const { error: dbError } = await supabase
+        .from('data_entries')
+        .insert({
+          id: id,
+          source_id: sourceId || source_id,
+          user_id: user.id,
+          file_name: fileName,
+          file_path: filePath,
+          timestamp: timestamp,
+          sensor_id: sensorId || sensor_id,
+          metadata: metadata
+        });
+      
+      if (dbError) {
+        console.error("Error storing data in Supabase database:", dbError);
+        throw dbError;
+      }
+      
+      // Add to data store locally
+      this.data.unshift(normalizedData);
+      
+      // Update source stats
+      await this.updateSourceStats(source.id);
+      
+      // Notify subscribers
+      this.notifySubscribers();
+      
+      return { success: true, message: "Data received successfully" };
     } catch (error) {
-      console.error("Error storing data in Supabase:", error);
-      // Continue with local storage as fallback
+      console.error("Error storing data:", error);
+      return { success: false, message: `Error storing data: ${error.message}` };
     }
-    
-    // Add to data store locally
-    this.data.unshift(normalizedData);
-    
-    // Update source stats
-    this.updateSourceStats(source.id);
-    
-    // Notify subscribers
-    this.notifySubscribers();
-    
-    return { success: true, message: "Data received successfully" };
   }
 
   // Refresh data from Supabase
@@ -714,28 +882,78 @@ class ApiService {
 
   // Get data for a specific source
   public getDataBySource(sourceId: string): DataEntry[] {
-    return this.data.filter(d => d.sourceId === sourceId);
+    return this.data.filter(d => d.sourceId === sourceId || d.source_id === sourceId);
   }
 
   // Clear all data
-  public clearData(): void {
+  public async clearData(): Promise<void> {
     if (!this.isAuthenticated) {
       throw new Error("Authentication required");
     }
     
-    this.data = [];
-    
-    // Reset data counts for all sources
-    this.sources.forEach(s => s.dataCount = 0);
-    this.saveSources();
-    
-    this.notifySubscribers();
-    this.notifySourceSubscribers();
-    
-    toast({
-      title: "Data Cleared",
-      description: "All stored data has been cleared.",
-    });
+    try {
+      // Clear data from Supabase database
+      const { error: dbError } = await supabase
+        .from('data_entries')
+        .delete()
+        .neq('id', 'dummy'); // Delete all rows
+      
+      if (dbError) {
+        console.error("Error clearing data from database:", dbError);
+      }
+      
+      // Try to clear files from storage
+      const bucketName = 'source-data';
+      const { data: filesData, error: listError } = await supabase
+        .storage
+        .from(bucketName)
+        .list();
+      
+      if (listError) {
+        console.error("Error listing files for deletion:", listError);
+      } else if (filesData && filesData.length > 0) {
+        const filePaths = filesData.map(file => file.name);
+        const { error: deleteError } = await supabase
+          .storage
+          .from(bucketName)
+          .remove(filePaths);
+          
+        if (deleteError) {
+          console.error("Error deleting files from storage:", deleteError);
+        }
+      }
+      
+      // Clear local data
+      this.data = [];
+      
+      // Reset data counts for all sources
+      this.sources.forEach(s => s.dataCount = 0);
+      
+      // Update sources in database
+      for (const source of this.sources) {
+        const { error } = await supabase
+          .from('sources')
+          .update({ data_count: 0 })
+          .eq('id', source.id);
+          
+        if (error) {
+          console.error(`Error resetting data count for source ${source.id}:`, error);
+        }
+      }
+      
+      this.saveSources();
+      
+      this.notifySubscribers();
+      this.notifySourceSubscribers();
+      
+      toast({
+        title: "Data Cleared",
+        description: "All stored data has been cleared.",
+      });
+    } catch (error) {
+      console.error("Error clearing data:", error);
+      throw error;
+    }
   }
 
   // Export data to CSV (simulated)
@@ -803,7 +1021,7 @@ class ApiService {
   } {
     return {
       totalRequests: this.data.length,
-      uniqueSources: new Set(this.data.map(d => d.sourceId)).size,
+      uniqueSources: new Set(this.data.map(d => d.sourceId || d.source_id)).size,
       lastReceived: this.data[0]?.timestamp || 'No data received'
     };
   }
@@ -825,6 +1043,76 @@ class ApiService {
   public getSourceName(sourceId: string): string {
     const source = this.sources.find(s => s.id === sourceId);
     return source ? source.name : sourceId;
+  }
+
+  // Delete a specific data entry
+  public async deleteDataEntry(id: string): Promise<boolean> {
+    if (!this.isAuthenticated) {
+      throw new Error("Authentication required");
+    }
+    
+    try {
+      // First find the entry to get the sourceId for stats update
+      const entry = this.data.find(d => d.id === id);
+      if (!entry) return false;
+      
+      const sourceId = entry.sourceId || entry.source_id;
+      
+      // Delete from database
+      const { error: dbError } = await supabase
+        .from('data_entries')
+        .delete()
+        .eq('id', id);
+        
+      if (dbError) {
+        console.error("Error deleting data entry from database:", dbError);
+        throw dbError;
+      }
+      
+      // Try to delete from storage if we have filename
+      if (entry.file_name || entry.fileName) {
+        const fileName = entry.file_name || entry.fileName;
+        const { error: storageError } = await supabase
+          .storage
+          .from('source-data')
+          .remove([fileName]);
+          
+        if (storageError) {
+          console.error("Error deleting file from storage:", storageError);
+          // Continue even if storage delete fails
+        }
+      }
+      
+      // Update local data
+      this.data = this.data.filter(d => d.id !== id);
+      
+      // Update source stats if we have a sourceId
+      if (sourceId) {
+        const sourceIndex = this.sources.findIndex(s => s.id === sourceId);
+        if (sourceIndex !== -1 && this.sources[sourceIndex].dataCount > 0) {
+          this.sources[sourceIndex].dataCount -= 1;
+          
+          // Update in Supabase
+          const { error } = await supabase
+            .from('sources')
+            .update({ data_count: this.sources[sourceIndex].dataCount })
+            .eq('id', sourceId);
+            
+          if (error) {
+            console.error("Error updating source stats after delete:", error);
+          }
+          
+          this.saveSources();
+          this.notifySourceSubscribers();
+        }
+      }
+      
+      this.notifySubscribers();
+      return true;
+    } catch (error) {
+      console.error("Error deleting data entry:", error);
+      return false;
+    }
   }
 }
 

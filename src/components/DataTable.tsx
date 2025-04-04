@@ -1,12 +1,34 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertTriangle, Download, Filter, Search, Trash2, RefreshCw } from "lucide-react";
+import { 
+  AlertTriangle, 
+  Download, 
+  Filter, 
+  Search, 
+  Trash2, 
+  RefreshCw, 
+  Trash 
+} from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useToast } from "@/hooks/use-toast";
 import ApiService, { DataEntry, Source } from "@/services/ApiService";
 import { downloadCSV } from "@/utils/csvUtils";
 
@@ -18,7 +40,9 @@ const DataTable: React.FC = () => {
   const [visibleData, setVisibleData] = useState<DataEntry[]>([]);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     try {
@@ -56,7 +80,7 @@ const DataTable: React.FC = () => {
     
     // Filter by source
     if (selectedSource !== 'all') {
-      filtered = filtered.filter(entry => entry.sourceId === selectedSource);
+      filtered = filtered.filter(entry => entry.sourceId === selectedSource || entry.source_id === selectedSource);
     }
     
     // Filter by search term
@@ -88,9 +112,9 @@ const DataTable: React.FC = () => {
     }
   };
 
-  const handleClearData = () => {
+  const handleClearData = async () => {
     try {
-      ApiService.clearData();
+      await ApiService.clearData();
     } catch (err) {
       setError('Error clearing data. Please ensure you are logged in.');
     }
@@ -109,6 +133,35 @@ const DataTable: React.FC = () => {
     }
   };
 
+  const handleDeleteEntry = async (id: string) => {
+    try {
+      setIsDeleting(id);
+      const success = await ApiService.deleteDataEntry(id);
+      setIsDeleting(null);
+      
+      if (success) {
+        toast({
+          title: "Entry Deleted",
+          description: "The data entry has been successfully deleted.",
+        });
+      } else {
+        toast({
+          title: "Deletion Failed",
+          description: "Failed to delete the data entry. Please try again.",
+          variant: "destructive"
+        });
+      }
+    } catch (err) {
+      console.error('Error deleting entry:', err);
+      setIsDeleting(null);
+      toast({
+        title: "Deletion Failed",
+        description: "An error occurred while deleting the entry: " + err.message,
+        variant: "destructive"
+      });
+    }
+  };
+
   // Get source name from ID
   const getSourceName = (sourceId: string | undefined): string => {
     if (!sourceId) return 'Unknown';
@@ -121,7 +174,7 @@ const DataTable: React.FC = () => {
     if (data.length === 0) return ['No Data'];
     
     // Get all unique keys, prioritizing common ones
-    const priorityKeys = ['timestamp', 'id', 'sourceId', 'sensorId', 'fileName'];
+    const priorityKeys = ['timestamp', 'id', 'sourceId', 'source_id', 'sensorId', 'sensor_id', 'fileName', 'file_name'];
     const allKeys = new Set<string>();
     
     // Add priority keys first
@@ -143,7 +196,7 @@ const DataTable: React.FC = () => {
 
   const formatCellValue = (key: string, value: any) => {
     if (value === undefined || value === null) return '-';
-    if (key === 'sourceId') return getSourceName(value);
+    if (key === 'sourceId' || key === 'source_id') return getSourceName(value);
     if (typeof value === 'object') return JSON.stringify(value);
     return String(value);
   };
@@ -243,9 +296,13 @@ const DataTable: React.FC = () => {
             <Table>
               <TableHeader className="sticky top-0 bg-secondary">
                 <TableRow>
+                  <TableHead className="w-10"></TableHead> {/* Action column */}
                   {columns.map((column) => (
                     <TableHead key={column} className="whitespace-nowrap">
-                      {column === 'sourceId' ? 'Source' : column}
+                      {column === 'sourceId' || column === 'source_id' ? 'Source' : 
+                       column === 'sensorId' || column === 'sensor_id' ? 'Sensor ID' :
+                       column === 'fileName' || column === 'file_name' ? 'File Name' :
+                       column}
                     </TableHead>
                   ))}
                 </TableRow>
@@ -254,6 +311,30 @@ const DataTable: React.FC = () => {
                 {visibleData.length > 0 ? (
                   visibleData.map((entry, index) => (
                     <TableRow key={entry.id || index} className="animate-fade-in">
+                      <TableCell className="w-10">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() => handleDeleteEntry(entry.id!)}
+                                disabled={isDeleting === entry.id}
+                              >
+                                {isDeleting === entry.id ? (
+                                  <RefreshCw className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Trash className="h-4 w-4 text-destructive" />
+                                )}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Delete entry</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </TableCell>
                       {columns.map(column => (
                         <TableCell key={`${entry.id || index}-${column}`} className="whitespace-nowrap">
                           {formatCellValue(column, entry[column])}
@@ -263,7 +344,7 @@ const DataTable: React.FC = () => {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={columns.length} className="h-24 text-center">
+                    <TableCell colSpan={columns.length + 1} className="h-24 text-center">
                       {error ? 'Authentication required to view data' : 'No data available'}
                     </TableCell>
                   </TableRow>
