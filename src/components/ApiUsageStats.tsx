@@ -18,6 +18,7 @@ const ApiUsageStats: React.FC = () => {
     totalDataPoints: 0
   });
 
+  const [schemaFieldCount, setSchemaFieldCount] = useState(0);
   const isMobile = useIsMobile();
 
   useEffect(() => {
@@ -39,6 +40,10 @@ const ApiUsageStats: React.FC = () => {
         
         const srcStats = await ApiService.getSourcesStats();
         setSourceStats(srcStats);
+        
+        // Get schema field count
+        const schema = await ApiService.getSchema();
+        setSchemaFieldCount(Object.keys(schema.fieldTypes || {}).length);
       } catch (error) {
         console.error("Error fetching API stats:", error);
       }
@@ -138,14 +143,14 @@ const ApiUsageStats: React.FC = () => {
             <div className="flex items-center justify-between">
               <div className="flex flex-col">
                 <span className={`${isMobile ? 'text-xs' : 'text-sm'} font-medium text-muted-foreground`}>Data Types</span>
-                <span className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold mt-1`}>{Object.keys(ApiService.getSchema().fieldTypes).length}</span>
+                <span className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold mt-1`}>{schemaFieldCount}</span>
               </div>
               <div className={`bg-primary/10 ${isMobile ? 'p-2' : 'p-3'} rounded-full`}>
                 <Layers className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'} text-primary`} />
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </CardContent>
       )}
     </div>
   );

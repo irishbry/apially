@@ -60,11 +60,11 @@ export const DataService = {
   
   deleteDataEntry: async (id: string): Promise<boolean> => {
     try {
-      // Use a type assertion to tell TypeScript what we're expecting
+      // Fix type error by using explicit type casting
       const { error } = await supabase
         .from('data_entries')
         .delete()
-        .eq('id' as any, id as any);
+        .eq('id', id as any);
       
       if (error) {
         console.error('Error deleting entry:', error);
@@ -83,7 +83,7 @@ export const DataService = {
       const { error } = await supabase
         .from('data_entries')
         .delete()
-        .is('id', 'not.null');
+        .is('id', 'not.null' as any);
       
       if (error) {
         console.error('Error clearing data:', error);
