@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Code, Copy, FileJson, Globe, BookOpen, Server } from "lucide-react";
@@ -38,7 +37,6 @@ const ApiDocumentation: React.FC = () => {
 
     fetchApiKey();
     
-    // Use the SUPABASE_URL constant from the client.ts instead of calling getUrl()
     const projectRef = "ybionvegojopebtkdgyt";
     setFunctionUrl(`https://${projectRef}.supabase.co/functions/v1/data-receiver`);
   }, [user]);
@@ -54,7 +52,7 @@ const ApiDocumentation: React.FC = () => {
 
   const curlExample = `curl -X POST ${functionUrl} \\
   -H "Content-Type: application/json" \\
-  -H "Authorization: ${apiKey || 'YOUR_API_KEY'}" \\
+  -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" \\
   -d '{
     "sensorId": "sensor-1",
     "temperature": 25.4,
@@ -77,7 +75,7 @@ fetch(url, {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': apiKey // Send the API key in the Authorization header
+    'X-API-Key': apiKey // Send the API key in the X-API-Key header
   },
   body: JSON.stringify(data)
 })
@@ -93,7 +91,7 @@ api_key = "${apiKey || 'YOUR_API_KEY'}"
 
 headers = {
     'Content-Type': 'application/json',
-    'Authorization': api_key
+    'X-API-Key': api_key
 }
 
 data = {
@@ -145,21 +143,21 @@ print(response.json())`;
             <div>
               <h3 className="text-lg font-medium mb-2">Authentication</h3>
               <p className="text-sm text-muted-foreground mb-2">
-                All requests must include your API key in the <code>Authorization</code> header.
+                All requests must include your API key in the <code>X-API-Key</code> header.
               </p>
               <div className="flex items-center justify-between bg-secondary p-3 rounded-md">
-                <code className="text-xs sm:text-sm">Authorization: {apiKey || 'YOUR_API_KEY'}</code>
+                <code className="text-xs sm:text-sm">X-API-Key: {apiKey || 'YOUR_API_KEY'}</code>
                 <Button 
                   variant="ghost" 
                   size="sm"
-                  onClick={() => copyToClipboard(`Authorization: ${apiKey || 'YOUR_API_KEY'}`, 'Header copied!')}
+                  onClick={() => copyToClipboard(`X-API-Key: ${apiKey || 'YOUR_API_KEY'}`, 'Header copied!')}
                   className="h-8 px-2"
                 >
                   <Copy className="h-3 w-3" />
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                <span className="font-medium">Important:</span> You can also use the <code>x-api-key</code> header instead of <code>Authorization</code> if preferred.
+                <span className="font-medium">Important:</span> Send your API key as-is, without any "Bearer" prefix.
               </p>
             </div>
             
@@ -261,7 +259,7 @@ print(response.json())`;
                   <li>In Headers tab, add:
                     <ul className="list-disc list-inside ml-4 space-y-1">
                       <li><code>Content-Type: application/json</code></li>
-                      <li><code>Authorization: {apiKey || 'YOUR_API_KEY'}</code> (plain text, no Bearer prefix)</li>
+                      <li><code>X-API-Key: {apiKey || 'YOUR_API_KEY'}</code> (plain text, no Bearer prefix)</li>
                     </ul>
                   </li>
                   <li>In Body tab, select "raw" and "JSON", then enter your data payload</li>
