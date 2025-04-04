@@ -59,7 +59,12 @@ export const ApiRequestService = {
       
       console.log(`Testing API connection to ${testEndpoint} with key: ${apiKey.substring(0, 4)}...`);
       
-      const response = await fetch(testEndpoint, {
+      // Create a full URL if it's a relative path
+      const fullEndpoint = testEndpoint.startsWith('http') 
+        ? testEndpoint 
+        : new URL(testEndpoint, window.location.origin).toString();
+        
+      const response = await fetch(fullEndpoint, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -67,15 +72,41 @@ export const ApiRequestService = {
         }
       });
       
+      // Check content type to ensure we're receiving JSON
+      const contentType = response.headers.get('content-type');
+      const isJson = contentType && contentType.includes('application/json');
+      
       let responseData;
       let responseText = '';
       
       try {
         responseText = await response.text();
+        
+        if (!isJson) {
+          console.warn('Non-JSON response received:', responseText.substring(0, 150) + '...');
+          return {
+            success: false,
+            message: `Received non-JSON response (${contentType || 'unknown content type'}). Make sure your API endpoint is configured correctly.`
+          };
+        }
+        
         responseData = JSON.parse(responseText);
       } catch (e) {
-        console.error('Error parsing response:', e, 'Raw response:', responseText);
-        responseData = { message: 'Invalid JSON response from API' };
+        console.error('Error parsing response:', e, 'Raw response:', responseText.substring(0, 150) + '...');
+        
+        // Check if response is HTML (common error case)
+        if (responseText.trim().toLowerCase().startsWith('<!doctype html>') || 
+            responseText.trim().toLowerCase().startsWith('<html')) {
+          return {
+            success: false,
+            message: 'Received HTML instead of JSON. This might be because the API is not properly configured or the endpoint is incorrect.'
+          };
+        }
+        
+        return {
+          success: false,
+          message: `Invalid response format: ${e instanceof Error ? e.message : 'Unknown parsing error'}`
+        };
       }
       
       const endTime = Date.now();
@@ -107,7 +138,9 @@ export const ApiRequestService = {
         };
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? `Connection failed: ${error.message}` : 'Connection failed: Unknown error';
+      const errorMessage = error instanceof Error 
+        ? `Connection failed: ${error.message}` 
+        : 'Connection failed: Unknown error';
       
       // Create log entry for failed API connection test
       const logEntry: Partial<ApiLog> = {

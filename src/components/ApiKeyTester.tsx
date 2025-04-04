@@ -5,6 +5,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { AlertTriangle, CheckCircle, XCircle } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { ApiService } from "@/services/ApiService";
+import { Input } from "@/components/ui/input";
 
 interface ApiKeyTesterProps {
   apiKey: string;
@@ -14,6 +15,7 @@ interface ApiKeyTesterProps {
 const ApiKeyTester: React.FC<ApiKeyTesterProps> = ({ apiKey, endpoint }) => {
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{success: boolean; message: string} | null>(null);
+  const [customEndpoint, setCustomEndpoint] = useState(endpoint || '');
   const { toast } = useToast();
 
   const runTest = async () => {
@@ -32,7 +34,51 @@ const ApiKeyTester: React.FC<ApiKeyTesterProps> = ({ apiKey, endpoint }) => {
     try {
       // Strip the Bearer prefix if it exists - the endpoint will handle this
       const rawApiKey = apiKey.replace(/^Bearer\s+/i, '').trim();
-      const result = await ApiService.testApiConnection(rawApiKey, endpoint);
+      
+      // Use either the prop endpoint, custom endpoint, or default
+      const endpointToTest = customEndpoint || endpoint || '/api/status';
+      
+      // Create a real URL to test if it's a relative path
+      const fullEndpoint = endpointToTest.startsWith('http') 
+        ? endpointToTest 
+        : new URL(endpointToTest, window.location.origin).toString();
+      
+      console.log(`Testing connection to endpoint: ${fullEndpoint}`);
+      
+      // Test the connection with a direct fetch first to validate
+      try {
+        const response = await fetch(fullEndpoint, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': rawApiKey
+          }
+        });
+        
+        const contentType = response.headers.get('content-type');
+        const isJson = contentType && contentType.includes('application/json');
+        
+        if (!isJson) {
+          setTestResult({
+            success: false,
+            message: `Endpoint returned non-JSON response (${contentType || 'unknown'}). Ensure the API endpoint is configured correctly.`
+          });
+          
+          toast({
+            title: "Connection Failed",
+            description: "Endpoint is not returning JSON. Check the API configuration.",
+            variant: "destructive",
+          });
+          setIsTesting(false);
+          return;
+        }
+      } catch (error) {
+        // Continue with the normal flow, this was just a pre-check
+        console.log("Pre-check failed, continuing with service test", error);
+      }
+      
+      // Use the ApiService to test the connection
+      const result = await ApiService.testApiConnection(rawApiKey, customEndpoint || endpoint);
       setTestResult(result);
       
       if (result.success) {
@@ -71,30 +117,48 @@ const ApiKeyTester: React.FC<ApiKeyTesterProps> = ({ apiKey, endpoint }) => {
         <CardTitle className="text-base">API Connection Tester</CardTitle>
       </CardHeader>
       <CardContent>
-        {testResult && (
-          <div className={`p-3 rounded-md mb-3 flex items-start gap-2 ${
-            testResult.success ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' 
-            : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
-          }`}>
-            {testResult.success ? 
-              <CheckCircle className="h-5 w-5 mt-0.5 flex-shrink-0" /> : 
-              <XCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
-            }
-            <div>
-              <p className="font-medium">{testResult.success ? 'Connection Successful' : 'Connection Failed'}</p>
-              <p className="text-sm">{testResult.message}</p>
-            </div>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <label htmlFor="custom-endpoint" className="text-sm font-medium">
+              API Endpoint (optional)
+            </label>
+            <Input
+              id="custom-endpoint"
+              value={customEndpoint}
+              onChange={(e) => setCustomEndpoint(e.target.value)}
+              placeholder="Enter API endpoint (e.g., /api/status)"
+              className="w-full"
+            />
+            <p className="text-xs text-muted-foreground">
+              Leave empty to use the default endpoint
+            </p>
           </div>
-        )}
-        
-        <div className="text-sm space-y-2">
-          <p>
-            <AlertTriangle className="inline h-4 w-4 mr-1 text-amber-500" />
-            This will send a test request to verify your API key is working correctly.
-          </p>
-          <p className="text-xs text-muted-foreground">
-            The test will send a small data packet to the API endpoint using your API key.
-          </p>
+          
+          {testResult && (
+            <div className={`p-3 rounded-md mb-3 flex items-start gap-2 ${
+              testResult.success ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' 
+              : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+            }`}>
+              {testResult.success ? 
+                <CheckCircle className="h-5 w-5 mt-0.5 flex-shrink-0" /> : 
+                <XCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+              }
+              <div>
+                <p className="font-medium">{testResult.success ? 'Connection Successful' : 'Connection Failed'}</p>
+                <p className="text-sm">{testResult.message}</p>
+              </div>
+            </div>
+          )}
+          
+          <div className="text-sm space-y-2">
+            <p>
+              <AlertTriangle className="inline h-4 w-4 mr-1 text-amber-500" />
+              This will send a test request to verify your API key is working correctly.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              The test will send a small data packet to the API endpoint using your API key.
+            </p>
+          </div>
         </div>
       </CardContent>
       <CardFooter>
