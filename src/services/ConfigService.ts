@@ -8,7 +8,21 @@ export const ConfigService = {
   getSchema: async (apiKey?: string): Promise<DataSchema> => {
     try {
       if (apiKey) {
-        // If API key is provided, try to fetch schema associated with that API key
+        // If API key is provided, try to fetch schema from schema_configs table first
+        const { data: schemaConfig, error: schemaConfigError } = await supabase
+          .from('schema_configs')
+          .select('field_types, required_fields')
+          .eq('api_key', apiKey)
+          .single();
+        
+        if (!schemaConfigError && schemaConfig) {
+          return {
+            fieldTypes: schemaConfig.field_types || {},
+            requiredFields: schemaConfig.required_fields || []
+          } as DataSchema;
+        }
+        
+        // If not found in schema_configs, fallback to sources table
         const { data: source, error } = await supabase
           .from('sources')
           .select('schema')
@@ -58,9 +72,64 @@ export const ConfigService = {
       // Save to local storage for immediate use
       localStorage.setItem(SCHEMA_KEY, JSON.stringify(schema));
       
-      // If API key is provided, update schema for that specific source
+      // If API key is provided, update schema in the schema_configs table
       if (apiKey) {
-        // Use a type assertion to bypass TypeScript's type checking for the RPC function
+        // Check if entry exists in schema_configs
+        const { data: existingConfig, error: checkError } = await supabase
+          .from('schema_configs')
+          .select('id')
+          .eq('api_key', apiKey)
+          .single();
+        
+        if (checkError && checkError.code !== 'PGRST116') { // Not finding a record is ok
+          console.error('Error checking schema_configs:', checkError);
+          return false;
+        }
+        
+        if (existingConfig) {
+          // Update existing record
+          const { error: updateError } = await supabase
+            .from('schema_configs')
+            .update({
+              field_types: schema.fieldTypes,
+              required_fields: schema.requiredFields
+            })
+            .eq('api_key', apiKey);
+          
+          if (updateError) {
+            console.error('Error updating schema_configs:', updateError);
+            return false;
+          }
+        } else {
+          // Insert new record
+          const { data: source, error: sourceError } = await supabase
+            .from('sources')
+            .select('name')
+            .eq('api_key', apiKey)
+            .single();
+            
+          if (sourceError) {
+            console.error('Error fetching source for API key:', sourceError);
+            return false;
+          }
+          
+          const { error: insertError } = await supabase
+            .from('schema_configs')
+            .insert({
+              name: `Schema for ${source.name}`,
+              description: `Schema validation configuration for API key ${apiKey.substring(0, 8)}...`,
+              api_key: apiKey,
+              field_types: schema.fieldTypes,
+              required_fields: schema.requiredFields
+            });
+            
+          if (insertError) {
+            console.error('Error inserting schema_configs:', insertError);
+            return false;
+          }
+        }
+        
+        // Also update legacy schema in sources table for backward compatibility
         const { error } = await (supabase.rpc as any)('update_source_schema', { 
           p_api_key: apiKey,
           p_schema: schema

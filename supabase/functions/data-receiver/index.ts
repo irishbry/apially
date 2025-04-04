@@ -123,10 +123,10 @@ serve(async (req) => {
       }
     });
 
-    // Validate the API key against sources table and get the source information including schema
+    // Validate the API key against sources table and get the source information
     const { data: source, error: sourceError } = await supabase
       .from('sources')
-      .select('id, name, user_id, schema')
+      .select('id, name, user_id')
       .eq('api_key', apiKey)
       .eq('active', true)
       .single();
@@ -142,6 +142,13 @@ serve(async (req) => {
       );
     }
 
+    // Get schema configuration from schema_configs table
+    const { data: schemaConfig, error: schemaError } = await supabase
+      .from('schema_configs')
+      .select('field_types, required_fields')
+      .eq('api_key', apiKey)
+      .single();
+
     // Parse the request body
     const body = await req.json().catch(() => null);
     if (!body) {
@@ -151,10 +158,19 @@ serve(async (req) => {
       );
     }
 
-    // Validate the data against the schema if a schema exists
-    if (source.schema && Object.keys(source.schema).length > 0) {
-      console.log('Validating data against schema:', source.schema);
-      const validationResult = validateDataAgainstSchema(body, source.schema);
+    // Validate the data against the schema if it exists in schema_configs
+    if (schemaConfig && (
+        Object.keys(schemaConfig.field_types || {}).length > 0 || 
+        (schemaConfig.required_fields && schemaConfig.required_fields.length > 0)
+      )) {
+      console.log('Validating data against schema from schema_configs:', schemaConfig);
+      
+      const schema = {
+        fieldTypes: schemaConfig.field_types || {},
+        requiredFields: schemaConfig.required_fields || []
+      };
+      
+      const validationResult = validateDataAgainstSchema(body, schema);
       
       if (!validationResult.valid) {
         console.error('Schema validation failed:', validationResult.errors);
@@ -168,12 +184,40 @@ serve(async (req) => {
       }
       console.log('Schema validation passed');
     } else {
-      // If no schema is defined, just validate required fields - accept either sensorId or sensor_id
-      if (!body.sensorId && !body.sensor_id) {
-        return new Response(
-          JSON.stringify({ error: 'Missing required field: sensorId or sensor_id' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-        );
+      // Fallback to source schema if available or basic validation
+      // Get the source schema if available
+      const { data: sourceWithSchema, error: sourceSchemaError } = await supabase
+        .from('sources')
+        .select('schema')
+        .eq('api_key', apiKey)
+        .single();
+        
+      if (!sourceSchemaError && sourceWithSchema && sourceWithSchema.schema && 
+          (Object.keys(sourceWithSchema.schema.fieldTypes || {}).length > 0 || 
+          (sourceWithSchema.schema.requiredFields && sourceWithSchema.schema.requiredFields.length > 0))) {
+        
+        console.log('Validating data against schema from sources table:', sourceWithSchema.schema);
+        const validationResult = validateDataAgainstSchema(body, sourceWithSchema.schema);
+        
+        if (!validationResult.valid) {
+          console.error('Schema validation failed:', validationResult.errors);
+          return new Response(
+            JSON.stringify({ 
+              error: 'Data validation failed', 
+              details: validationResult.errors 
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+          );
+        }
+        console.log('Schema validation passed');
+      } else {
+        // If no schema is defined, just validate required fields - accept either sensorId or sensor_id
+        if (!body.sensorId && !body.sensor_id) {
+          return new Response(
+            JSON.stringify({ error: 'Missing required field: sensorId or sensor_id' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+          );
+        }
       }
     }
 

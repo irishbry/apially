@@ -53,6 +53,47 @@ export type Database = {
           },
         ]
       }
+      schema_configs: {
+        Row: {
+          api_key: string | null
+          created_at: string
+          description: string | null
+          field_types: Json
+          id: string
+          name: string
+          required_fields: Json
+          updated_at: string
+        }
+        Insert: {
+          api_key?: string | null
+          created_at?: string
+          description?: string | null
+          field_types?: Json
+          id?: string
+          name: string
+          required_fields?: Json
+          updated_at?: string
+        }
+        Update: {
+          api_key?: string | null
+          created_at?: string
+          description?: string | null
+          field_types?: Json
+          id?: string
+          name?: string
+          required_fields?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schema_configs_api_key_fkey"
+            columns: ["api_key"]
+            isOneToOne: true
+            referencedRelation: "sources"
+            referencedColumns: ["api_key"]
+          },
+        ]
+      }
       sources: {
         Row: {
           active: boolean
