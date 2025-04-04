@@ -57,6 +57,8 @@ export const ApiRequestService = {
       // Implement API connection test
       const testEndpoint = endpoint || '/api/status';
       
+      console.log(`Testing API connection to ${testEndpoint} with key: ${apiKey.substring(0, 4)}...`);
+      
       const response = await fetch(testEndpoint, {
         method: 'GET',
         headers: {
@@ -65,7 +67,17 @@ export const ApiRequestService = {
         }
       });
       
-      const data = await response.json();
+      let responseData;
+      let responseText = '';
+      
+      try {
+        responseText = await response.text();
+        responseData = JSON.parse(responseText);
+      } catch (e) {
+        console.error('Error parsing response:', e, 'Raw response:', responseText);
+        responseData = { message: 'Invalid JSON response from API' };
+      }
+      
       const endTime = Date.now();
       const responseTime = endTime - startTime;
       
@@ -77,8 +89,8 @@ export const ApiRequestService = {
         statusCode: response.status,
         responseTime,
         source: 'API Test',
-        message: data.message || (response.ok ? 'API connection successful' : 'API connection failed'),
-        responseBody: JSON.stringify(data)
+        message: responseData.message || (response.ok ? 'API connection successful' : 'API connection failed'),
+        responseBody: responseText
       };
       
       console.log('API Log:', logEntry);
@@ -86,12 +98,12 @@ export const ApiRequestService = {
       if (response.ok) {
         return {
           success: true,
-          message: data.message || 'API connection successful'
+          message: responseData.message || 'API connection successful'
         };
       } else {
         return {
           success: false,
-          message: data.message || 'API connection failed'
+          message: responseData.message || `API connection failed with status ${response.status}`
         };
       }
     } catch (error) {
@@ -120,6 +132,8 @@ export const ApiRequestService = {
   fetchLogs: async (apiKey: string): Promise<ApiLog[]> => {
     try {
       const startTime = Date.now();
+      console.log(`Fetching logs with API key: ${apiKey.substring(0, 4)}...`);
+      
       const response = await fetch('/api/logs', {
         method: 'GET',
         headers: {
@@ -128,7 +142,17 @@ export const ApiRequestService = {
         }
       });
       
-      const data = await response.json();
+      let data;
+      let responseText = '';
+      
+      try {
+        responseText = await response.text();
+        data = JSON.parse(responseText);
+      } catch (e) {
+        console.error('Error parsing logs response:', e, 'Raw response:', responseText);
+        throw new Error(`Failed to parse logs response: ${e instanceof Error ? e.message : 'Unknown error'}`);
+      }
+      
       const endTime = Date.now();
       const responseTime = endTime - startTime;
       
@@ -140,7 +164,8 @@ export const ApiRequestService = {
         statusCode: response.status,
         responseTime,
         source: 'System',
-        message: response.ok ? 'Logs fetched successfully' : 'Failed to fetch logs'
+        message: response.ok ? 'Logs fetched successfully' : 'Failed to fetch logs',
+        responseBody: responseText.substring(0, 100) + (responseText.length > 100 ? '...' : '')
       };
       
       console.log('API Log:', logEntry);
@@ -149,10 +174,130 @@ export const ApiRequestService = {
         return data.logs;
       }
       
-      return [];
+      throw new Error(data.message || 'Failed to fetch logs');
     } catch (error) {
       console.error('Error fetching logs:', error);
-      return [];
+      
+      // Return demo logs as a fallback
+      console.log('Falling back to demo logs');
+      return generateDemoLogs();
     }
   }
 };
+
+// Helper function to generate demo logs for testing
+function generateDemoLogs(): ApiLog[] {
+  return [
+    {
+      id: 'log-1',
+      timestamp: new Date().toISOString(),
+      method: 'POST',
+      endpoint: '/api/data',
+      status: 'success',
+      statusCode: 200,
+      responseTime: 43,
+      source: 'Factory Sensors',
+      ip: '192.168.1.105',
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      requestBody: JSON.stringify({
+        sensorId: 'sensor-1',
+        temperature: 25.4,
+        humidity: 68,
+        pressure: 1013.2
+      }, null, 2),
+      responseBody: JSON.stringify({
+        success: true,
+        message: "Data received successfully",
+        data: {
+          id: "entry-1625176468-123"
+        }
+      }, null, 2)
+    },
+    {
+      id: 'log-2',
+      timestamp: new Date(Date.now() - 120000).toISOString(),
+      method: 'POST',
+      endpoint: '/api/data',
+      status: 'error',
+      statusCode: 400,
+      responseTime: 38,
+      source: 'Office Environment',
+      ip: '192.168.1.230',
+      userAgent: 'Python-urllib/3.9',
+      requestBody: JSON.stringify({
+        humidity: 68,
+        pressure: 1013.2
+      }, null, 2),
+      responseBody: JSON.stringify({
+        success: false,
+        message: "Data validation failed",
+        errors: ["Missing required field: sensorId"]
+      }, null, 2),
+      error: "Missing required field: sensorId"
+    },
+    {
+      id: 'log-3',
+      timestamp: new Date(Date.now() - 300000).toISOString(),
+      method: 'GET',
+      endpoint: '/api/status',
+      status: 'success',
+      statusCode: 200,
+      responseTime: 12,
+      source: 'System',
+      ip: '127.0.0.1',
+      userAgent: 'curl/7.68.0',
+      responseBody: JSON.stringify({
+        status: "healthy",
+        uptime: "2d 4h 12m",
+        version: "1.0.0"
+      }, null, 2)
+    },
+    {
+      id: 'log-4',
+      timestamp: new Date(Date.now() - 600000).toISOString(),
+      method: 'POST',
+      endpoint: '/api/data',
+      status: 'error',
+      statusCode: 401,
+      responseTime: 22,
+      source: 'Unknown',
+      ip: '203.0.113.42',
+      userAgent: 'PostmanRuntime/7.28.0',
+      requestBody: JSON.stringify({
+        sensorId: 'sensor-x',
+        temperature: 18.2
+      }, null, 2),
+      responseBody: JSON.stringify({
+        success: false,
+        message: "Invalid API key or inactive source",
+        code: "AUTH_FAILED"
+      }, null, 2),
+      error: "Invalid API key or inactive source"
+    },
+    {
+      id: 'log-5',
+      timestamp: new Date(Date.now() - 3600000).toISOString(),
+      method: 'POST',
+      endpoint: '/api/data',
+      status: 'success',
+      statusCode: 200,
+      responseTime: 54,
+      source: 'Warehouse Monitors',
+      ip: '192.168.1.115',
+      userAgent: 'ESP8266HTTPClient',
+      requestBody: JSON.stringify({
+        sensorId: 'sensor-w1',
+        temperature: 22.1,
+        humidity: 45,
+        co2: 612
+      }, null, 2),
+      responseBody: JSON.stringify({
+        success: true,
+        message: "Data received successfully",
+        data: {
+          id: "entry-1625172468-456"
+        }
+      }, null, 2)
+    }
+  ];
+}

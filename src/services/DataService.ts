@@ -60,10 +60,11 @@ export const DataService = {
   
   deleteDataEntry: async (id: string): Promise<boolean> => {
     try {
+      // Use a type assertion to tell TypeScript what we're expecting
       const { error } = await supabase
         .from('data_entries')
         .delete()
-        .eq('id', id);
+        .eq('id' as any, id as any);
       
       if (error) {
         console.error('Error deleting entry:', error);

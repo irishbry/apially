@@ -31,6 +31,7 @@ export const ApiService = {
   // API Request Service functions
   receiveData: ApiRequestService.receiveData,
   testApiConnection: ApiRequestService.testApiConnection,
+  fetchLogs: ApiRequestService.fetchLogs,
   
   // Config Service functions
   getSchema: ConfigService.getSchema,
