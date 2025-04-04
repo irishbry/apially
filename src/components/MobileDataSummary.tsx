@@ -13,8 +13,13 @@ const MobileDataSummary: React.FC = () => {
   const [lastReceived, setLastReceived] = useState<string | null>(null);
   
   useEffect(() => {
-    // Get initial data
-    setData(ApiService.getData());
+    // Load initial data
+    const fetchData = async () => {
+      const initialData = await ApiService.getData();
+      setData(initialData);
+    };
+    
+    fetchData();
     
     // Subscribe to data changes
     const unsubscribe = ApiService.subscribe(newData => {

@@ -205,7 +205,26 @@ export const ApiService = {
         return [];
       }
       
-      return data || [];
+      // Transform database row to match DataEntry interface
+      const transformedData: DataEntry[] = data.map(item => ({
+        id: item.id,
+        timestamp: item.timestamp,
+        source_id: item.source_id,
+        sourceId: item.source_id,
+        user_id: item.user_id,
+        userId: item.user_id,
+        sensor_id: item.sensor_id,
+        sensorId: item.sensor_id,
+        file_name: item.file_name,
+        fileName: item.file_name,
+        file_path: item.file_path,
+        filePath: item.file_path,
+        // Convert metadata JSON to proper object if it exists
+        metadata: item.metadata ? (typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata) : {},
+        ...item // Include all other fields
+      }));
+      
+      return transformedData;
     } catch (error) {
       console.error('Error in getData:', error);
       return [];
@@ -283,7 +302,7 @@ export const ApiService = {
       const { error } = await supabase
         .from('data_entries')
         .delete()
-        .neq('id', 'none'); // This will delete all records
+        .is('id', 'not.null'); // This will delete all records
       
       if (error) {
         console.error('Error clearing data:', error);
@@ -339,7 +358,7 @@ export const ApiService = {
       const { data: uniqueSourcesData, error: uniqueError } = await supabase
         .from('data_entries')
         .select('source_id')
-        .is('source_id', 'not.null');
+        .not('source_id', 'is', null);
       
       if (uniqueError) {
         console.error('Error getting unique sources:', uniqueError);

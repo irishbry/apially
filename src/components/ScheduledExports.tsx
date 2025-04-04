@@ -132,7 +132,7 @@ const ScheduledExports: React.FC = () => {
     });
   };
 
-  const runExportNow = (export_: ScheduledExport) => {
+  const runExportNow = async (export_: ScheduledExport) => {
     const timestamp = getFormattedDateTime();
     const fileName = `${export_.name.replace(/\s+/g, '_')}_${timestamp}`;
     
@@ -161,20 +161,29 @@ const ScheduledExports: React.FC = () => {
         });
       }, 2000);
     } else {
-      const data = ApiService.getData();
-      handleDownload(data, export_.format, fileName);
-      
-      const updatedExports = exports.map(exp => {
-        if (exp.id === export_.id) {
-          return { 
-            ...exp, 
-            lastExport: new Date().toISOString() 
-          };
-        }
-        return exp;
-      });
-      
-      saveExports(updatedExports);
+      try {
+        const data = await ApiService.getData();
+        handleDownload(data, export_.format, fileName);
+        
+        const updatedExports = exports.map(exp => {
+          if (exp.id === export_.id) {
+            return { 
+              ...exp, 
+              lastExport: new Date().toISOString() 
+            };
+          }
+          return exp;
+        });
+        
+        saveExports(updatedExports);
+      } catch (error) {
+        console.error("Error getting data for export:", error);
+        toast({
+          title: "Export Error",
+          description: "Could not retrieve data for export",
+          variant: "destructive"
+        });
+      }
     }
   };
 

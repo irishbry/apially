@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,13 +16,17 @@ const ControlPanel: React.FC = () => {
 
   useEffect(() => {
     // Load sources
-    const sources = ApiService.getSources();
-    setSources(sources);
+    const fetchSources = async () => {
+      const fetchedSources = await ApiService.getSources();
+      setSources(fetchedSources);
+      
+      // Select first source by default if available
+      if (fetchedSources.length > 0) {
+        setSelectedSource(fetchedSources[0].id);
+      }
+    };
     
-    // Select first source by default if available
-    if (sources.length > 0) {
-      setSelectedSource(sources[0].id);
-    }
+    fetchSources();
     
     // Subscribe to source changes
     const unsubscribe = ApiService.subscribeToSources(newSources => {

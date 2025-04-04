@@ -32,11 +32,14 @@ const HistoricalAnalysis: React.FC = () => {
 
   // Fetch data and update state when component mounts
   useEffect(() => {
-    const fetchData = () => {
+    const fetchData = async () => {
       try {
-        const apiData = ApiService.getData();
+        setLoading(true);
+        const apiData = await ApiService.getData();
         setData(apiData);
-        setSources(ApiService.getSources());
+        
+        const sourcesData = await ApiService.getSources();
+        setSources(sourcesData);
         setError(null);
         
         if (apiData.length > 0) {
@@ -55,11 +58,10 @@ const HistoricalAnalysis: React.FC = () => {
             setSelectedMetric(metrics[0]);
           }
         }
-        
-        setLoading(false);
       } catch (err) {
         console.error('Error loading data:', err);
         setError('Error loading data. Please ensure you are logged in.');
+      } finally {
         setLoading(false);
       }
     };

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Database, Clock, Activity, Users, Layers } from "lucide-react";
@@ -21,16 +22,24 @@ const ApiUsageStats: React.FC = () => {
 
   useEffect(() => {
     // Get initial stats
-    updateStats();
+    const fetchStats = async () => {
+      const apiStats = await ApiService.getApiUsageStats();
+      setStats(apiStats);
+      
+      const srcStats = await ApiService.getSourcesStats();
+      setSourceStats(srcStats);
+    };
+    
+    fetchStats();
     
     // Subscribe to data changes
     const unsubscribeData = ApiService.subscribe(() => {
-      updateStats();
+      fetchStats();
     });
     
     // Subscribe to source changes
     const unsubscribeSources = ApiService.subscribeToSources(() => {
-      updateStats();
+      fetchStats();
     });
     
     return () => {
