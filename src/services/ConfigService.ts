@@ -10,7 +10,7 @@ export const ConfigService = {
       if (apiKey) {
         // If API key is provided, try to fetch schema from schema_configs table first
         // Using any type as a workaround since the schema_configs table is not in the generated types
-        const { data: schemaConfig, error: schemaConfigError } = await (supabase as any)
+        const { data: schemaConfig, error: schemaConfigError } = await supabase
           .from('schema_configs')
           .select('field_types, required_fields')
           .eq('api_key', apiKey)
@@ -75,12 +75,14 @@ export const ConfigService = {
       
       // If API key is provided, update schema in the schema_configs table
       if (apiKey) {
+        console.log('Saving schema for API key:', apiKey, schema);
+        
         // Check if entry exists in schema_configs
-        const { data: existingConfig, error: checkError } = await (supabase as any)
+        const { data: existingConfig, error: checkError } = await supabase
           .from('schema_configs')
           .select('id')
           .eq('api_key', apiKey)
-          .single();
+          .maybeSingle();
         
         if (checkError && checkError.code !== 'PGRST116') { // Not finding a record is ok
           console.error('Error checking schema_configs:', checkError);
@@ -88,12 +90,14 @@ export const ConfigService = {
         }
         
         if (existingConfig) {
+          console.log('Updating existing schema config:', existingConfig.id);
           // Update existing record
-          const { error: updateError } = await (supabase as any)
+          const { error: updateError } = await supabase
             .from('schema_configs')
             .update({
               field_types: schema.fieldTypes,
-              required_fields: schema.requiredFields
+              required_fields: schema.requiredFields,
+              updated_at: new Date().toISOString()
             })
             .eq('api_key', apiKey);
           
@@ -102,6 +106,7 @@ export const ConfigService = {
             return false;
           }
         } else {
+          console.log('Creating new schema config for API key:', apiKey);
           // Insert new record
           const { data: source, error: sourceError } = await supabase
             .from('sources')
@@ -114,7 +119,7 @@ export const ConfigService = {
             return false;
           }
           
-          const { error: insertError } = await (supabase as any)
+          const { data: insertData, error: insertError } = await supabase
             .from('schema_configs')
             .insert({
               name: `Schema for ${source.name}`,
@@ -122,22 +127,27 @@ export const ConfigService = {
               api_key: apiKey,
               field_types: schema.fieldTypes,
               required_fields: schema.requiredFields
-            });
+            })
+            .select();
             
           if (insertError) {
             console.error('Error inserting schema_configs:', insertError);
             return false;
           }
+          
+          console.log('Successfully created schema config:', insertData);
         }
         
         // Also update legacy schema in sources table for backward compatibility
-        const { error } = await (supabase.rpc as any)('update_source_schema', { 
-          p_api_key: apiKey,
-          p_schema: schema
-        });
+        const { error } = await supabase
+          .from('sources')
+          .update({ 
+            schema: schema 
+          })
+          .eq('api_key', apiKey);
         
         if (error) {
-          console.error('Error updating schema in Supabase:', error);
+          console.error('Error updating schema in sources table:', error);
           return false;
         }
       }
@@ -148,11 +158,17 @@ export const ConfigService = {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {})
           },
           body: JSON.stringify(schema),
         });
         
-        return response.ok;
+        if (!response.ok) {
+          console.error('API returned error:', await response.text());
+          return false;
+        }
+        
+        return true;
       } catch (apiError) {
         console.error('Error saving schema to API:', apiError);
         return false;
