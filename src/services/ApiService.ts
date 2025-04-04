@@ -74,15 +74,12 @@ export interface ApiUsageBySource {
   percentage: number;
 }
 
-// Helper functions for backward compatibility
 const usingPhpBackend = (): boolean => {
-  // Check if we're using the PHP backend
   return window.location.pathname.includes('/api/');
 };
 
 const receivePhpApiData = async (data: DataEntry, apiKey?: string): Promise<ApiResponse> => {
   try {
-    // We'll send the raw API key - the endpoint will handle any formatting needed
     const response = await fetch('/api/endpoints/data_endpoint.php', {
       method: 'POST',
       headers: {
@@ -107,22 +104,18 @@ const receivePhpApiData = async (data: DataEntry, apiKey?: string): Promise<ApiR
   }
 };
 
-// This method sends data to the API with proper authorization headers
 async function receiveData(data: DataEntry, apiKey?: string): Promise<ApiResponse> {
   try {
-    // If we're in a test environment with the PHP API backend
     if (usingPhpBackend()) {
       return receivePhpApiData(data, apiKey);
     }
     
-    // Otherwise use Supabase Edge Function
     console.log('Sending data to Supabase Edge Function...');
     
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
     
-    // Add the API key as a header if provided (backend will handle any Bearer prefix)
     if (apiKey) {
       headers['X-API-Key'] = apiKey;
     }
@@ -133,7 +126,6 @@ async function receiveData(data: DataEntry, apiKey?: string): Promise<ApiRespons
       body: JSON.stringify(data),
     });
     
-    // If we got an error, try to parse it properly
     if (!response.ok) {
       let errorMessage = `HTTP error ${response.status}`;
       
@@ -171,7 +163,6 @@ async function receiveData(data: DataEntry, apiKey?: string): Promise<ApiRespons
   }
 }
 
-// Direct helper to test the API with a given API key and endpoint URL
 export async function testApiConnection(apiKey: string, endpoint?: string): Promise<ApiResponse> {
   try {
     const testData: DataEntry = {
@@ -181,13 +172,11 @@ export async function testApiConnection(apiKey: string, endpoint?: string): Prom
       humidity: 45,
     };
     
-    // Determine the endpoint URL
     const apiUrl = endpoint || 'https://ybionvegojopebtkdgyt.supabase.co/functions/v1/data-receiver';
     
     console.log(`Testing API connection to ${apiUrl}...`);
     console.log(`Using API key: ${apiKey}`);
     
-    // Send the API key in the headers, letting the backend handle formatting
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
@@ -214,13 +203,10 @@ export async function testApiConnection(apiKey: string, endpoint?: string): Prom
   }
 }
 
-// Create the ApiService object with all methods
 export const ApiService = {
-  // Data handling methods
   receiveData,
   testApiConnection,
   
-  // Get data from Supabase
   getData: async (): Promise<DataEntry[]> => {
     try {
       const { data, error } = await supabase
@@ -233,11 +219,9 @@ export const ApiService = {
         return [];
       }
       
-      // Transform database row to match DataEntry interface
       return data.map(item => {
         let parsedMetadata: Record<string, any> | null = null;
         
-        // Safely handle metadata field
         if (item.metadata) {
           if (typeof item.metadata === 'string') {
             try {
@@ -264,7 +248,7 @@ export const ApiService = {
           file_path: item.file_path,
           filePath: item.file_path,
           metadata: parsedMetadata,
-          ...item // Include all other fields
+          ...item
         };
       });
     } catch (error) {
@@ -273,7 +257,6 @@ export const ApiService = {
     }
   },
   
-  // Get sources from Supabase
   getSources: async (): Promise<Source[]> => {
     try {
       const { data, error } = await supabase
@@ -293,10 +276,8 @@ export const ApiService = {
     }
   },
   
-  // Get API usage by day
   getApiUsageByDay: async (days: number = 30): Promise<ApiUsageByDay[]> => {
     try {
-      // Calculate the date range
       const endDate = new Date();
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
@@ -314,19 +295,16 @@ export const ApiService = {
       
       const usageByDay: Record<string, number> = {};
       
-      // Group by day
       data.forEach(entry => {
         const date = new Date(entry.created_at).toISOString().split('T')[0];
         usageByDay[date] = (usageByDay[date] || 0) + 1;
       });
       
-      // Convert to array for charting
       const result: ApiUsageByDay[] = Object.keys(usageByDay).map(date => ({
         date,
         count: usageByDay[date]
       }));
       
-      // Sort by date
       result.sort((a, b) => a.date.localeCompare(b.date));
       
       return result;
@@ -336,10 +314,8 @@ export const ApiService = {
     }
   },
   
-  // Get API usage by source
   getApiUsageBySource: async (): Promise<ApiUsageBySource[]> => {
     try {
-      // Get all data entries with source_id
       const { data: entries, error: entriesError } = await supabase
         .from('data_entries')
         .select('source_id')
@@ -350,7 +326,6 @@ export const ApiService = {
         return [];
       }
       
-      // Get all sources
       const { data: sources, error: sourcesError } = await supabase
         .from('sources')
         .select('id, name');
@@ -360,13 +335,11 @@ export const ApiService = {
         return [];
       }
       
-      // Create a map of source id to name
       const sourceMap: Record<string, string> = {};
       sources.forEach(source => {
         sourceMap[source.id] = source.name;
       });
       
-      // Count entries by source
       const countBySource: Record<string, number> = {};
       entries.forEach(entry => {
         if (entry.source_id) {
@@ -374,17 +347,14 @@ export const ApiService = {
         }
       });
       
-      // Calculate total count
       const totalCount = entries.length;
       
-      // Convert to array for charting
       const result: ApiUsageBySource[] = Object.keys(countBySource).map(sourceId => ({
         source: sourceMap[sourceId] || 'Unknown',
         count: countBySource[sourceId],
         percentage: Math.round((countBySource[sourceId] / totalCount) * 100)
       }));
       
-      // Sort by count (descending)
       result.sort((a, b) => b.count - a.count);
       
       return result;
@@ -395,46 +365,38 @@ export const ApiService = {
   },
   
   subscribe: (callback: (data: DataEntry[]) => void) => {
-    // Set up real-time subscription
     const channel = supabase
       .channel('data_entries_changes')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'data_entries' }, 
         async () => {
-          // When we get any change, fetch the latest data
           const freshData = await ApiService.getData();
           callback(freshData);
         }
       )
       .subscribe();
     
-    // Initial data fetch
     ApiService.getData().then(callback);
     
-    // Return unsubscribe function
     return () => {
       supabase.removeChannel(channel);
     };
   },
   
   subscribeToSources: (callback: (sources: Source[]) => void) => {
-    // Set up real-time subscription
     const channel = supabase
       .channel('sources_changes')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'sources' }, 
         async () => {
-          // When we get any change, fetch the latest sources
           const freshSources = await ApiService.getSources();
           callback(freshSources);
         }
       )
       .subscribe();
     
-    // Initial sources fetch
     ApiService.getSources().then(callback);
     
-    // Return unsubscribe function
     return () => {
       supabase.removeChannel(channel);
     };
@@ -445,7 +407,7 @@ export const ApiService = {
       const { error } = await supabase
         .from('data_entries')
         .delete()
-        .is('id', 'not.null'); // This will delete all records
+        .is('id', 'not.null');
       
       if (error) {
         console.error('Error clearing data:', error);
@@ -458,7 +420,6 @@ export const ApiService = {
   },
   
   refreshData: async () => {
-    // Just return the current data from Supabase
     return await ApiService.getData();
   },
   
@@ -482,61 +443,51 @@ export const ApiService = {
   },
   
   getLogs: async (): Promise<ApiLog[]> => {
-    try {
-      // First attempt to fetch logs from PHP backend if we're using it
-      if (usingPhpBackend()) {
-        const response = await fetch('/api/logs', {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('api_key') || 'demo-api-key-for-testing'}`
-          }
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          return data.logs.map((log: any) => {
-            // Map status to statusCode number if it's not already a number
-            let statusCode = log.statusCode;
-            if (!statusCode && log.status) {
-              if (log.status === 'success') statusCode = 200;
-              else if (log.status === 'error') statusCode = 500;
-              else if (log.status === 'warning') statusCode = 400;
-              else statusCode = 0;
-            }
-            
-            return {
-              id: log.id,
-              timestamp: log.timestamp,
-              method: log.method || 'GET',
-              endpoint: log.endpoint,
-              status: log.status,
-              statusCode: statusCode,
-              responseTime: log.responseTime,
-              source: log.source,
-              ip: log.ip || 'Unknown',
-              userAgent: log.userAgent,
-              message: log.message,
-              requestBody: log.requestBody,
-              responseBody: log.responseBody,
-              error: log.message && log.status === 'error' ? log.message : undefined
-            };
-          });
+    if (usingPhpBackend()) {
+      const response = await fetch('/api/logs', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('api_key') || 'demo-api-key-for-testing'}`
         }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        return data.logs.map((log: any) => {
+          let statusCode = log.statusCode;
+          if (!statusCode && log.status) {
+            if (log.status === 'success') statusCode = 200;
+            else if (log.status === 'error') statusCode = 500;
+            else if (log.status === 'warning') statusCode = 400;
+            else statusCode = 0;
+          }
+          
+          return {
+            id: log.id,
+            timestamp: log.timestamp,
+            method: log.method || 'GET',
+            endpoint: log.endpoint,
+            status: log.status,
+            statusCode: statusCode,
+            responseTime: log.responseTime,
+            source: log.source,
+            ip: log.ip || 'Unknown',
+            userAgent: log.userAgent,
+            message: log.message,
+            requestBody: log.requestBody,
+            responseBody: log.responseBody,
+            error: log.message && log.status === 'error' ? log.message : undefined
+          };
+        });
       }
-      
-      // If we're not using PHP backend or if fetch failed, fall back to demo logs
-      return [];
-      
-    } catch (error) {
-      console.error('Error fetching logs:', error);
-      return [];
     }
+    
+    return [];
   },
   
   getSourcesStats: async () => {
     try {
-      // Get sources stats
       const { data: sources, error: sourcesError } = await supabase
         .from('sources')
         .select('*');
@@ -577,7 +528,6 @@ export const ApiService = {
   },
   
   setSchema: (schema: DataSchema) => {
-    // Implementation
   },
   
   getApiKey: () => {
@@ -585,7 +535,6 @@ export const ApiService = {
   },
   
   setApiKey: (key: string) => {
-    // Implementation
   },
   
   getDropboxLink: () => {
@@ -593,10 +542,8 @@ export const ApiService = {
   },
   
   setDropboxLink: (link: string) => {
-    // Implementation
   },
   
   exportToCsv: () => {
-    // Implementation
   }
 };

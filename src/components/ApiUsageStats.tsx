@@ -24,8 +24,18 @@ const ApiUsageStats: React.FC = () => {
     // Get initial stats
     const fetchStats = async () => {
       try {
-        const apiStats = await ApiService.getApiUsageStats();
-        setStats(apiStats);
+        // Use existing methods instead of the non-existent getApiUsageStats
+        const data = await ApiService.getData();
+        const sources = await ApiService.getSources();
+        
+        // Calculate stats from available data
+        const statsData = {
+          totalRequests: data.length,
+          uniqueSources: new Set(data.map(item => item.sourceId || item.source_id)).size,
+          lastReceived: data.length > 0 ? data[0].timestamp : 'No data'
+        };
+        
+        setStats(statsData);
         
         const srcStats = await ApiService.getSourcesStats();
         setSourceStats(srcStats);

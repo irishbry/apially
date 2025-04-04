@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -17,6 +18,7 @@ const demoLogs: ApiLog[] = [
     timestamp: new Date().toISOString(),
     method: 'POST',
     endpoint: '/api/data',
+    status: 'success',
     statusCode: 200,
     responseTime: 43,
     source: 'Factory Sensors',
@@ -41,6 +43,7 @@ const demoLogs: ApiLog[] = [
     timestamp: new Date(Date.now() - 120000).toISOString(),
     method: 'POST',
     endpoint: '/api/data',
+    status: 'error',
     statusCode: 400,
     responseTime: 38,
     source: 'Office Environment',
@@ -62,6 +65,7 @@ const demoLogs: ApiLog[] = [
     timestamp: new Date(Date.now() - 300000).toISOString(),
     method: 'GET',
     endpoint: '/api/status',
+    status: 'success',
     statusCode: 200,
     responseTime: 12,
     source: 'System',
@@ -78,6 +82,7 @@ const demoLogs: ApiLog[] = [
     timestamp: new Date(Date.now() - 600000).toISOString(),
     method: 'POST',
     endpoint: '/api/data',
+    status: 'error',
     statusCode: 401,
     responseTime: 22,
     source: 'Unknown',
@@ -99,6 +104,7 @@ const demoLogs: ApiLog[] = [
     timestamp: new Date(Date.now() - 3600000).toISOString(),
     method: 'POST',
     endpoint: '/api/data',
+    status: 'success',
     statusCode: 200,
     responseTime: 54,
     source: 'Warehouse Monitors',
