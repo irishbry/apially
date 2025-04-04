@@ -23,6 +23,23 @@ export interface DataEntry {
   [key: string]: any;
 }
 
+export interface ApiLog {
+  id: string;
+  timestamp: string;
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  endpoint: string;
+  status: string;
+  statusCode?: number;
+  responseTime?: number;
+  source: string;
+  ip: string;
+  userAgent?: string;
+  message?: string;
+  requestBody?: string;
+  responseBody?: string;
+  error?: string;
+}
+
 export interface ApiResponse {
   success: boolean;
   message: string;
@@ -464,63 +481,56 @@ export const ApiService = {
     }
   },
   
-  getApiUsageStats: async () => {
+  getLogs: async (): Promise<ApiLog[]> => {
     try {
-      // Get total requests
-      const { count: totalRequests, error: countError } = await supabase
-        .from('data_entries')
-        .select('*', { count: 'exact', head: true });
-      
-      if (countError) {
-        console.error('Error getting count:', countError);
-        return {
-          totalRequests: 0,
-          uniqueSources: 0,
-          lastReceived: 'No data'
-        };
+      // First attempt to fetch logs from PHP backend if we're using it
+      if (usingPhpBackend()) {
+        const response = await fetch('/api/logs', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('api_key') || 'demo-api-key-for-testing'}`
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          return data.logs.map((log: any) => {
+            // Map status to statusCode number if it's not already a number
+            let statusCode = log.statusCode;
+            if (!statusCode && log.status) {
+              if (log.status === 'success') statusCode = 200;
+              else if (log.status === 'error') statusCode = 500;
+              else if (log.status === 'warning') statusCode = 400;
+              else statusCode = 0;
+            }
+            
+            return {
+              id: log.id,
+              timestamp: log.timestamp,
+              method: log.method || 'GET',
+              endpoint: log.endpoint,
+              status: log.status,
+              statusCode: statusCode,
+              responseTime: log.responseTime,
+              source: log.source,
+              ip: log.ip || 'Unknown',
+              userAgent: log.userAgent,
+              message: log.message,
+              requestBody: log.requestBody,
+              responseBody: log.responseBody,
+              error: log.message && log.status === 'error' ? log.message : undefined
+            };
+          });
+        }
       }
       
-      // Get unique sources
-      const { data: uniqueSourcesData, error: uniqueError } = await supabase
-        .from('data_entries')
-        .select('source_id')
-        .not('source_id', 'is', null);
+      // If we're not using PHP backend or if fetch failed, fall back to demo logs
+      return [];
       
-      if (uniqueError) {
-        console.error('Error getting unique sources:', uniqueError);
-        return {
-          totalRequests: totalRequests || 0,
-          uniqueSources: 0,
-          lastReceived: 'No data'
-        };
-      }
-      
-      // Count unique sources
-      const uniqueSources = new Set(uniqueSourcesData.map(entry => entry.source_id)).size;
-      
-      // Get last received timestamp
-      const { data: lastEntryData, error: lastError } = await supabase
-        .from('data_entries')
-        .select('created_at')
-        .order('created_at', { ascending: false })
-        .limit(1);
-      
-      const lastReceived = lastEntryData && lastEntryData.length > 0 
-        ? new Date(lastEntryData[0].created_at).toLocaleString() 
-        : 'No data';
-      
-      return {
-        totalRequests: totalRequests || 0,
-        uniqueSources,
-        lastReceived
-      };
     } catch (error) {
-      console.error('Error in getApiUsageStats:', error);
-      return {
-        totalRequests: 0,
-        uniqueSources: 0,
-        lastReceived: 'No data'
-      };
+      console.error('Error fetching logs:', error);
+      return [];
     }
   },
   

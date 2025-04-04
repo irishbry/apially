@@ -13,6 +13,7 @@ require_once 'endpoints/data_endpoint.php';
 require_once 'endpoints/sources_endpoint.php';
 require_once 'endpoints/schema_endpoint.php';
 require_once 'endpoints/api_key_endpoint.php';
+require_once 'endpoints/logs_endpoint.php';
 
 // Set content type and CORS headers
 header('Content-Type: application/json');
@@ -57,11 +58,15 @@ try {
             handleApiKeyEndpoint();
             break;
             
+        case 'logs':
+            handleLogsEndpoint();
+            break;
+            
         case '':
             echo json_encode([
                 'name' => 'Data Consolidation API',
                 'version' => '1.0.0',
-                'endpoints' => ['/status', '/test', '/login', '/data', '/sources', '/schema', '/api-key'],
+                'endpoints' => ['/status', '/test', '/login', '/data', '/sources', '/schema', '/api-key', '/logs'],
                 'php_version' => phpversion()
             ]);
             break;

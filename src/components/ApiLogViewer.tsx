@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -10,21 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Search, Filter, Clock, ArrowDownUp, AlertTriangle, CheckCircle, XCircle, Info, RefreshCw } from "lucide-react";
 import { format } from 'date-fns';
-
-export interface ApiLog {
-  id: string;
-  timestamp: string;
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
-  endpoint: string;
-  statusCode: number;
-  responseTime: number;
-  source: string;
-  ip: string;
-  userAgent: string;
-  requestBody?: string;
-  responseBody?: string;
-  error?: string;
-}
+import { ApiService, ApiLog } from "@/services/ApiService";
 
 const demoLogs: ApiLog[] = [
   {
@@ -146,49 +131,72 @@ const ApiLogViewer: React.FC = () => {
   const [filterSuccessful, setFilterSuccessful] = useState(true);
   const [filterErrors, setFilterErrors] = useState(true);
   
-  useEffect(() => {
-    // Simulate loading logs from API
-    setTimeout(() => {
+  const fetchLogs = async () => {
+    setLoading(true);
+    try {
+      const apiLogs = await ApiService.getLogs();
+      if (apiLogs.length > 0) {
+        setLogs(apiLogs);
+        setFilteredLogs(apiLogs);
+      } else {
+        setLogs(demoLogs);
+        setFilteredLogs(demoLogs);
+      }
+    } catch (error) {
+      console.error('Error fetching logs:', error);
       setLogs(demoLogs);
       setFilteredLogs(demoLogs);
+    } finally {
       setLoading(false);
-    }, 800);
+    }
+  };
+  
+  useEffect(() => {
+    fetchLogs();
+    
+    const interval = setInterval(fetchLogs, 60000);
+    
+    return () => clearInterval(interval);
   }, []);
   
   useEffect(() => {
-    // Apply filters whenever they change
     let filtered = [...logs];
     
-    // Apply status filter
     if (statusFilter !== 'all') {
       const statusCode = parseInt(statusFilter, 10);
       filtered = filtered.filter(log => {
+        if (!log.statusCode) return false;
         const firstDigit = Math.floor(log.statusCode / 100);
         return firstDigit === Math.floor(statusCode / 100);
       });
     }
     
-    // Apply method filter
     if (methodFilter !== 'all') {
       filtered = filtered.filter(log => log.method === methodFilter);
     }
     
-    // Apply success/error filters
     if (!filterSuccessful) {
-      filtered = filtered.filter(log => log.statusCode >= 400);
+      filtered = filtered.filter(log => 
+        (log.statusCode && log.statusCode >= 400) || 
+        log.status === 'error' || 
+        log.error
+      );
     }
     
     if (!filterErrors) {
-      filtered = filtered.filter(log => log.statusCode < 400);
+      filtered = filtered.filter(log => 
+        (log.statusCode && log.statusCode < 400) || 
+        (log.status !== 'error' && !log.error)
+      );
     }
     
-    // Apply search term
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(log => 
-        log.endpoint.toLowerCase().includes(term) ||
-        log.source.toLowerCase().includes(term) ||
-        log.ip.toLowerCase().includes(term) ||
+        (log.endpoint && log.endpoint.toLowerCase().includes(term)) ||
+        (log.source && log.source.toLowerCase().includes(term)) ||
+        (log.ip && log.ip.toLowerCase().includes(term)) ||
+        (log.message && log.message.toLowerCase().includes(term)) ||
         (log.requestBody && log.requestBody.toLowerCase().includes(term)) ||
         (log.responseBody && log.responseBody.toLowerCase().includes(term)) ||
         (log.error && log.error.toLowerCase().includes(term))
@@ -198,18 +206,33 @@ const ApiLogViewer: React.FC = () => {
     setFilteredLogs(filtered);
   }, [logs, statusFilter, methodFilter, searchTerm, filterSuccessful, filterErrors]);
   
-  const getStatusBadge = (statusCode: number) => {
+  const getStatusBadge = (log: ApiLog) => {
     let variant: 'default' | 'destructive' | 'outline' | 'secondary' | null = null;
-    let label = statusCode.toString();
+    let label = log.statusCode?.toString() || log.status;
     
-    if (statusCode >= 200 && statusCode < 300) {
-      variant = 'default';
-    } else if (statusCode >= 400 && statusCode < 500) {
-      variant = 'secondary';
-    } else if (statusCode >= 500) {
-      variant = 'destructive';
+    if (log.statusCode) {
+      if (log.statusCode >= 200 && log.statusCode < 300) {
+        variant = 'default';
+      } else if (log.statusCode >= 400 && log.statusCode < 500) {
+        variant = 'secondary';
+      } else if (log.statusCode >= 500) {
+        variant = 'destructive';
+      } else {
+        variant = 'outline';
+      }
     } else {
-      variant = 'outline';
+      if (log.status === 'success') {
+        variant = 'default';
+        label = 'OK';
+      } else if (log.status === 'error') {
+        variant = 'destructive';
+        label = 'Error';
+      } else if (log.status === 'warning') {
+        variant = 'secondary';
+        label = 'Warn';
+      } else {
+        variant = 'outline';
+      }
     }
     
     return (
@@ -267,11 +290,7 @@ const ApiLogViewer: React.FC = () => {
   };
   
   const handleRefresh = () => {
-    setLoading(true);
-    // In a real app, this would fetch new logs from the server
-    setTimeout(() => {
-      setLoading(false);
-    }, 500);
+    fetchLogs();
   };
   
   const handleRowClick = (log: ApiLog) => {
@@ -386,7 +405,7 @@ const ApiLogViewer: React.FC = () => {
                           className={`cursor-pointer hover:bg-muted ${selectedLog?.id === log.id ? 'bg-muted' : ''}`}
                           onClick={() => handleRowClick(log)}
                         >
-                          <TableCell>{getStatusBadge(log.statusCode)}</TableCell>
+                          <TableCell>{getStatusBadge(log)}</TableCell>
                           <TableCell>{getMethodBadge(log.method)}</TableCell>
                           <TableCell className="font-mono text-xs">
                             {log.endpoint}
@@ -401,7 +420,9 @@ const ApiLogViewer: React.FC = () => {
                               <span className="text-muted-foreground whitespace-nowrap">
                                 {format(new Date(log.timestamp), 'HH:mm:ss')}
                               </span>
-                              <span>{getResponseTimeBadge(log.responseTime)}</span>
+                              {log.responseTime && (
+                                <span>{getResponseTimeBadge(log.responseTime)}</span>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -439,17 +460,50 @@ const ApiLogViewer: React.FC = () => {
                   <div>
                     <span className="text-sm font-medium">Client Info</span>
                     <div className="mt-1 text-sm">{selectedLog.ip}</div>
-                    <div className="mt-1 text-xs text-muted-foreground truncate" style={{ maxWidth: '100%' }}>
-                      {selectedLog.userAgent}
-                    </div>
+                    {selectedLog.userAgent && (
+                      <div className="mt-1 text-xs text-muted-foreground truncate" style={{ maxWidth: '100%' }}>
+                        {selectedLog.userAgent}
+                      </div>
+                    )}
                   </div>
                 </div>
                 
-                <Tabs defaultValue="request" className="w-full">
+                <Tabs defaultValue="details" className="w-full">
                   <TabsList>
+                    <TabsTrigger value="details">Details</TabsTrigger>
                     <TabsTrigger value="request">Request</TabsTrigger>
                     <TabsTrigger value="response">Response</TabsTrigger>
                   </TabsList>
+                  
+                  <TabsContent value="details" className="mt-2">
+                    <div className="bg-muted p-4 rounded-md">
+                      <div className="grid grid-cols-1 gap-2">
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium">Status:</span>
+                          <span>{getStatusBadge(selectedLog)}</span>
+                        </div>
+                        {selectedLog.responseTime && (
+                          <div className="flex justify-between">
+                            <span className="text-sm font-medium">Response Time:</span>
+                            <span>{getResponseTimeBadge(selectedLog.responseTime)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium">Timestamp:</span>
+                          <span className="text-sm">{formatTimestamp(selectedLog.timestamp)}</span>
+                        </div>
+                        {selectedLog.message && (
+                          <div className="mt-2">
+                            <span className="text-sm font-medium">Message:</span>
+                            <div className={`mt-1 text-sm p-2 rounded ${selectedLog.error ? 'bg-red-50 text-red-800' : 'bg-gray-50'}`}>
+                              {selectedLog.message}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </TabsContent>
+                  
                   <TabsContent value="request" className="mt-2">
                     {selectedLog.requestBody ? (
                       <div className="bg-slate-950 rounded-md p-4 overflow-auto max-h-64">
@@ -459,15 +513,18 @@ const ApiLogViewer: React.FC = () => {
                       </div>
                     ) : (
                       <div className="bg-muted py-8 rounded-md flex items-center justify-center">
-                        <span className="text-muted-foreground">No request body</span>
+                        <span className="text-muted-foreground">No request body available</span>
                       </div>
                     )}
                   </TabsContent>
+                  
                   <TabsContent value="response" className="mt-2">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        {getStatusBadge(selectedLog.statusCode)}
-                        <span>Response time: {getResponseTimeBadge(selectedLog.responseTime)}</span>
+                        {getStatusBadge(selectedLog)}
+                        {selectedLog.responseTime && (
+                          <span>Response time: {getResponseTimeBadge(selectedLog.responseTime)}</span>
+                        )}
                       </div>
                       
                       {selectedLog.error && (
@@ -485,7 +542,7 @@ const ApiLogViewer: React.FC = () => {
                       </div>
                     ) : (
                       <div className="bg-muted py-8 rounded-md flex items-center justify-center">
-                        <span className="text-muted-foreground">No response body</span>
+                        <span className="text-muted-foreground">No response body available</span>
                       </div>
                     )}
                   </TabsContent>

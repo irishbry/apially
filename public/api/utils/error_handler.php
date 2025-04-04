@@ -151,7 +151,7 @@ function notifyAdminsOfCriticalError($errorMessage) {
     */
 }
 
-// Request access logging function - called at the beginning of the request
+// Enhanced Request access logging function - called at the beginning of the request
 function logApiAccess() {
     global $accessLogFile;
     
@@ -162,25 +162,83 @@ function logApiAccess() {
     $ipAddress = anonymizeIpAddress($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
     $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? 'unknown';
     $referer = $_SERVER['HTTP_REFERER'] ?? '-';
+    $source = determineSourceFromHeaders();
+    $contentLength = $_SERVER['CONTENT_LENGTH'] ?? 0;
     
     // Store request ID for error correlation
     $_SERVER['HTTP_X_REQUEST_ID'] = $requestId;
     
+    // Start timing the request
+    $_SERVER['REQUEST_START_TIME'] = microtime(true);
+    
     // Add access log entry
     $logEntry = sprintf(
-        '[%s] [%s] [%s] "%s %s" "%s" "%s"' . PHP_EOL,
+        '[%s] [%s] [%s] [%s] "%s %s" "%s" "%s" [source: %s] [size: %d]' . PHP_EOL,
         $timestamp,
         $requestId,
         $ipAddress,
         $method,
+        $method,
         $uri,
         substr($userAgent, 0, 100),
-        $referer
+        $referer,
+        $source,
+        $contentLength
     );
     
     error_log($logEntry, 3, $accessLogFile);
     
     return $requestId;
+}
+
+// Determine the source of the request from headers
+function determineSourceFromHeaders() {
+    $apiKey = $_SERVER['HTTP_X_API_KEY'] ?? '';
+    
+    if (!$apiKey) {
+        $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+        if (preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
+            $apiKey = $matches[1];
+        }
+    }
+    
+    // In a real implementation, you would look up the API key in your database
+    // to determine the actual source. For now, we'll return 'Unknown'
+    return 'Unknown';
+}
+
+// Enhanced function to log API requests with timing info
+function logApiRequest($endpoint, $status, $message = '') {
+    global $config;
+    try {
+        $logFile = $config['storage_path'] . '/api_log.txt';
+        $timestamp = date('Y-m-d H:i:s');
+        
+        // Calculate response time if we have a start time
+        $responseTime = '';
+        if (isset($_SERVER['REQUEST_START_TIME'])) {
+            $endTime = microtime(true);
+            $responseTime = round(($endTime - $_SERVER['REQUEST_START_TIME']) * 1000);
+            $responseTime = " - Response time: {$responseTime}ms";
+        }
+        
+        // Get client IP and source info
+        $ip = anonymizeIpAddress($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
+        $source = determineSourceFromHeaders();
+        
+        // Create log entry
+        $logEntry = "[$timestamp] $endpoint - Status: $status" . 
+                   ($message ? " - $message" : "") . 
+                   $responseTime . 
+                   " - IP: $ip" . 
+                   " - Source: $source" . 
+                   PHP_EOL;
+                   
+        @file_put_contents($logFile, $logEntry, FILE_APPEND);
+    } catch (Exception $e) {
+        // Silently fail if logging fails - don't disrupt API operation
+        error_log("Failed to log API request: " . $e->getMessage());
+    }
 }
 
 // Set up error handling
