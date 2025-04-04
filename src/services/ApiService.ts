@@ -1,4 +1,6 @@
+
 import { supabase } from '@/integrations/supabase/client';
+import { Json } from '@/integrations/supabase/types';
 
 // Define the types needed across the application
 export interface DataEntry {
@@ -229,7 +231,8 @@ export const ApiService = {
             } catch (e) {
               parsedMetadata = { raw: item.metadata };
             }
-          } else {
+          } else if (typeof item.metadata === 'object') {
+            // Handle Json type from Supabase
             parsedMetadata = item.metadata as Record<string, any>;
           }
         }
@@ -249,7 +252,7 @@ export const ApiService = {
           filePath: item.file_path,
           metadata: parsedMetadata,
           ...item
-        };
+        } as DataEntry;  // Use type assertion to ensure TypeScript recognizes this as DataEntry
       });
     } catch (error) {
       console.error('Error in getData:', error);
