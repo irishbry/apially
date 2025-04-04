@@ -90,6 +90,18 @@ serve(async (req) => {
     const filename = `${source.id}/${timestamp}_${enhancedData.id}.json`;
     const bucketName = 'source-data';
 
+    // Create the bucket if it doesn't exist (will do nothing if it exists)
+    const { error: bucketError } = await supabase
+      .storage
+      .createBucket(bucketName, {
+        public: false,
+        fileSizeLimit: 1024 * 1024, // 1MB limit per file
+      });
+    
+    if (bucketError && bucketError.message !== 'Bucket already exists') {
+      console.error('Bucket creation error:', bucketError);
+    }
+
     // Store the data in Supabase Storage
     const { data: storedFile, error: storageError } = await supabase
       .storage
@@ -107,7 +119,7 @@ serve(async (req) => {
       );
     }
 
-    // Update source statistics
+    // Update source statistics directly (without using the increment-counter function)
     const { error: updateError } = await supabase
       .from('sources')
       .update({
