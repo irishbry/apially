@@ -9,32 +9,41 @@ export const ConfigService = {
   getSchema: async (apiKey?: string): Promise<DataSchema> => {
     try {
       if (apiKey) {
+        console.log('Fetching schema for API key:', apiKey);
+        
         // If API key is provided, try to fetch schema from schema_configs table first
-        // Using any type as a workaround since the schema_configs table is not in the generated types
         const { data: schemaConfig, error: schemaConfigError } = await supabase
           .from('schema_configs')
           .select('field_types, required_fields')
           .eq('api_key', apiKey)
-          .single();
+          .maybeSingle();
         
         if (!schemaConfigError && schemaConfig) {
+          console.log('Found schema in schema_configs table:', schemaConfig);
           return {
-            fieldTypes: schemaConfig.field_types || {},
-            requiredFields: schemaConfig.required_fields || []
-          } as DataSchema;
+            fieldTypes: schemaConfig.field_types as Record<string, string> || {},
+            requiredFields: schemaConfig.required_fields as string[] || []
+          };
         }
         
         // If not found in schema_configs, fallback to sources table
-        const { data: source, error } = await supabase
+        const { data: source, error: sourceError } = await supabase
           .from('sources')
           .select('schema')
           .eq('api_key', apiKey)
-          .single();
+          .maybeSingle();
         
-        if (error) {
-          console.error('Error fetching schema for API key:', error);
-        } else if (source && source.schema) {
-          return source.schema as unknown as DataSchema;
+        if (!sourceError && source && source.schema) {
+          console.log('Found schema in sources table:', source.schema);
+          const sourceSchema = source.schema as unknown as DataSchema;
+          return {
+            fieldTypes: sourceSchema.fieldTypes || {},
+            requiredFields: sourceSchema.requiredFields || []
+          };
+        }
+        
+        if (sourceError) {
+          console.error('Error fetching schema from sources:', sourceError);
         }
       }
       
@@ -71,13 +80,13 @@ export const ConfigService = {
   
   setSchema: async (schema: DataSchema, apiKey?: string): Promise<boolean> => {
     try {
+      console.log('Setting schema:', schema, 'for API key:', apiKey);
+      
       // Save to local storage for immediate use
       localStorage.setItem(SCHEMA_KEY, JSON.stringify(schema));
       
       // If API key is provided, update schema in the schema_configs table
       if (apiKey) {
-        console.log('Saving schema for API key:', apiKey, schema);
-        
         // Check if entry exists in schema_configs
         const { data: existingConfig, error: checkError } = await supabase
           .from('schema_configs')
@@ -85,7 +94,7 @@ export const ConfigService = {
           .eq('api_key', apiKey)
           .maybeSingle();
         
-        if (checkError && checkError.code !== 'PGRST116') { // Not finding a record is ok
+        if (checkError) {
           console.error('Error checking schema_configs:', checkError);
           return false;
         }
@@ -96,8 +105,8 @@ export const ConfigService = {
           const { error: updateError } = await supabase
             .from('schema_configs')
             .update({
-              field_types: schema.fieldTypes,
-              required_fields: schema.requiredFields,
+              field_types: schema.fieldTypes as unknown as Json,
+              required_fields: schema.requiredFields as unknown as Json,
               updated_at: new Date().toISOString()
             })
             .eq('api_key', apiKey);
@@ -108,26 +117,32 @@ export const ConfigService = {
           }
         } else {
           console.log('Creating new schema config for API key:', apiKey);
-          // Insert new record
+          // Fetch source name first
           const { data: source, error: sourceError } = await supabase
             .from('sources')
             .select('name')
             .eq('api_key', apiKey)
-            .single();
+            .maybeSingle();
             
           if (sourceError) {
             console.error('Error fetching source for API key:', sourceError);
             return false;
           }
           
+          if (!source) {
+            console.error('No source found for API key:', apiKey);
+            return false;
+          }
+          
+          // Insert new record
           const { data: insertData, error: insertError } = await supabase
             .from('schema_configs')
             .insert({
               name: `Schema for ${source.name}`,
               description: `Schema validation configuration for API key ${apiKey.substring(0, 8)}...`,
               api_key: apiKey,
-              field_types: schema.fieldTypes,
-              required_fields: schema.requiredFields
+              field_types: schema.fieldTypes as unknown as Json,
+              required_fields: schema.requiredFields as unknown as Json
             })
             .select();
             
@@ -167,10 +182,12 @@ export const ConfigService = {
         });
         
         if (!response.ok) {
-          console.error('API returned error:', await response.text());
+          const errorText = await response.text();
+          console.error('API returned error:', errorText);
           return false;
         }
         
+        console.log('Schema successfully saved to API endpoint');
         return true;
       } catch (apiError) {
         console.error('Error saving schema to API:', apiError);
