@@ -8,6 +8,7 @@ import { ApiService, DataSchema } from "@/services/ApiService";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -22,6 +23,7 @@ import {
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
+import { useAuth } from '@/hooks/useAuth';
 
 const testDataSchema = z.object({
   testData: z.string()
@@ -70,9 +72,17 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
   useEffect(() => {
     const loadSchema = async () => {
       try {
-        const schema = await ApiService.getSchema(apiKey);
-        setRequiredFields(schema.requiredFields || []);
-        setFieldTypes(schema.fieldTypes || {});
+        // const schema = await ApiService.getSchema(apiKey);
+        const { data: schema, error } = await supabase
+            .from('schema_configs')
+            .select("*")
+
+            // Filters
+            .eq('api_key', apiKey)
+
+        console.log("Loaded schema:", schema);
+        // setRequiredFields(schema.requiredFields || []);
+        // setFieldTypes(schema.fieldTypes || {});
       } catch (error) {
         console.error("Error loading schema:", error);
         toast({
@@ -83,7 +93,7 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
       }
     };
     
-    loadSchema();
+    if (apiKey) loadSchema();
   }, [apiKey, toast]);
 
   // Add a new field to the schema
@@ -200,9 +210,40 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
       };
       
       // If an API key is provided, save the schema for that API key
-      const success = await ApiService.setSchema(schema, apiKey);
+      console.log("schema", schema);
+      //const success = await ApiService.setSchema(schema, apiKey);
+
+      const dataToInsert = [];
+      for (const key in schema.fieldTypes) {
+        if (Object.prototype.hasOwnProperty.call(schema.fieldTypes, key)) {
+          const element = schema.fieldTypes[key];
+          dataToInsert.push({
+            name: key,
+            field_types: element,
+            required_fields: requiredFields.includes(key),
+            api_key: apiKey,
+            user_id: user.id,
+          });
+        }
+      }
+
+      if(!dataToInsert.length) {
+        toast({
+          title: "Error",
+          description: "There is no schema to save",
+          variant: "destructive",
+        });
+
+        return;
+      }
+
+
+      const { data, error } = await supabase
+              .from('schema_configs')
+              .insert(dataToInsert)
+              .select();
       
-      if (success) {
+      if (data) {
         toast({
           title: "Success",
           description: apiKey 
@@ -339,7 +380,7 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
         </Alert>
       )}
       
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      {apiKey ? <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-4">
           <TabsTrigger value="editor">Schema Editor</TabsTrigger>
           <TabsTrigger value="validator">Validator</TabsTrigger>
@@ -510,7 +551,7 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
             )}
           </div>
         </TabsContent>
-      </Tabs>
+      </Tabs> : <></>}
       
       <div className="text-xs text-muted-foreground mt-4">
         {Object.keys(fieldTypes).length} fields defined, {requiredFields.length} required

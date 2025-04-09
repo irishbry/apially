@@ -44,5 +44,5 @@ export const ApiService = {
   exportToCsv: ConfigService.exportToCsv,
   
   // Get default Supabase endpoint
-  getDefaultEndpoint: () => 'https://ybionvegojopebtkdgyt.supabase.co/functions/v1/data-receiver'
+  getDefaultEndpoint: () => 'https://api.apially.com/functions/v1/data-receiver'
 };
