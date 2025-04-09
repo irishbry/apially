@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Code, Copy, FileJson, Globe, BookOpen, Server } from "lucide-react";
@@ -7,10 +8,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { ConfigService } from "@/services/ConfigService";
+import { DataSchema } from "@/types/api.types";
 
 const ApiDocumentation: React.FC = () => {
   const [apiKey, setApiKey] = useState('');
   const [functionUrl, setFunctionUrl] = useState('');
+  const [schema, setSchema] = useState<DataSchema>({ fieldTypes: {}, requiredFields: [] });
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -29,6 +33,8 @@ const ApiDocumentation: React.FC = () => {
         
         if (data && !error) {
           setApiKey(data.api_key);
+          // Fetch schema for this API key
+          fetchSchema(data.api_key);
         }
       } catch (err) {
         console.error('Error fetching API key:', err);
@@ -41,6 +47,18 @@ const ApiDocumentation: React.FC = () => {
     setFunctionUrl(`https://${projectRef}.supabase.co/functions/v1/data-receiver`);
   }, [user]);
 
+  const fetchSchema = async (apiKey: string) => {
+    try {
+      const schemaData = await ConfigService.getSchema(apiKey);
+      if (schemaData) {
+        setSchema(schemaData);
+        console.log("Schema fetched for documentation:", schemaData);
+      }
+    } catch (err) {
+      console.error('Error fetching schema for documentation:', err);
+    }
+  };
+
   const copyToClipboard = (text: string, message: string) => {
     navigator.clipboard.writeText(text).then(() => {
       toast({
@@ -48,6 +66,35 @@ const ApiDocumentation: React.FC = () => {
         description: message,
       });
     });
+  };
+
+  // Generate schema JSON representation for display
+  const getSchemaJsonDisplay = () => {
+    const schemaObj: any = {
+      // Add basic outline for schema even if empty
+      "sensorId": "string"
+    };
+    
+    // Add fields from the actual schema
+    for (const [field, type] of Object.entries(schema.fieldTypes)) {
+      schemaObj[field] = type;
+    }
+    
+    // Add timestamp if not already there
+    if (!schemaObj.timestamp) {
+      schemaObj["timestamp"] = "string";
+    }
+    
+    return JSON.stringify(schemaObj, null, 2);
+  };
+
+  // Helper function to describe required fields
+  const getRequiredFieldsText = () => {
+    if (schema.requiredFields.length === 0) {
+      return "// No fields are marked as required";
+    }
+    
+    return "// Required fields: " + schema.requiredFields.join(", ");
   };
 
   const curlExample = `curl -X POST ${functionUrl} \\
@@ -172,14 +219,9 @@ print(response.json())`;
                   <AccordionContent>
                     <div className="bg-secondary p-3 rounded-md overflow-x-auto">
                       <pre className="text-xs sm:text-sm">
-{`{
-  "sensorId": "string",     // Required - Unique identifier for the sensor
-  "timestamp": "string",    // Optional - ISO date string (auto-generated if not provided)
-  "temperature": number,    // Optional - Temperature reading in celsius
-  "humidity": number,       // Optional - Humidity percentage
-  "pressure": number,       // Optional - Atmospheric pressure
-  // Add any additional fields as needed
-}`}
+{getSchemaJsonDisplay()}
+
+{getRequiredFieldsText()}
                       </pre>
                     </div>
                   </AccordionContent>
