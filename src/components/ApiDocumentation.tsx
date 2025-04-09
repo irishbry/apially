@@ -37,7 +37,7 @@ const ApiDocumentation: React.FC = () => {
 
     fetchApiKey();
     
-    const projectRef = "ybionvegojopebtkdgyt";
+    const projectRef = "api.apially.com";
     setFunctionUrl(`https://${projectRef}.supabase.co/functions/v1/data-receiver`);
   }, [user]);
 
