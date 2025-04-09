@@ -1,4 +1,3 @@
-
 import { DataSchema } from '@/types/api.types';
 import { supabase } from '@/integrations/supabase/client';
 import { Json } from '@/integrations/supabase/types';
@@ -11,7 +10,7 @@ export const ConfigService = {
       if (apiKey) {
         console.log('Fetching schema for API key:', apiKey);
         
-        // If API key is provided, try to fetch schema from schema_configs table first
+        // Fetch schema from schema_configs table
         const { data: schemaConfig, error: schemaConfigError } = await supabase
           .from('schema_configs')
           .select('field_types, required_fields')
@@ -26,7 +25,11 @@ export const ConfigService = {
           };
         }
         
-        // If not found in schema_configs, fallback to sources table
+        if (schemaConfigError) {
+          console.error('Error fetching schema from schema_configs:', schemaConfigError);
+        }
+        
+        // Fallback to sources table
         const { data: source, error: sourceError } = await supabase
           .from('sources')
           .select('schema')
@@ -47,35 +50,24 @@ export const ConfigService = {
         }
       }
       
-      // Try to get schema from local storage as fallback
+      // Fallback to local storage
       const storedSchema = localStorage.getItem(SCHEMA_KEY);
       if (storedSchema) {
         return JSON.parse(storedSchema);
       }
       
-      // If not in local storage, try to fetch from the API
-      try {
-        const response = await fetch('/api/schema');
-        if (response.ok) {
-          const data = await response.json();
-          if (data && data.schema) {
-            // Cache the schema in local storage
-            localStorage.setItem(SCHEMA_KEY, JSON.stringify(data.schema));
-            return data.schema;
-          }
-        }
-      } catch (apiError) {
-        console.error('Error fetching schema from API:', apiError);
-      }
+      // Return default schema if nothing is found
+      return {
+        fieldTypes: {},
+        requiredFields: []
+      };
     } catch (error) {
       console.error('Error fetching schema:', error);
+      return {
+        fieldTypes: {},
+        requiredFields: []
+      };
     }
-    
-    // Return default schema if nothing is found
-    return {
-      fieldTypes: {},
-      requiredFields: []
-    };
   },
   
   setSchema: async (schema: DataSchema, apiKey?: string): Promise<boolean> => {
@@ -85,8 +77,20 @@ export const ConfigService = {
       // Save to local storage for immediate use
       localStorage.setItem(SCHEMA_KEY, JSON.stringify(schema));
       
-      // If API key is provided, update schema in the schema_configs table
       if (apiKey) {
+        // Cast schema to Json type for Supabase
+        const fieldTypesJson = schema.fieldTypes as unknown as Json;
+        const requiredFieldsJson = schema.requiredFields as unknown as Json;
+        
+        // Get user ID from session
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id;
+        
+        if (!userId) {
+          console.error('No user ID found, user must be logged in to save schema');
+          return false;
+        }
+        
         // Check if entry exists in schema_configs
         const { data: existingConfig, error: checkError } = await supabase
           .from('schema_configs')
@@ -105,8 +109,8 @@ export const ConfigService = {
           const { error: updateError } = await supabase
             .from('schema_configs')
             .update({
-              field_types: schema.fieldTypes as unknown as Json,
-              required_fields: schema.requiredFields as unknown as Json,
+              field_types: fieldTypesJson,
+              required_fields: requiredFieldsJson,
               updated_at: new Date().toISOString()
             })
             .eq('api_key', apiKey);
@@ -129,20 +133,18 @@ export const ConfigService = {
             return false;
           }
           
-          if (!source) {
-            console.error('No source found for API key:', apiKey);
-            return false;
-          }
+          const sourceName = source?.name || 'Unknown Source';
           
           // Insert new record
           const { data: insertData, error: insertError } = await supabase
             .from('schema_configs')
             .insert({
-              name: `Schema for ${source.name}`,
+              name: `Schema for ${sourceName}`,
               description: `Schema validation configuration for API key ${apiKey.substring(0, 8)}...`,
               api_key: apiKey,
-              field_types: schema.fieldTypes as unknown as Json,
-              required_fields: schema.requiredFields as unknown as Json
+              field_types: fieldTypesJson,
+              required_fields: requiredFieldsJson,
+              user_id: userId
             })
             .select();
             
@@ -170,29 +172,7 @@ export const ConfigService = {
         }
       }
       
-      // Also save to API endpoint for PHP backend
-      try {
-        const response = await fetch('/api/schema', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {})
-          },
-          body: JSON.stringify(schema),
-        });
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('API returned error:', errorText);
-          return false;
-        }
-        
-        console.log('Schema successfully saved to API endpoint');
-        return true;
-      } catch (apiError) {
-        console.error('Error saving schema to API:', apiError);
-        return false;
-      }
+      return true;
     } catch (error) {
       console.error('Error saving schema:', error);
       return false;

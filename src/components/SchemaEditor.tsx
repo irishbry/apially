@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Settings, Plus, Minus, Save, FileJson, Check, X, AlertTriangle } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 import { ApiService, DataSchema } from "@/services/ApiService";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +24,6 @@ import {
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { useAuth } from '@/hooks/useAuth';
 
 const testDataSchema = z.object({
   testData: z.string()
@@ -52,6 +52,7 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
   const [newType, setNewType] = useState('string');
   const [isRequired, setIsRequired] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [validationResult, setValidationResult] = useState<{valid: boolean; errors: string[]} | null>(null);
   const [activeTab, setActiveTab] = useState('editor');
   const { toast } = useToast();
@@ -71,18 +72,18 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
   // Load schema on component mount
   useEffect(() => {
     const loadSchema = async () => {
+      if (!apiKey) return;
+      
+      setIsLoading(true);
       try {
-        // const schema = await ApiService.getSchema(apiKey);
-        const { data: schema, error } = await supabase
-            .from('schema_configs')
-            .select("*")
-
-            // Filters
-            .eq('api_key', apiKey)
-
+        console.log("Loading schema for API key:", apiKey);
+        const schema = await ApiService.getSchema(apiKey);
         console.log("Loaded schema:", schema);
-        // setRequiredFields(schema.requiredFields || []);
-        // setFieldTypes(schema.fieldTypes || {});
+        
+        if (schema) {
+          setRequiredFields(schema.requiredFields || []);
+          setFieldTypes(schema.fieldTypes || {});
+        }
       } catch (error) {
         console.error("Error loading schema:", error);
         toast({
@@ -90,10 +91,12 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
           description: "Failed to load schema. Please try again.",
           variant: "destructive",
         });
+      } finally {
+        setIsLoading(false);
       }
     };
     
-    if (apiKey) loadSchema();
+    loadSchema();
   }, [apiKey, toast]);
 
   // Add a new field to the schema
@@ -209,41 +212,12 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
         fieldTypes
       };
       
-      // If an API key is provided, save the schema for that API key
-      console.log("schema", schema);
-      //const success = await ApiService.setSchema(schema, apiKey);
-
-      const dataToInsert = [];
-      for (const key in schema.fieldTypes) {
-        if (Object.prototype.hasOwnProperty.call(schema.fieldTypes, key)) {
-          const element = schema.fieldTypes[key];
-          dataToInsert.push({
-            name: key,
-            field_types: element,
-            required_fields: requiredFields.includes(key),
-            api_key: apiKey,
-            user_id: user.id,
-          });
-        }
-      }
-
-      if(!dataToInsert.length) {
-        toast({
-          title: "Error",
-          description: "There is no schema to save",
-          variant: "destructive",
-        });
-
-        return;
-      }
-
-
-      const { data, error } = await supabase
-              .from('schema_configs')
-              .insert(dataToInsert)
-              .select();
+      console.log("Saving schema:", schema);
       
-      if (data) {
+      // Save using API service
+      const success = await ApiService.setSchema(schema, apiKey);
+      
+      if (success) {
         toast({
           title: "Success",
           description: apiKey 
@@ -325,7 +299,7 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
     }
   };
 
-  // Helper function to determine data type (same as in ConfigService)
+  // Helper function to determine data type
   function getDataType(value: any): string {
     if (typeof value === 'number') {
       return 'number';
@@ -380,178 +354,184 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
         </Alert>
       )}
       
-      {apiKey ? <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="mb-4">
-          <TabsTrigger value="editor">Schema Editor</TabsTrigger>
-          <TabsTrigger value="validator">Validator</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="editor" className="space-y-6">
-          <div className="space-y-3">
-            <h3 className="text-sm font-medium">Add New Field</h3>
-            <div className="flex flex-wrap gap-2 items-end">
-              <div className="grow-[2] min-w-[150px]">
-                <label className="text-xs text-muted-foreground">Field Name</label>
-                <Input
-                  type="text"
-                  placeholder="e.g. temperature"
-                  value={newField}
-                  onChange={(e) => setNewField(e.target.value)}
-                />
-              </div>
-              <div className="grow min-w-[120px]">
-                <label className="text-xs text-muted-foreground">Data Type</label>
-                <Select value={newType} onValueChange={setNewType}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="string">String</SelectItem>
-                    <SelectItem value="number">Number</SelectItem>
-                    <SelectItem value="boolean">Boolean</SelectItem>
-                    <SelectItem value="object">Object</SelectItem>
-                    <SelectItem value="array">Array</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center gap-2 h-10">
-                <label className="text-xs flex items-center gap-2 cursor-pointer">
-                  <input 
-                    type="checkbox" 
-                    checked={isRequired}
-                    onChange={() => setIsRequired(!isRequired)}
-                    className="rounded"
+      {isLoading ? (
+        <div className="flex justify-center p-6">
+          <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full"></div>
+        </div>
+      ) : (
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="mb-4">
+            <TabsTrigger value="editor">Schema Editor</TabsTrigger>
+            <TabsTrigger value="validator">Validator</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="editor" className="space-y-6">
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium">Add New Field</h3>
+              <div className="flex flex-wrap gap-2 items-end">
+                <div className="grow-[2] min-w-[150px]">
+                  <label className="text-xs text-muted-foreground">Field Name</label>
+                  <Input
+                    type="text"
+                    placeholder="e.g. temperature"
+                    value={newField}
+                    onChange={(e) => setNewField(e.target.value)}
                   />
-                  <span>Required</span>
-                </label>
-                <Button 
-                  onClick={addField}
-                  size="sm"
-                  className="ml-2"
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
+                </div>
+                <div className="grow min-w-[120px]">
+                  <label className="text-xs text-muted-foreground">Data Type</label>
+                  <Select value={newType} onValueChange={setNewType}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="string">String</SelectItem>
+                      <SelectItem value="number">Number</SelectItem>
+                      <SelectItem value="boolean">Boolean</SelectItem>
+                      <SelectItem value="object">Object</SelectItem>
+                      <SelectItem value="array">Array</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2 h-10">
+                  <label className="text-xs flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={isRequired}
+                      onChange={() => setIsRequired(!isRequired)}
+                      className="rounded"
+                    />
+                    <span>Required</span>
+                  </label>
+                  <Button 
+                    onClick={addField}
+                    size="sm"
+                    className="ml-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
-          
-          <div className="space-y-3">
-            <h3 className="text-sm font-medium">Current Schema</h3>
-            {Object.keys(fieldTypes).length > 0 ? (
-              <div className="space-y-2">
-                {Object.entries(fieldTypes).map(([field, type]) => (
-                  <div key={field} className="flex items-center justify-between bg-secondary/50 p-2 rounded-md">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={requiredFields.includes(field)}
-                        onChange={() => toggleRequired(field)}
-                        className="rounded"
-                      />
-                      <span className="text-sm font-medium">{field}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground px-2 py-1 bg-secondary rounded">{type}</span>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => removeField(field)}
-                        className="h-8 w-8 p-0"
-                      >
-                        <Minus className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No fields defined yet. Add your first field above.</p>
-            )}
-          </div>
-          
-          <Button onClick={saveSchema} disabled={isSaving} className="w-full">
-            {isSaving ? (
-              <>
-                <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="mr-2 h-4 w-4" />
-                Save Schema
-              </>
-            )}
-          </Button>
-        </TabsContent>
-        
-        <TabsContent value="validator" className="space-y-6">
-          <div className="space-y-4">
-            <h3 className="text-sm font-medium">Test Schema Validation</h3>
-            <p className="text-sm text-muted-foreground">
-              Enter JSON data below to test it against your schema definition.
-            </p>
             
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(validateTestData)} className="space-y-6">
-                <FormField
-                  control={form.control}
-                  name="testData"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Test Data (JSON)</FormLabel>
-                      <FormControl>
-                        <Textarea 
-                          placeholder="Enter JSON data to validate" 
-                          className="font-mono h-40" 
-                          {...field} 
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium">Current Schema</h3>
+              {Object.keys(fieldTypes).length > 0 ? (
+                <div className="space-y-2">
+                  {Object.entries(fieldTypes).map(([field, type]) => (
+                    <div key={field} className="flex items-center justify-between bg-secondary/50 p-2 rounded-md">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={requiredFields.includes(field)}
+                          onChange={() => toggleRequired(field)}
+                          className="rounded"
                         />
-                      </FormControl>
-                      <FormDescription>
-                        Enter valid JSON that matches your schema to test validation
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <Button type="submit">
-                  Validate
-                </Button>
-              </form>
-            </Form>
-            
-            {validationResult && (
-              <Alert variant={validationResult.valid ? "default" : "destructive"} className="mt-4">
-                <div className="flex items-start gap-2">
-                  {validationResult.valid ? 
-                    <Check className="h-5 w-5 text-green-500" /> : 
-                    <AlertTriangle className="h-5 w-5" />
-                  }
-                  <div>
-                    <AlertTitle>
-                      {validationResult.valid ? "Validation Passed" : "Validation Failed"}
-                    </AlertTitle>
-                    <AlertDescription>
-                      {validationResult.valid ? (
-                        "The data is valid according to the schema."
-                      ) : (
-                        <div className="space-y-2 mt-2">
-                          <p>The following errors were found:</p>
-                          <ul className="list-disc list-inside text-sm">
-                            {validationResult.errors.map((error, index) => (
-                              <li key={index}>{error}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </AlertDescription>
-                  </div>
+                        <span className="text-sm font-medium">{field}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground px-2 py-1 bg-secondary rounded">{type}</span>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => removeField(field)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Minus className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </Alert>
-            )}
-          </div>
-        </TabsContent>
-      </Tabs> : <></>}
+              ) : (
+                <p className="text-sm text-muted-foreground">No fields defined yet. Add your first field above.</p>
+              )}
+            </div>
+            
+            <Button onClick={saveSchema} disabled={isSaving} className="w-full">
+              {isSaving ? (
+                <>
+                  <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="mr-2 h-4 w-4" />
+                  Save Schema
+                </>
+              )}
+            </Button>
+          </TabsContent>
+          
+          <TabsContent value="validator" className="space-y-6">
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium">Test Schema Validation</h3>
+              <p className="text-sm text-muted-foreground">
+                Enter JSON data below to test it against your schema definition.
+              </p>
+              
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(validateTestData)} className="space-y-6">
+                  <FormField
+                    control={form.control}
+                    name="testData"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Test Data (JSON)</FormLabel>
+                        <FormControl>
+                          <Textarea 
+                            placeholder="Enter JSON data to validate" 
+                            className="font-mono h-40" 
+                            {...field} 
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Enter valid JSON that matches your schema to test validation
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <Button type="submit">
+                    Validate
+                  </Button>
+                </form>
+              </Form>
+              
+              {validationResult && (
+                <Alert variant={validationResult.valid ? "default" : "destructive"} className="mt-4">
+                  <div className="flex items-start gap-2">
+                    {validationResult.valid ? 
+                      <Check className="h-5 w-5 text-green-500" /> : 
+                      <AlertTriangle className="h-5 w-5" />
+                    }
+                    <div>
+                      <AlertTitle>
+                        {validationResult.valid ? "Validation Passed" : "Validation Failed"}
+                      </AlertTitle>
+                      <AlertDescription>
+                        {validationResult.valid ? (
+                          "The data is valid according to the schema."
+                        ) : (
+                          <div className="space-y-2 mt-2">
+                            <p>The following errors were found:</p>
+                            <ul className="list-disc list-inside text-sm">
+                              {validationResult.errors.map((error, index) => (
+                                <li key={index}>{error}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </AlertDescription>
+                    </div>
+                  </div>
+                </Alert>
+              )}
+            </div>
+          </TabsContent>
+        </Tabs>
+      )}
       
       <div className="text-xs text-muted-foreground mt-4">
         {Object.keys(fieldTypes).length} fields defined, {requiredFields.length} required
