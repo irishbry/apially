@@ -7,10 +7,12 @@ import { Clipboard, Copy, KeyRound, RefreshCw, Settings } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { ApiService } from "@/services/ApiService";
 import ApiKeyTester from './ApiKeyTester';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const ApiKeyForm: React.FC = () => {
   const [apiKey, setApiKey] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [activeTab, setActiveTab] = useState('key');
   const { toast } = useToast();
 
   useEffect(() => {
