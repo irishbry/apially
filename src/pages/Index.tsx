@@ -244,7 +244,7 @@ const Index = () => {
                   <ApiKeyForm />
                   <DropboxLinkForm />
                 </div>
-                <SchemaEditor />
+                
               </TabsContent>
             </Tabs>
           </section>
