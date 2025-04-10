@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Code, Copy, FileJson, Globe, BookOpen, Server } from "lucide-react";
@@ -120,26 +121,61 @@ const ApiDocumentation: React.FC = () => {
     return fieldDescriptions.join('\n');
   };
 
+  // Generate example data object based on schema
+  const getExampleDataObject = () => {
+    // Create a data object with the default fields
+    const exampleData: Record<string, any> = {
+      "sensorId": "sensor-1",
+    };
+    
+    // Add fields from the actual schema with appropriate example values
+    if (schemaLoaded && schema && schema.fieldTypes) {
+      for (const [field, type] of Object.entries(schema.fieldTypes)) {
+        if (field !== "sensorId" && field !== "timestamp") {
+          // Generate appropriate example values based on the field type
+          if (type === "number") {
+            // Use common sensor readings for known fields, or generic numbers for others
+            if (field === "temperature") exampleData[field] = 25.4;
+            else if (field === "humidity") exampleData[field] = 68;
+            else if (field === "pressure") exampleData[field] = 1013.2;
+            else exampleData[field] = 42.5;
+          } else if (type === "boolean") {
+            exampleData[field] = true;
+          } else if (type === "string") {
+            exampleData[field] = `example-${field}`;
+          } else if (type === "array") {
+            exampleData[field] = [1, 2, 3];
+          } else if (type === "object") {
+            exampleData[field] = { "key": "value" };
+          }
+        }
+      }
+    } else {
+      // If no schema, use these generic examples
+      exampleData["temperature"] = 25.4;
+      exampleData["humidity"] = 68;
+      exampleData["pressure"] = 1013.2;
+    }
+    
+    return exampleData;
+  };
+
+  // Generate JSON representation of example data for display
+  const getExampleDataJson = () => {
+    const exampleData = getExampleDataObject();
+    return JSON.stringify(exampleData, null, 2);
+  };
+
   const curlExample = `curl -X POST ${functionUrl} \\
   -H "Content-Type: application/json" \\
   -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" \\
-  -d '{
-    "sensorId": "sensor-1",
-    "temperature": 25.4,
-    "humidity": 68,
-    "pressure": 1013.2
-  }'`;
+  -d '${getExampleDataJson()}'`;
 
   const jsExample = `// Using fetch API
 const url = '${functionUrl}';
 const apiKey = '${apiKey || 'YOUR_API_KEY'}';
 
-const data = {
-  sensorId: 'sensor-1',
-  temperature: 25.4,
-  humidity: 68,
-  pressure: 1013.2
-};
+const data = ${getExampleDataJson()};
 
 fetch(url, {
   method: 'POST',
@@ -164,12 +200,7 @@ headers = {
     'X-API-Key': api_key
 }
 
-data = {
-    "sensorId": "sensor-1",
-    "temperature": 25.4,
-    "humidity": 68,
-    "pressure": 1013.2
-}
+data = ${getExampleDataJson().replace(/^/gm, '    ')}
 
 response = requests.post(url, headers=headers, data=json.dumps(data))
 print(response.json())`;
