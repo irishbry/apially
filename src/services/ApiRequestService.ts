@@ -1,3 +1,4 @@
+
 import { DataEntry, ApiResponse, ApiLog } from '@/types/api.types';
 
 export const ApiRequestService = {
@@ -98,6 +99,15 @@ export const ApiRequestService = {
         body: JSON.stringify(testData)
       });
       
+      // Check if rate limited
+      if (response.status === 429) {
+        const retryAfter = response.headers.get('Retry-After') || '60';
+        return {
+          success: false,
+          message: `Rate limit exceeded. Try again after ${retryAfter} seconds.`
+        };
+      }
+      
       // Check content type to ensure we're receiving JSON
       const contentType = response.headers.get('content-type');
       const isJson = contentType && contentType.includes('application/json');
@@ -166,6 +176,14 @@ export const ApiRequestService = {
           };
         }
         
+        // Handle rate limit errors
+        if (response.status === 429) {
+          return {
+            success: false,
+            message: `Rate limit exceeded. ${responseData.message || 'Try again later.'}`
+          };
+        }
+        
         return {
           success: false,
           message: responseData.error || responseData.message || `API connection failed with status ${response.status}`
@@ -208,6 +226,13 @@ export const ApiRequestService = {
           'X-API-Key': apiKey
         }
       });
+      
+      // Check if rate limited
+      if (response.status === 429) {
+        const retryAfter = response.headers.get('Retry-After') || '60';
+        console.warn(`Rate limit exceeded. Try again after ${retryAfter} seconds.`);
+        throw new Error(`Rate limit exceeded. Try again after ${retryAfter} seconds.`);
+      }
       
       let data;
       let responseText = '';

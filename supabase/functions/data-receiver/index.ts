@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 
@@ -11,6 +10,60 @@ const corsHeaders = {
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+
+// Initialize rate limiter
+const rateLimits = new Map<string, number[]>();
+const RATE_LIMIT = 5; // 5 requests
+const RATE_LIMIT_WINDOW = 60000; // 1 minute in milliseconds
+
+// Helper function to check rate limit
+function checkRateLimit(identifier: string): { allowed: boolean; retryAfter?: number } {
+  const now = Date.now();
+  const windowStart = now - RATE_LIMIT_WINDOW;
+  
+  // Get existing timestamps for this identifier
+  let timestamps = rateLimits.get(identifier) || [];
+  
+  // Filter out timestamps outside the current window
+  timestamps = timestamps.filter(timestamp => timestamp > windowStart);
+  
+  // Add current request timestamp
+  timestamps.push(now);
+  
+  // Update rate limit store
+  rateLimits.set(identifier, timestamps);
+  
+  // Check if rate limit is exceeded
+  if (timestamps.length > RATE_LIMIT) {
+    // Calculate retry after time in seconds
+    const oldestTimestampInWindow = timestamps[0];
+    const retryAfter = Math.ceil((oldestTimestampInWindow + RATE_LIMIT_WINDOW - now) / 1000);
+    
+    return { allowed: false, retryAfter };
+  }
+  
+  return { allowed: true };
+}
+
+// Clean up rate limiter occasionally (basic implementation)
+setInterval(() => {
+  const now = Date.now();
+  const windowStart = now - RATE_LIMIT_WINDOW;
+  
+  // For each entry in the map
+  for (const [identifier, timestamps] of rateLimits.entries()) {
+    // Filter out old timestamps
+    const newTimestamps = timestamps.filter(timestamp => timestamp > windowStart);
+    
+    if (newTimestamps.length === 0) {
+      // If no timestamps remain, remove the entry
+      rateLimits.delete(identifier);
+    } else {
+      // Otherwise, update with filtered timestamps
+      rateLimits.set(identifier, newTimestamps);
+    }
+  }
+}, 60000); // Run cleanup every minute
 
 // Helper function to determine data type for schema validation
 function getDataType(value: any): string {
@@ -75,6 +128,32 @@ serve(async (req) => {
   }
 
   try {
+    // Extract client IP for rate limiting
+    const clientIp = req.headers.get('x-forwarded-for') || 'unknown';
+    
+    // Check rate limit
+    const rateLimitResult = checkRateLimit(clientIp);
+    if (!rateLimitResult.allowed) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          message: `Rate limit exceeded. Try again after ${rateLimitResult.retryAfter} seconds.`,
+          code: 'RATE_LIMIT_EXCEEDED'
+        }),
+        { 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json',
+            'Retry-After': rateLimitResult.retryAfter?.toString() || '60',
+            'X-RateLimit-Limit': RATE_LIMIT.toString(),
+            'X-RateLimit-Remaining': '0',
+            'X-RateLimit-Reset': (Math.floor(Date.now() / 1000) + (rateLimitResult.retryAfter || 60)).toString()
+          }, 
+          status: 429 
+        }
+      );
+    }
+    
     // Extract API Key from headers - check multiple possible header locations
     // First check X-API-Key header (preferred)
     let apiKey = req.headers.get('x-api-key') || req.headers.get('X-API-Key');
