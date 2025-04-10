@@ -33,7 +33,6 @@ const ApiDocumentation: React.FC = () => {
         
         if (data && !error) {
           setApiKey(data.api_key);
-          // Fetch schema for this API key
           fetchSchema(data.api_key);
         }
       } catch (err) {
@@ -44,7 +43,6 @@ const ApiDocumentation: React.FC = () => {
     fetchApiKey();
     
     const projectRef = "api.apially.com";
-    // Remove .supabase.co from the URL
     setFunctionUrl(`https://${projectRef}/functions/v1/data-receiver`);
   }, [user]);
 
@@ -73,15 +71,12 @@ const ApiDocumentation: React.FC = () => {
     });
   };
 
-  // Generate schema JSON representation for display
   const getSchemaJsonDisplay = () => {
-    // Create a schema object with common default fields
     const schemaObj: Record<string, string> = {
-      "sensorId": "string", // Always include sensorId as a base field
-      "timestamp": "string" // Always include timestamp as a base field
+      "sensorId": "string",
+      "timestamp": "string"
     };
     
-    // Add custom fields from the schema
     if (schemaLoaded && schema && schema.fieldTypes) {
       for (const [field, type] of Object.entries(schema.fieldTypes)) {
         schemaObj[field] = type;
@@ -91,7 +86,6 @@ const ApiDocumentation: React.FC = () => {
     return JSON.stringify(schemaObj, null, 2);
   };
 
-  // Helper function to describe required fields
   const getRequiredFieldsText = () => {
     if (!schemaLoaded || !schema.requiredFields || schema.requiredFields.length === 0) {
       return "// No fields are marked as required";
@@ -100,15 +94,12 @@ const ApiDocumentation: React.FC = () => {
     return "// Required fields: " + schema.requiredFields.join(", ");
   };
 
-  // Generate additional schema documentation
   const getSchemaDescription = () => {
     const fieldDescriptions: string[] = [];
     
-    // Add descriptions for standard fields
     fieldDescriptions.push('"sensorId": "string"     // Unique identifier for the sensor');
     fieldDescriptions.push('"timestamp": "string"    // ISO date string (auto-generated if not provided)');
     
-    // Add descriptions for custom fields from schema
     if (schemaLoaded && schema && schema.fieldTypes) {
       for (const [field, type] of Object.entries(schema.fieldTypes)) {
         if (field !== "sensorId" && field !== "timestamp") {
@@ -121,20 +112,15 @@ const ApiDocumentation: React.FC = () => {
     return fieldDescriptions.join('\n');
   };
 
-  // Generate example data object based on schema
   const getExampleDataObject = () => {
-    // Create a data object with the default fields
     const exampleData: Record<string, any> = {
       "sensorId": "sensor-1",
     };
     
-    // Add fields from the actual schema with appropriate example values
     if (schemaLoaded && schema && schema.fieldTypes) {
       for (const [field, type] of Object.entries(schema.fieldTypes)) {
         if (field !== "sensorId" && field !== "timestamp") {
-          // Generate appropriate example values based on the field type
           if (type === "number") {
-            // Use common sensor readings for known fields, or generic numbers for others
             if (field === "temperature") exampleData[field] = 25.4;
             else if (field === "humidity") exampleData[field] = 68;
             else if (field === "pressure") exampleData[field] = 1013.2;
@@ -151,7 +137,6 @@ const ApiDocumentation: React.FC = () => {
         }
       }
     } else {
-      // If no schema, use these generic examples
       exampleData["temperature"] = 25.4;
       exampleData["humidity"] = 68;
       exampleData["pressure"] = 1013.2;
@@ -160,13 +145,11 @@ const ApiDocumentation: React.FC = () => {
     return exampleData;
   };
 
-  // Generate JSON representation of example data for display
   const getExampleDataJson = () => {
     const exampleData = getExampleDataObject();
     return JSON.stringify(exampleData, null, 2);
   };
 
-  // Generate dynamic success response example based on the schema
   const getDynamicSuccessResponse = () => {
     const exampleData = getExampleDataObject();
     const responseData = {
@@ -184,11 +167,13 @@ const ApiDocumentation: React.FC = () => {
     return JSON.stringify(responseData, null, 2);
   };
 
-  // Generate dynamic batch success response based on the schema
   const getDynamicBatchSuccessResponse = () => {
     const exampleData = getExampleDataObject();
-    const exampleData2 = { ...exampleData, sensorId: "sensor-2" };
-    if (exampleData.temperature) exampleData2.temperature = 22.1;
+    const exampleData2: Record<string, any> = { ...exampleData, sensorId: "sensor-2" };
+    
+    if ("temperature" in exampleData2) {
+      exampleData2.temperature = 22.1;
+    }
     
     const responseData = {
       success: true,
@@ -212,39 +197,6 @@ const ApiDocumentation: React.FC = () => {
     return JSON.stringify(responseData, null, 2);
   };
 
-  // Generate validation error example based on schema
-  const getDynamicValidationErrorResponse = () => {
-    const errors = [];
-    
-    if (schemaLoaded && schema.requiredFields && schema.requiredFields.length > 0) {
-      errors.push(`Missing required field: ${schema.requiredFields[0]}`);
-    } else {
-      errors.push("Missing required field: sensorId");
-    }
-    
-    // Add schema type validation error example
-    if (schemaLoaded && schema.fieldTypes) {
-      const schemaEntries = Object.entries(schema.fieldTypes);
-      if (schemaEntries.length > 0) {
-        const [fieldName, fieldType] = schemaEntries[0];
-        errors.push(`Field ${fieldName} should be type ${fieldType}, got string`);
-      } else {
-        errors.push("Field temperature should be type number, got string");
-      }
-    } else {
-      errors.push("Field temperature should be type number, got string");
-    }
-    
-    const responseData = {
-      success: false,
-      message: "Data validation failed",
-      errors: errors,
-      code: "VALIDATION_FAILED"
-    };
-    
-    return JSON.stringify(responseData, null, 2);
-  };
-
   const curlExample = `curl -X POST ${functionUrl} \\
   -H "Content-Type: application/json" \\
   -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" \\
@@ -260,7 +212,7 @@ fetch(url, {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'X-API-Key': apiKey // Send the API key in the X-API-Key header
+    'X-API-Key': apiKey
   },
   body: JSON.stringify(data)
 })
