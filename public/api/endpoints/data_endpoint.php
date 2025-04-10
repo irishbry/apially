@@ -7,7 +7,11 @@ function handleDataEndpoint() {
     // 1. Validate request method (only accept POST)
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         http_response_code(405); // Method Not Allowed
-        echo json_encode(['error' => 'Only POST method is allowed for data submission']);
+        echo json_encode([
+            'success' => false, 
+            'message' => 'Only POST method is allowed for data submission',
+            'code' => 'METHOD_NOT_ALLOWED'
+        ]);
         logApiRequest('data', 'error', 'Invalid request method: ' . $_SERVER['REQUEST_METHOD']);
         return;
     }
@@ -16,7 +20,11 @@ function handleDataEndpoint() {
     $apiKey = $_SERVER['HTTP_X_API_KEY'] ?? '';
     if (empty($apiKey)) {
         http_response_code(401); // Unauthorized
-        echo json_encode(['error' => 'API key is required']);
+        echo json_encode([
+            'success' => false, 
+            'message' => 'API key is required',
+            'code' => 'AUTH_FAILED'
+        ]);
         logApiRequest('data', 'error', 'Missing API key');
         return;
     }
@@ -25,7 +33,11 @@ function handleDataEndpoint() {
     $sourceId = validateApiKey($apiKey);
     if (!$sourceId) {
         http_response_code(403); // Forbidden
-        echo json_encode(['error' => 'Invalid or inactive API key']);
+        echo json_encode([
+            'success' => false, 
+            'message' => 'Invalid or inactive API key',
+            'code' => 'AUTH_FAILED'
+        ]);
         logApiRequest('data', 'error', 'Invalid API key: ' . substr($apiKey, 0, 8) . '...');
         return;
     }
@@ -36,8 +48,10 @@ function handleDataEndpoint() {
     if (json_last_error() !== JSON_ERROR_NONE) {
         http_response_code(400); // Bad Request
         echo json_encode([
-            'error' => 'Invalid JSON format', 
-            'details' => json_last_error_msg()
+            'success' => false, 
+            'message' => 'Invalid JSON format',
+            'code' => 'VALIDATION_ERROR',
+            'errors' => [json_last_error_msg()]
         ]);
         logApiRequest('data', 'error', 'Invalid JSON: ' . json_last_error_msg());
         return;
@@ -48,8 +62,10 @@ function handleDataEndpoint() {
     if (!$validationResult['valid']) {
         http_response_code(400); // Bad Request
         echo json_encode([
-            'error' => 'Data validation failed',
-            'details' => $validationResult['errors']
+            'success' => false,
+            'message' => 'Data validation failed',
+            'code' => 'VALIDATION_ERROR',
+            'errors' => $validationResult['errors']
         ]);
         logApiRequest('data', 'error', 'Schema validation failed: ' . implode(', ', $validationResult['errors']));
         return;
@@ -85,21 +101,31 @@ function handleDataEndpoint() {
         // 10. Log successful submission
         logApiRequest('data', 'success', 'Data stored in ' . basename($dataFile));
         
-        // 11. Return success response with receipt ID
+        // 11. Return success response with receipt ID - Updated to match documentation format
         echo json_encode([
             'success' => true,
             'message' => 'Data received and processed successfully',
-            'receipt' => [
+            'data' => [
                 'id' => $processedData['id'],
-                'timestamp' => $processedData['processedAt'],
-                'source' => $sourceId
+                'timestamp' => $processedData['receivedAt'],
+                'sourceId' => $sourceId,
+                'sensorId' => $data['sensorId'] ?? ($data['sensor_id'] ?? null),
+                // Include all original data fields
+                'temperature' => $data['temperature'] ?? null,
+                'humidity' => $data['humidity'] ?? null,
+                'pressure' => $data['pressure'] ?? null
             ]
         ]);
         
     } catch (Exception $e) {
         // Handle storage errors
         http_response_code(500); // Internal Server Error
-        echo json_encode(['error' => 'Failed to process data submission']);
+        echo json_encode([
+            'success' => false, 
+            'message' => 'Failed to process data submission',
+            'code' => 'SERVER_ERROR',
+            'details' => $e->getMessage()
+        ]);
         logApiRequest('data', 'error', 'Storage error: ' . $e->getMessage());
     }
 }

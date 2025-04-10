@@ -93,22 +93,10 @@ serve(async (req) => {
     if (!apiKey) {
       return new Response(
         JSON.stringify({ 
-          error: 'API key is required', 
-          code: 401, 
-          message: 'Missing API key header',
-          help: 'Please provide your API key in the "X-API-Key" header'
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-      );
-    }
-
-    if (!apiKey) {
-      return new Response(
-        JSON.stringify({ 
-          error: 'Empty API key', 
-          code: 401, 
-          message: 'API key cannot be empty',
-          help: 'Please provide a valid API key'
+          success: false,
+          message: 'API key is required',
+          code: 'AUTH_FAILED',
+          details: 'Missing API key header'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
       );
@@ -135,7 +123,9 @@ serve(async (req) => {
       console.error('Source validation error:', sourceError);
       return new Response(
         JSON.stringify({ 
-          error: 'Invalid or inactive API key',
+          success: false,
+          message: 'Invalid or inactive API key',
+          code: 'AUTH_FAILED',
           details: sourceError ? sourceError.message : 'No active source found with this API key' 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
@@ -153,7 +143,11 @@ serve(async (req) => {
     const body = await req.json().catch(() => null);
     if (!body) {
       return new Response(
-        JSON.stringify({ error: 'Invalid JSON format' }),
+        JSON.stringify({ 
+          success: false,
+          message: 'Invalid JSON format',
+          code: 'VALIDATION_ERROR'
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       );
     }
@@ -176,8 +170,10 @@ serve(async (req) => {
         console.error('Schema validation failed:', validationResult.errors);
         return new Response(
           JSON.stringify({ 
-            error: 'Data validation failed', 
-            details: validationResult.errors 
+            success: false,
+            message: 'Data validation failed',
+            code: 'VALIDATION_ERROR',
+            errors: validationResult.errors 
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
         );
@@ -203,8 +199,10 @@ serve(async (req) => {
           console.error('Schema validation failed:', validationResult.errors);
           return new Response(
             JSON.stringify({ 
-              error: 'Data validation failed', 
-              details: validationResult.errors 
+              success: false,
+              message: 'Data validation failed',
+              code: 'VALIDATION_ERROR',
+              errors: validationResult.errors 
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
           );
@@ -214,7 +212,12 @@ serve(async (req) => {
         // If no schema is defined, just validate required fields - accept either sensorId or sensor_id
         if (!body.sensorId && !body.sensor_id) {
           return new Response(
-            JSON.stringify({ error: 'Missing required field: sensorId or sensor_id' }),
+            JSON.stringify({ 
+              success: false,
+              message: 'Data validation failed',
+              code: 'VALIDATION_ERROR',
+              errors: ['Missing required field: sensorId or sensor_id']
+            }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
           );
         }
@@ -223,6 +226,7 @@ serve(async (req) => {
 
     // Generate a unique ID if not provided
     const entryId = body.id || crypto.randomUUID();
+    const now = new Date().toISOString();
 
     // Add metadata to the data
     const enhancedData = {
@@ -232,8 +236,8 @@ serve(async (req) => {
       source_id: source.id,
       userId: source.user_id,
       user_id: source.user_id,
-      receivedAt: new Date().toISOString(),
-      timestamp: body.timestamp || new Date().toISOString(),
+      receivedAt: now,
+      timestamp: body.timestamp || now,
       clientIp: req.headers.get('x-forwarded-for') || 'unknown'
     };
 
@@ -296,7 +300,11 @@ serve(async (req) => {
     if (dbError) {
       console.error('Database error:', dbError);
       return new Response(
-        JSON.stringify({ error: 'Failed to store data in database', details: dbError.message }),
+        JSON.stringify({ 
+          success: false,
+          message: 'Failed to store data in database',
+          details: dbError.message 
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
       );
     }
@@ -314,15 +322,17 @@ serve(async (req) => {
       console.error('Update error:', updateError);
     }
 
-    // Return success response
+    // Return success response matching the format in the documentation
     return new Response(
       JSON.stringify({
         success: true,
         message: 'Data received and processed successfully',
-        receipt: {
+        data: {
           id: entryId,
-          timestamp: new Date().toISOString(),
-          source: source.name
+          timestamp: now,
+          sourceId: source.id,
+          sensorId: enhancedData.sensorId || enhancedData.sensor_id,
+          ...body
         }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
@@ -330,7 +340,12 @@ serve(async (req) => {
   } catch (error) {
     console.error('Unexpected error:', error);
     return new Response(
-      JSON.stringify({ error: 'An internal server error occurred', details: error.message }),
+      JSON.stringify({ 
+        success: false,
+        message: 'An internal server error occurred',
+        code: 'SERVER_ERROR',
+        details: error.message 
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }

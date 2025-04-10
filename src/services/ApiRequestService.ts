@@ -18,7 +18,17 @@ export const ApiRequestService = {
         source: data.sourceId || data.source_id || 'Unknown',
         message: 'Data received successfully',
         requestBody: JSON.stringify(data),
-        responseBody: JSON.stringify({ success: true, message: 'Data received successfully' })
+        responseBody: JSON.stringify({ 
+          success: true, 
+          message: 'Data received and processed successfully',
+          data: {
+            id: `entry-${Date.now().toString().substring(0, 10)}-123`,
+            timestamp: new Date().toISOString(),
+            sourceId: data.sourceId || data.source_id || 'source-123',
+            sensorId: data.sensorId || data.sensor_id || 'sensor-1',
+            ...data
+          }
+        })
       };
       
       // Log the API request (in a real implementation, you'd save this to a database)
@@ -26,7 +36,14 @@ export const ApiRequestService = {
       
       return {
         success: true,
-        message: 'Data received successfully'
+        message: 'Data received successfully',
+        data: {
+          id: `entry-${Date.now().toString().substring(0, 10)}-123`,
+          timestamp: new Date().toISOString(),
+          sourceId: data.sourceId || data.source_id || 'source-123',
+          sensorId: data.sensorId || data.sensor_id || 'sensor-1',
+          ...data
+        }
       };
     } catch (error) {
       // Create log entry for failed data reception
@@ -45,7 +62,8 @@ export const ApiRequestService = {
       
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Unknown error occurred'
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+        code: 'SERVER_ERROR'
       };
     }
   },
