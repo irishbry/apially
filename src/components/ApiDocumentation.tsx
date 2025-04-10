@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Code, Copy, FileJson, Globe, BookOpen, Server } from "lucide-react";
@@ -165,6 +164,85 @@ const ApiDocumentation: React.FC = () => {
   const getExampleDataJson = () => {
     const exampleData = getExampleDataObject();
     return JSON.stringify(exampleData, null, 2);
+  };
+
+  // Generate dynamic success response example based on the schema
+  const getDynamicSuccessResponse = () => {
+    const exampleData = getExampleDataObject();
+    const responseData = {
+      success: true,
+      message: "Data received successfully",
+      data: {
+        id: "entry-" + Date.now().toString().substring(0, 10) + "-123",
+        timestamp: new Date().toISOString(),
+        sourceId: "source-123",
+        sensorId: exampleData.sensorId,
+        ...exampleData
+      }
+    };
+    
+    return JSON.stringify(responseData, null, 2);
+  };
+
+  // Generate dynamic batch success response based on the schema
+  const getDynamicBatchSuccessResponse = () => {
+    const exampleData = getExampleDataObject();
+    const exampleData2 = { ...exampleData, sensorId: "sensor-2" };
+    if (exampleData.temperature) exampleData2.temperature = 22.1;
+    
+    const responseData = {
+      success: true,
+      message: "Batch data received successfully",
+      data: {
+        receivedCount: 2,
+        failedCount: 0,
+        entries: [
+          { 
+            id: "entry-" + Date.now().toString().substring(0, 10) + "-123", 
+            sensorId: exampleData.sensorId 
+          },
+          { 
+            id: "entry-" + Date.now().toString().substring(0, 10) + "-124", 
+            sensorId: exampleData2.sensorId 
+          }
+        ]
+      }
+    };
+    
+    return JSON.stringify(responseData, null, 2);
+  };
+
+  // Generate validation error example based on schema
+  const getDynamicValidationErrorResponse = () => {
+    const errors = [];
+    
+    if (schemaLoaded && schema.requiredFields && schema.requiredFields.length > 0) {
+      errors.push(`Missing required field: ${schema.requiredFields[0]}`);
+    } else {
+      errors.push("Missing required field: sensorId");
+    }
+    
+    // Add schema type validation error example
+    if (schemaLoaded && schema.fieldTypes) {
+      const schemaEntries = Object.entries(schema.fieldTypes);
+      if (schemaEntries.length > 0) {
+        const [fieldName, fieldType] = schemaEntries[0];
+        errors.push(`Field ${fieldName} should be type ${fieldType}, got string`);
+      } else {
+        errors.push("Field temperature should be type number, got string");
+      }
+    } else {
+      errors.push("Field temperature should be type number, got string");
+    }
+    
+    const responseData = {
+      success: false,
+      message: "Data validation failed",
+      errors: errors,
+      code: "VALIDATION_FAILED"
+    };
+    
+    return JSON.stringify(responseData, null, 2);
   };
 
   const curlExample = `curl -X POST ${functionUrl} \\
@@ -401,19 +479,7 @@ ${getRequiredFieldsText()}`}
               <div className="bg-secondary p-3 rounded-md overflow-x-auto">
                 <pre className="text-xs sm:text-sm whitespace-pre-wrap">
 {`// 200 OK
-{
-  "success": true,
-  "message": "Data received successfully",
-  "data": {
-    "id": "entry-1625176468-123",
-    "timestamp": "2023-07-01T15:01:08.468Z",
-    "sourceId": "source-123",
-    "sensorId": "sensor-1",
-    "temperature": 25.4,
-    "humidity": 68,
-    "pressure": 1013.2
-  }
-}`}
+${getDynamicSuccessResponse()}`}
                 </pre>
               </div>
             </div>
@@ -423,18 +489,7 @@ ${getRequiredFieldsText()}`}
               <div className="bg-secondary p-3 rounded-md overflow-x-auto">
                 <pre className="text-xs sm:text-sm whitespace-pre-wrap">
 {`// 200 OK
-{
-  "success": true,
-  "message": "Batch data received successfully",
-  "data": {
-    "receivedCount": 2,
-    "failedCount": 0,
-    "entries": [
-      { "id": "entry-1625176468-123", "sensorId": "sensor-1" },
-      { "id": "entry-1625176468-124", "sensorId": "sensor-2" }
-    ]
-  }
-}`}
+${getDynamicBatchSuccessResponse()}`}
                 </pre>
               </div>
             </div>
@@ -464,15 +519,7 @@ ${getRequiredFieldsText()}`}
                   <div className="bg-secondary p-3 rounded-md overflow-x-auto">
                     <pre className="text-xs sm:text-sm whitespace-pre-wrap">
 {`// 400 Bad Request
-{
-  "success": false,
-  "message": "Data validation failed",
-  "errors": [
-    "Missing required field: sensorId",
-    "Field temperature should be type number, got string"
-  ],
-  "code": "VALIDATION_FAILED"
-}`}
+${getDynamicValidationErrorResponse()}`}
                     </pre>
                   </div>
                 </AccordionContent>
