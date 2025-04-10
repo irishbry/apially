@@ -44,6 +44,7 @@ export interface ApiLog {
 export interface ApiResponse {
   success: boolean;
   message: string;
+  code?: string;  // Added the optional code property
   data?: any;
 }
 
