@@ -45,7 +45,8 @@ const ApiDocumentation: React.FC = () => {
     fetchApiKey();
     
     const projectRef = "api.apially.com";
-    setFunctionUrl(`https://${projectRef}.supabase.co/functions/v1/data-receiver`);
+    // Remove .supabase.co from the URL
+    setFunctionUrl(`https://${projectRef}/functions/v1/data-receiver`);
   }, [user]);
 
   const fetchSchema = async (apiKey: string) => {

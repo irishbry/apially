@@ -43,6 +43,6 @@ export const ApiService = {
   setDropboxLink: ConfigService.setDropboxLink,
   exportToCsv: ConfigService.exportToCsv,
   
-  // Get default Supabase endpoint
+  // Get default Supabase endpoint - corrected to remove .supabase.co
   getDefaultEndpoint: () => 'https://api.apially.com/functions/v1/data-receiver'
 };
