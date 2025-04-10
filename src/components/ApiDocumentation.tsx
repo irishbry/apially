@@ -197,6 +197,23 @@ const ApiDocumentation: React.FC = () => {
     return JSON.stringify(responseData, null, 2);
   };
 
+  const getDynamicValidationErrorResponse = () => {
+    const requiredFields = schemaLoaded && schema.requiredFields ? schema.requiredFields : ["temperature"];
+    
+    const responseData = {
+      success: false,
+      message: "Data validation failed",
+      code: "VALIDATION_ERROR",
+      errors: [
+        requiredFields.length > 0 
+          ? `Missing required field: ${requiredFields[0]}`
+          : "Invalid data format"
+      ]
+    };
+    
+    return JSON.stringify(responseData, null, 2);
+  };
+
   const curlExample = `curl -X POST ${functionUrl} \\
   -H "Content-Type: application/json" \\
   -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" \\
