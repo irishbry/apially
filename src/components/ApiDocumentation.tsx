@@ -14,6 +14,7 @@ const ApiDocumentation: React.FC = () => {
   const [apiKey, setApiKey] = useState('');
   const [functionUrl, setFunctionUrl] = useState('');
   const [schema, setSchema] = useState<DataSchema>({ fieldTypes: {}, requiredFields: [] });
+  const [schemaLoaded, setSchemaLoaded] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -48,10 +49,14 @@ const ApiDocumentation: React.FC = () => {
 
   const fetchSchema = async (apiKey: string) => {
     try {
+      console.log("Fetching schema for API key:", apiKey);
       const schemaData = await ConfigService.getSchema(apiKey);
       if (schemaData) {
+        console.log("Schema fetched successfully:", schemaData);
         setSchema(schemaData);
-        console.log("Schema fetched for documentation:", schemaData);
+        setSchemaLoaded(true);
+      } else {
+        console.log("No schema found for API key");
       }
     } catch (err) {
       console.error('Error fetching schema for documentation:', err);
@@ -69,16 +74,17 @@ const ApiDocumentation: React.FC = () => {
 
   // Generate schema JSON representation for display
   const getSchemaJsonDisplay = () => {
-    // Create a schema object with default and custom fields
-    const schemaObj: Record<string, string> = {};
+    // Create a schema object with common default fields
+    const schemaObj: Record<string, string> = {
+      "sensorId": "string", // Always include sensorId as a base field
+      "timestamp": "string" // Always include timestamp as a base field
+    };
     
-    // Add common default fields
-    schemaObj["sensorId"] = "string";
-    schemaObj["timestamp"] = "string";
-    
-    // Add all fields from the actual schema
-    for (const [field, type] of Object.entries(schema.fieldTypes)) {
-      schemaObj[field] = type;
+    // Add custom fields from the schema
+    if (schemaLoaded && schema && schema.fieldTypes) {
+      for (const [field, type] of Object.entries(schema.fieldTypes)) {
+        schemaObj[field] = type;
+      }
     }
     
     return JSON.stringify(schemaObj, null, 2);
@@ -86,7 +92,7 @@ const ApiDocumentation: React.FC = () => {
 
   // Helper function to describe required fields
   const getRequiredFieldsText = () => {
-    if (schema.requiredFields.length === 0) {
+    if (!schemaLoaded || !schema.requiredFields || schema.requiredFields.length === 0) {
       return "// No fields are marked as required";
     }
     
@@ -99,16 +105,15 @@ const ApiDocumentation: React.FC = () => {
     
     // Add descriptions for standard fields
     fieldDescriptions.push('"sensorId": "string"     // Unique identifier for the sensor');
-    
-    if (!schema.fieldTypes["timestamp"]) {
-      fieldDescriptions.push('"timestamp": "string"    // ISO date string (auto-generated if not provided)');
-    }
+    fieldDescriptions.push('"timestamp": "string"    // ISO date string (auto-generated if not provided)');
     
     // Add descriptions for custom fields from schema
-    for (const [field, type] of Object.entries(schema.fieldTypes)) {
-      if (field !== "sensorId" && field !== "timestamp") {
-        const isRequired = schema.requiredFields.includes(field) ? " (Required)" : "";
-        fieldDescriptions.push(`"${field}": "${type}"${isRequired}    // Custom field`);
+    if (schemaLoaded && schema && schema.fieldTypes) {
+      for (const [field, type] of Object.entries(schema.fieldTypes)) {
+        if (field !== "sensorId" && field !== "timestamp") {
+          const isRequired = schema.requiredFields.includes(field) ? " (Required)" : "";
+          fieldDescriptions.push(`"${field}": "${type}"${isRequired}    // Custom field`);
+        }
       }
     }
     
