@@ -1,4 +1,3 @@
-
 import { DataEntry, ApiResponse, ApiLog } from '@/types/api.types';
 
 export const ApiRequestService = {
@@ -101,10 +100,10 @@ export const ApiRequestService = {
       
       // Check if rate limited
       if (response.status === 429) {
-        const retryAfter = response.headers.get('Retry-After') || '60';
+        const retryAfter = response.headers.get('Retry-After') || '3600';
         return {
           success: false,
-          message: `Rate limit exceeded. Try again after ${retryAfter} seconds.`
+          message: `Rate limit exceeded. Try again after ${Math.ceil(parseInt(retryAfter) / 60)} minutes.`
         };
       }
       
@@ -229,9 +228,9 @@ export const ApiRequestService = {
       
       // Check if rate limited
       if (response.status === 429) {
-        const retryAfter = response.headers.get('Retry-After') || '60';
-        console.warn(`Rate limit exceeded. Try again after ${retryAfter} seconds.`);
-        throw new Error(`Rate limit exceeded. Try again after ${retryAfter} seconds.`);
+        const retryAfter = response.headers.get('Retry-After') || '3600';
+        console.warn(`Rate limit exceeded. Try again after ${Math.ceil(parseInt(retryAfter) / 60)} minutes.`);
+        throw new Error(`Rate limit exceeded. Try again after ${Math.ceil(parseInt(retryAfter) / 60)} minutes.`);
       }
       
       let data;

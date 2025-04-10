@@ -2,7 +2,7 @@
 <?php
 /**
  * Rate limiting utility for API endpoints
- * Limits requests to 5 per minute per IP address per endpoint
+ * Limits requests to 5 per hour per IP address per endpoint
  */
 
 function checkRateLimit($endpoint) {
@@ -23,8 +23,8 @@ function checkRateLimit($endpoint) {
     
     // Current time
     $now = time();
-    $windowSize = 60; // 1 minute window
-    $maxRequests = 5; // 5 requests per minute
+    $windowSize = 3600; // 1 hour window (3600 seconds)
+    $maxRequests = 5; // 5 requests per hour
     
     // Default rate limit data structure
     $rateLimitData = [
@@ -82,8 +82,8 @@ function checkRateLimit($endpoint) {
     
     // Check if rate limit exceeded
     if ($requestCount > $maxRequests) {
-        // Block for 1 minute
-        $blockDuration = 60; // 1 minute block
+        // Block for 1 hour
+        $blockDuration = 3600; // 1 hour block
         $rateLimitData['blocked_until'] = $now + $blockDuration;
         
         // Save rate limit data
@@ -128,8 +128,8 @@ function cleanupRateLimitFiles() {
     $files = glob($rateLimitDir . '/*.json');
     
     foreach ($files as $file) {
-        // If file is older than 1 day, delete it
-        if (filemtime($file) < ($now - 86400)) {
+        // If file is older than 2 days, delete it (increased from 1 day to account for hourly rate limiting)
+        if (filemtime($file) < ($now - 172800)) {
             @unlink($file);
         }
     }
