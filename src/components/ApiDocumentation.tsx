@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Code, Copy, FileJson, Globe, BookOpen, Server } from "lucide-react";
@@ -29,7 +28,7 @@ const ApiDocumentation: React.FC = () => {
           .eq('user_id', user.id)
           .eq('active', true)
           .limit(1)
-          .single();
+          .maybeSingle();
         
         if (data && !error) {
           setApiKey(data.api_key);
@@ -70,19 +69,16 @@ const ApiDocumentation: React.FC = () => {
 
   // Generate schema JSON representation for display
   const getSchemaJsonDisplay = () => {
-    const schemaObj: any = {
-      // Add basic outline for schema even if empty
-      "sensorId": "string"
-    };
+    // Create a schema object with default and custom fields
+    const schemaObj: Record<string, string> = {};
     
-    // Add fields from the actual schema
+    // Add common default fields
+    schemaObj["sensorId"] = "string";
+    schemaObj["timestamp"] = "string";
+    
+    // Add all fields from the actual schema
     for (const [field, type] of Object.entries(schema.fieldTypes)) {
       schemaObj[field] = type;
-    }
-    
-    // Add timestamp if not already there
-    if (!schemaObj.timestamp) {
-      schemaObj["timestamp"] = "string";
     }
     
     return JSON.stringify(schemaObj, null, 2);
@@ -95,6 +91,28 @@ const ApiDocumentation: React.FC = () => {
     }
     
     return "// Required fields: " + schema.requiredFields.join(", ");
+  };
+
+  // Generate additional schema documentation
+  const getSchemaDescription = () => {
+    const fieldDescriptions: string[] = [];
+    
+    // Add descriptions for standard fields
+    fieldDescriptions.push('"sensorId": "string"     // Unique identifier for the sensor');
+    
+    if (!schema.fieldTypes["timestamp"]) {
+      fieldDescriptions.push('"timestamp": "string"    // ISO date string (auto-generated if not provided)');
+    }
+    
+    // Add descriptions for custom fields from schema
+    for (const [field, type] of Object.entries(schema.fieldTypes)) {
+      if (field !== "sensorId" && field !== "timestamp") {
+        const isRequired = schema.requiredFields.includes(field) ? " (Required)" : "";
+        fieldDescriptions.push(`"${field}": "${type}"${isRequired}    // Custom field`);
+      }
+    }
+    
+    return fieldDescriptions.join('\n');
   };
 
   const curlExample = `curl -X POST ${functionUrl} \\
@@ -219,9 +237,13 @@ print(response.json())`;
                   <AccordionContent>
                     <div className="bg-secondary p-3 rounded-md overflow-x-auto">
                       <pre className="text-xs sm:text-sm">
-{getSchemaJsonDisplay()}
+{`// JSON Schema
+${getSchemaJsonDisplay()}
 
-{getRequiredFieldsText()}
+// Field details
+${getSchemaDescription()}
+
+${getRequiredFieldsText()}`}
                       </pre>
                     </div>
                   </AccordionContent>
