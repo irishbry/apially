@@ -100,10 +100,10 @@ export const ApiRequestService = {
       
       // Check if rate limited
       if (response.status === 429) {
-        const retryAfter = response.headers.get('Retry-After') || '3600';
+        const retryAfter = response.headers.get('Retry-After') || '60';
         return {
           success: false,
-          message: `Rate limit exceeded. Try again after ${Math.ceil(parseInt(retryAfter) / 60)} minutes.`
+          message: `Rate limit exceeded. Try again after ${retryAfter} seconds.`
         };
       }
       
@@ -228,9 +228,9 @@ export const ApiRequestService = {
       
       // Check if rate limited
       if (response.status === 429) {
-        const retryAfter = response.headers.get('Retry-After') || '3600';
-        console.warn(`Rate limit exceeded. Try again after ${Math.ceil(parseInt(retryAfter) / 60)} minutes.`);
-        throw new Error(`Rate limit exceeded. Try again after ${Math.ceil(parseInt(retryAfter) / 60)} minutes.`);
+        const retryAfter = response.headers.get('Retry-After') || '60';
+        console.warn(`Rate limit exceeded. Try again after ${retryAfter} seconds.`);
+        throw new Error(`Rate limit exceeded. Try again after ${retryAfter} seconds.`);
       }
       
       let data;
