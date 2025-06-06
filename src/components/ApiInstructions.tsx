@@ -15,6 +15,10 @@ interface Source {
   created_at: string;
   active: boolean;
   last_active?: string;
+  user_id: string;
+  url?: string;
+  data_count: number;
+  schema?: any;
 }
 
 const ApiInstructions: React.FC = () => {
@@ -34,6 +38,7 @@ const ApiInstructions: React.FC = () => {
   useEffect(() => {
     const fetchSources = async () => {
       try {
+        console.log('Fetching sources for API instructions...');
         const { data: sources, error } = await supabase
           .from('sources')
           .select('*')
@@ -45,10 +50,16 @@ const ApiInstructions: React.FC = () => {
           return;
         }
         
+        console.log('Sources fetched:', sources);
+        
         if (sources && sources.length > 0) {
           // Get the most recently created active source's API key
           const latestSource = sources[0];
+          console.log('Latest source API key:', latestSource.api_key);
           setCurrentSourceApiKey(latestSource.api_key || '');
+        } else {
+          console.log('No active sources found');
+          setCurrentSourceApiKey('');
         }
       } catch (err) {
         console.error('Error in fetchSources:', err);
@@ -63,7 +74,8 @@ const ApiInstructions: React.FC = () => {
       .channel('sources_changes_api_instructions')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'sources' }, 
-        () => {
+        (payload) => {
+          console.log('Sources table changed:', payload);
           fetchSources();
         }
       )
@@ -87,6 +99,8 @@ const ApiInstructions: React.FC = () => {
   
   // Use the current source API key if available, otherwise fall back to the stored API key
   const displayApiKey = currentSourceApiKey || apiKey || 'YOUR_API_KEY';
+  
+  console.log('Display API key:', displayApiKey);
 
   const curlExample = `curl -X POST ${apiEndpoint} \\
   -H "Content-Type: application/json" \\
@@ -171,6 +185,24 @@ print(response.json())`;
                 <Copy className="h-3 w-3" />
               </Button>
             </div>
+            {currentSourceApiKey && (
+              <div className="flex items-center justify-between bg-green-50 p-3 rounded-md border border-green-200">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-green-800">Current API Key:</span>
+                  <code className="text-xs bg-green-100 px-2 py-1 rounded text-green-800">
+                    {currentSourceApiKey.substring(0, 8)}...
+                  </code>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => copyToClipboard(currentSourceApiKey, 'API key copied!')}
+                  className="h-8 px-2 text-green-600 hover:text-green-800"
+                >
+                  <Copy className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
             <p className="text-xs text-muted-foreground mt-2">
               <span className="font-medium flex items-center gap-1"><Globe className="h-3 w-3" /> Note:</span> This endpoint will automatically use your domain name. After deployment to SiteGround, this will reflect your actual server address.
             </p>
