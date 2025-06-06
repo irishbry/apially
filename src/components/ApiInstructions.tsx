@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Code, Copy, FileJson, Globe } from "lucide-react";
@@ -5,9 +6,11 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApiService } from "@/services/ApiService";
+import { SourcesService } from "@/services/SourcesService";
 
 const ApiInstructions: React.FC = () => {
   const [apiKey, setApiKey] = useState('');
+  const [currentSourceApiKey, setCurrentSourceApiKey] = useState('');
   const [domainName, setDomainName] = useState(window.location.origin || 'https://your-domain.com');
   const { toast } = useToast();
 
@@ -16,6 +19,21 @@ const ApiInstructions: React.FC = () => {
     if (savedKey) {
       setApiKey(savedKey);
     }
+  }, []);
+
+  // Listen for changes in sources to get the latest API key
+  useEffect(() => {
+    const unsubscribe = SourcesService.subscribeToSources((sources) => {
+      if (sources.length > 0) {
+        // Get the most recently created source's API key
+        const latestSource = sources.sort((a, b) => 
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        )[0];
+        setCurrentSourceApiKey(latestSource.api_key);
+      }
+    });
+
+    return unsubscribe;
   }, []);
 
   const copyToClipboard = (text: string, message: string) => {
@@ -28,10 +46,13 @@ const ApiInstructions: React.FC = () => {
   };
 
   const apiEndpoint = `${domainName}/api/data`;
+  
+  // Use the current source API key if available, otherwise fall back to the stored API key
+  const displayApiKey = currentSourceApiKey || apiKey || 'YOUR_API_KEY';
 
   const curlExample = `curl -X POST ${apiEndpoint} \\
   -H "Content-Type: application/json" \\
-  -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" \\
+  -H "X-API-Key: ${displayApiKey}" \\
   -d '{
     "sensorId": "sensor-1",
     "temperature": 25.4,
@@ -41,7 +62,7 @@ const ApiInstructions: React.FC = () => {
 
   const jsExample = `// Using fetch API
 const url = '${apiEndpoint}';
-const apiKey = '${apiKey || 'YOUR_API_KEY'}';
+const apiKey = '${displayApiKey}';
 
 const data = {
   sensorId: 'sensor-1',
@@ -66,7 +87,7 @@ fetch(url, {
 import json
 
 url = "${apiEndpoint}"
-api_key = "${apiKey || 'YOUR_API_KEY'}"
+api_key = "${displayApiKey}"
 
 headers = {
     'Content-Type': 'application/json',
