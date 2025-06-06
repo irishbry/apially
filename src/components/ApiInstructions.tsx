@@ -1,5 +1,3 @@
-
-
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Code, Copy, FileJson, Globe } from "lucide-react";
@@ -28,12 +26,12 @@ const ApiInstructions: React.FC = () => {
       if (sources.length > 0) {
         // Get the most recently created source's API key
         const latestSource = sources.sort((a, b) => {
-          // Use lastActive as a fallback if no creation date is available
-          const dateA = a.lastActive ? new Date(a.lastActive).getTime() : 0;
-          const dateB = b.lastActive ? new Date(b.lastActive).getTime() : 0;
+          // Use created_at if available, otherwise fall back to id comparison
+          const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
           return dateB - dateA;
         })[0];
-        setCurrentSourceApiKey(latestSource.apiKey || '');
+        setCurrentSourceApiKey(latestSource.api_key || '');
       }
     });
 
@@ -209,4 +207,3 @@ print(response.json())`;
 };
 
 export default ApiInstructions;
-
