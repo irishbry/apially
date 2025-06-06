@@ -24,6 +24,7 @@ interface Source {
 const ApiInstructions: React.FC = () => {
   const [apiKey, setApiKey] = useState('');
   const [currentSourceApiKey, setCurrentSourceApiKey] = useState('');
+  const [refreshKey, setRefreshKey] = useState(0); // Force component refresh
   const [domainName, setDomainName] = useState(window.location.origin || 'https://your-domain.com');
   const { toast } = useToast();
 
@@ -57,6 +58,8 @@ const ApiInstructions: React.FC = () => {
           const latestSource = sources[0];
           console.log('Latest source API key:', latestSource.api_key);
           setCurrentSourceApiKey(latestSource.api_key || '');
+          // Force component refresh
+          setRefreshKey(prev => prev + 1);
         } else {
           console.log('No active sources found');
           setCurrentSourceApiKey('');
@@ -76,7 +79,8 @@ const ApiInstructions: React.FC = () => {
         { event: '*', schema: 'public', table: 'sources' }, 
         (payload) => {
           console.log('Sources table changed:', payload);
-          fetchSources();
+          // Immediately fetch sources when any change occurs
+          setTimeout(fetchSources, 100); // Small delay to ensure data is committed
         }
       )
       .subscribe();
@@ -157,7 +161,7 @@ response = requests.post(url, headers=headers, data=json.dumps(data))
 print(response.json())`;
 
   return (
-    <Card className="w-full shadow-sm hover:shadow-md transition-all duration-300">
+    <Card key={refreshKey} className="w-full shadow-sm hover:shadow-md transition-all duration-300">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-xl font-medium">
           <FileJson className="h-5 w-5 text-primary" />
