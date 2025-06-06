@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Code, Copy, FileJson, Globe } from "lucide-react";
@@ -5,7 +6,16 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApiService } from "@/services/ApiService";
-import { SourcesService } from "@/services/SourcesService";
+import { supabase } from "@/integrations/supabase/client";
+
+interface Source {
+  id: string;
+  name: string;
+  api_key: string;
+  created_at: string;
+  active: boolean;
+  last_active?: string;
+}
 
 const ApiInstructions: React.FC = () => {
   const [apiKey, setApiKey] = useState('');
@@ -22,20 +32,46 @@ const ApiInstructions: React.FC = () => {
 
   // Listen for changes in sources to get the latest API key
   useEffect(() => {
-    const unsubscribe = SourcesService.subscribeToSources((sources) => {
-      if (sources.length > 0) {
-        // Get the most recently active source's API key
-        const latestSource = sources.sort((a, b) => {
-          // Use lastActive if available, otherwise fall back to id comparison for consistency
-          const dateA = a.lastActive ? new Date(a.lastActive).getTime() : 0;
-          const dateB = b.lastActive ? new Date(b.lastActive).getTime() : 0;
-          return dateB - dateA;
-        })[0];
-        setCurrentSourceApiKey(latestSource.apiKey || '');
+    const fetchSources = async () => {
+      try {
+        const { data: sources, error } = await supabase
+          .from('sources')
+          .select('*')
+          .eq('active', true)
+          .order('created_at', { ascending: false });
+        
+        if (error) {
+          console.error('Error fetching sources:', error);
+          return;
+        }
+        
+        if (sources && sources.length > 0) {
+          // Get the most recently created active source's API key
+          const latestSource = sources[0];
+          setCurrentSourceApiKey(latestSource.api_key || '');
+        }
+      } catch (err) {
+        console.error('Error in fetchSources:', err);
       }
-    });
+    };
 
-    return unsubscribe;
+    // Initial fetch
+    fetchSources();
+
+    // Subscribe to realtime changes
+    const channel = supabase
+      .channel('sources_changes_api_instructions')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'sources' }, 
+        () => {
+          fetchSources();
+        }
+      )
+      .subscribe();
+    
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const copyToClipboard = (text: string, message: string) => {
