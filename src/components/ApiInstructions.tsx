@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Code, Copy, FileJson, Globe } from "lucide-react";
@@ -28,18 +27,28 @@ const ApiInstructions: React.FC = () => {
   const [domainName, setDomainName] = useState(window.location.origin || 'https://your-domain.com');
   const { toast } = useToast();
 
+  console.log('🔄 ApiInstructions component rendered with componentKey:', componentKey);
+  console.log('📋 Current state - apiKey:', apiKey, 'currentSourceApiKey:', currentSourceApiKey);
+
   useEffect(() => {
+    console.log('🚀 Initial API key fetch effect running...');
     const savedKey = ApiService.getApiKey();
+    console.log('💾 Saved API key from ApiService:', savedKey);
     if (savedKey) {
       setApiKey(savedKey);
+      console.log('✅ Set initial apiKey to:', savedKey);
+    } else {
+      console.log('❌ No saved API key found');
     }
   }, []);
 
   // Listen for changes in sources to get the latest API key
   useEffect(() => {
+    console.log('🔔 Setting up realtime subscription effect...');
+    
     const fetchSources = async () => {
       try {
-        console.log('Fetching sources for API instructions...');
+        console.log('📡 Fetching sources for API instructions...');
         const { data: sources, error } = await supabase
           .from('sources')
           .select('*')
@@ -47,60 +56,86 @@ const ApiInstructions: React.FC = () => {
           .order('created_at', { ascending: false });
         
         if (error) {
-          console.error('Error fetching sources:', error);
+          console.error('❌ Error fetching sources:', error);
           return;
         }
         
-        console.log('Sources fetched:', sources);
+        console.log('📊 Sources fetched:', sources);
+        console.log('📊 Number of active sources found:', sources?.length || 0);
         
         if (sources && sources.length > 0) {
           // Get the most recently created active source's API key
           const latestSource = sources[0];
-          console.log('Latest source API key:', latestSource.api_key);
+          console.log('🎯 Latest source:', latestSource);
+          console.log('🔑 Latest source API key:', latestSource.api_key);
           const newApiKey = latestSource.api_key || '';
+          
+          console.log('🔍 Comparing API keys - current:', currentSourceApiKey, 'new:', newApiKey);
           
           // Only update if the API key actually changed
           if (newApiKey !== currentSourceApiKey) {
+            console.log('🔄 API key changed! Updating state...');
             setCurrentSourceApiKey(newApiKey);
             // Force complete component re-render
-            setComponentKey(prev => prev + 1);
+            const newComponentKey = componentKey + 1;
+            setComponentKey(newComponentKey);
+            console.log('🔄 Component key updated to:', newComponentKey);
+          } else {
+            console.log('⏸️ API key unchanged, skipping update');
           }
         } else {
-          console.log('No active sources found');
+          console.log('⚠️ No active sources found');
           if (currentSourceApiKey !== '') {
+            console.log('🔄 Clearing current source API key');
             setCurrentSourceApiKey('');
-            setComponentKey(prev => prev + 1);
+            setComponentKey(prev => {
+              const newKey = prev + 1;
+              console.log('🔄 Component key updated to (clearing):', newKey);
+              return newKey;
+            });
           }
         }
       } catch (err) {
-        console.error('Error in fetchSources:', err);
+        console.error('💥 Error in fetchSources:', err);
       }
     };
 
     // Initial fetch
+    console.log('🎬 Running initial fetchSources...');
     fetchSources();
 
     // Subscribe to realtime changes
+    console.log('📡 Setting up realtime subscription...');
     const channel = supabase
       .channel('sources_changes_api_instructions')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'sources' }, 
         (payload) => {
-          console.log('Sources table changed:', payload);
+          console.log('🔔 Sources table changed! Payload:', payload);
+          console.log('🔔 Event type:', payload.eventType);
+          console.log('🔔 New record:', payload.new);
+          console.log('🔔 Old record:', payload.old);
+          
           // Fetch sources immediately with a small delay to ensure data consistency
+          console.log('⏰ Setting timeout to refetch sources...');
           setTimeout(() => {
+            console.log('⏰ Timeout triggered, fetching sources...');
             fetchSources();
           }, 200);
         }
       )
       .subscribe();
     
+    console.log('📡 Realtime subscription created:', channel);
+    
     return () => {
+      console.log('🧹 Cleaning up realtime subscription...');
       supabase.removeChannel(channel);
     };
-  }, [currentSourceApiKey]);
+  }, [currentSourceApiKey, componentKey]);
 
   const copyToClipboard = (text: string, message: string) => {
+    console.log('📋 Copying to clipboard:', message);
     navigator.clipboard.writeText(text).then(() => {
       toast({
         title: "Copied!",
@@ -114,7 +149,8 @@ const ApiInstructions: React.FC = () => {
   // Use the current source API key if available, otherwise fall back to the stored API key
   const displayApiKey = currentSourceApiKey || apiKey || 'YOUR_API_KEY';
   
-  console.log('Display API key:', displayApiKey);
+  console.log('🎯 Final display API key:', displayApiKey);
+  console.log('🎯 API key sources - currentSourceApiKey:', currentSourceApiKey, 'fallback apiKey:', apiKey);
 
   const curlExample = `curl -X POST ${apiEndpoint} \\
   -H "Content-Type: application/json" \\
