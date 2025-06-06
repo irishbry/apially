@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Code, Copy, FileJson, Globe } from "lucide-react";
@@ -23,32 +24,37 @@ interface Source {
 const ApiInstructions: React.FC = () => {
   const [apiKey, setApiKey] = useState('');
   const [currentSourceApiKey, setCurrentSourceApiKey] = useState('');
-  const [componentKey, setComponentKey] = useState(0); // Force complete re-render
+  const [componentKey, setComponentKey] = useState(0);
   const [domainName, setDomainName] = useState(window.location.origin || 'https://your-domain.com');
   const { toast } = useToast();
 
-  console.log('🔄 ApiInstructions component rendered with componentKey:', componentKey);
-  console.log('📋 Current state - apiKey:', apiKey, 'currentSourceApiKey:', currentSourceApiKey);
+  console.log('🔥 =========================== APIINSTRUCTIONS COMPONENT RENDERED ===========================');
+  console.log('🔥 Component render count (componentKey):', componentKey);
+  console.log('🔥 Current apiKey state:', apiKey);
+  console.log('🔥 Current currentSourceApiKey state:', currentSourceApiKey);
+  console.log('🔥 Domain name:', domainName);
+  console.log('🔥 ===================================================================================');
 
   useEffect(() => {
-    console.log('🚀 Initial API key fetch effect running...');
+    console.log('🚀 EFFECT 1: Initial API key fetch effect STARTING...');
     const savedKey = ApiService.getApiKey();
-    console.log('💾 Saved API key from ApiService:', savedKey);
+    console.log('🚀 EFFECT 1: Saved API key from ApiService:', savedKey);
     if (savedKey) {
+      console.log('🚀 EFFECT 1: Setting initial apiKey to:', savedKey);
       setApiKey(savedKey);
-      console.log('✅ Set initial apiKey to:', savedKey);
     } else {
-      console.log('❌ No saved API key found');
+      console.log('🚀 EFFECT 1: No saved API key found, keeping empty');
     }
+    console.log('🚀 EFFECT 1: Initial API key fetch effect COMPLETED');
   }, []);
 
-  // Listen for changes in sources to get the latest API key
   useEffect(() => {
-    console.log('🔔 Setting up realtime subscription effect...');
+    console.log('📡 EFFECT 2: Realtime subscription effect STARTING...');
+    console.log('📡 EFFECT 2: Dependencies - currentSourceApiKey:', currentSourceApiKey, 'componentKey:', componentKey);
     
     const fetchSources = async () => {
       try {
-        console.log('📡 Fetching sources for API instructions...');
+        console.log('📊 FETCH_SOURCES: Starting to fetch sources...');
         const { data: sources, error } = await supabase
           .from('sources')
           .select('*')
@@ -56,101 +62,107 @@ const ApiInstructions: React.FC = () => {
           .order('created_at', { ascending: false });
         
         if (error) {
-          console.error('❌ Error fetching sources:', error);
+          console.error('❌ FETCH_SOURCES: Error fetching sources:', error);
           return;
         }
         
-        console.log('📊 Sources fetched:', sources);
-        console.log('📊 Number of active sources found:', sources?.length || 0);
+        console.log('📊 FETCH_SOURCES: Raw sources data:', sources);
+        console.log('📊 FETCH_SOURCES: Number of active sources found:', sources?.length || 0);
         
         if (sources && sources.length > 0) {
-          // Get the most recently created active source's API key
           const latestSource = sources[0];
-          console.log('🎯 Latest source:', latestSource);
-          console.log('🔑 Latest source API key:', latestSource.api_key);
+          console.log('🎯 FETCH_SOURCES: Latest source found:', latestSource);
+          console.log('🎯 FETCH_SOURCES: Latest source API key:', latestSource.api_key);
           const newApiKey = latestSource.api_key || '';
           
-          console.log('🔍 Comparing API keys - current:', currentSourceApiKey, 'new:', newApiKey);
+          console.log('🔍 FETCH_SOURCES: Comparing API keys:');
+          console.log('🔍 FETCH_SOURCES: - Current in state:', currentSourceApiKey);
+          console.log('🔍 FETCH_SOURCES: - New from DB:', newApiKey);
+          console.log('🔍 FETCH_SOURCES: - Are they different?', newApiKey !== currentSourceApiKey);
           
-          // Only update if the API key actually changed
           if (newApiKey !== currentSourceApiKey) {
-            console.log('🔄 API key changed! Updating state...');
+            console.log('🔄 FETCH_SOURCES: API key CHANGED! Updating state...');
+            console.log('🔄 FETCH_SOURCES: Setting currentSourceApiKey from', currentSourceApiKey, 'to', newApiKey);
             setCurrentSourceApiKey(newApiKey);
-            // Force complete component re-render
+            
             const newComponentKey = componentKey + 1;
+            console.log('🔄 FETCH_SOURCES: Incrementing componentKey from', componentKey, 'to', newComponentKey);
             setComponentKey(newComponentKey);
-            console.log('🔄 Component key updated to:', newComponentKey);
+            
+            console.log('✅ FETCH_SOURCES: State updates completed!');
           } else {
-            console.log('⏸️ API key unchanged, skipping update');
+            console.log('⏸️ FETCH_SOURCES: API key UNCHANGED, skipping update');
           }
         } else {
-          console.log('⚠️ No active sources found');
+          console.log('⚠️ FETCH_SOURCES: No active sources found');
           if (currentSourceApiKey !== '') {
-            console.log('🔄 Clearing current source API key');
+            console.log('🔄 FETCH_SOURCES: Clearing current source API key');
             setCurrentSourceApiKey('');
             setComponentKey(prev => {
               const newKey = prev + 1;
-              console.log('🔄 Component key updated to (clearing):', newKey);
+              console.log('🔄 FETCH_SOURCES: Component key updated to (clearing):', newKey);
               return newKey;
             });
           }
         }
       } catch (err) {
-        console.error('💥 Error in fetchSources:', err);
+        console.error('💥 FETCH_SOURCES: Error in fetchSources:', err);
       }
     };
 
-    // Initial fetch
-    console.log('🎬 Running initial fetchSources...');
+    console.log('🎬 EFFECT 2: Running initial fetchSources...');
     fetchSources();
 
-    // Subscribe to realtime changes
-    console.log('📡 Setting up realtime subscription...');
+    console.log('📡 EFFECT 2: Setting up realtime subscription...');
     const channel = supabase
       .channel('sources_changes_api_instructions')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'sources' }, 
         (payload) => {
-          console.log('🔔 Sources table changed! Payload:', payload);
-          console.log('🔔 Event type:', payload.eventType);
-          console.log('🔔 New record:', payload.new);
-          console.log('🔔 Old record:', payload.old);
+          console.log('🔔 REALTIME: Sources table changed! Full payload:', payload);
+          console.log('🔔 REALTIME: Event type:', payload.eventType);
+          console.log('🔔 REALTIME: New record:', payload.new);
+          console.log('🔔 REALTIME: Old record:', payload.old);
           
-          // Fetch sources immediately with a small delay to ensure data consistency
-          console.log('⏰ Setting timeout to refetch sources...');
+          console.log('⏰ REALTIME: Setting 200ms timeout to refetch sources...');
           setTimeout(() => {
-            console.log('⏰ Timeout triggered, fetching sources...');
+            console.log('⏰ REALTIME: Timeout triggered, calling fetchSources...');
             fetchSources();
           }, 200);
         }
       )
       .subscribe();
     
-    console.log('📡 Realtime subscription created:', channel);
+    console.log('📡 EFFECT 2: Realtime subscription created:', channel);
     
     return () => {
-      console.log('🧹 Cleaning up realtime subscription...');
+      console.log('🧹 EFFECT 2: Cleaning up realtime subscription...');
       supabase.removeChannel(channel);
     };
   }, [currentSourceApiKey, componentKey]);
 
   const copyToClipboard = (text: string, message: string) => {
-    console.log('📋 Copying to clipboard:', message);
+    console.log('📋 COPY: Copying to clipboard:', message, 'Text:', text);
     navigator.clipboard.writeText(text).then(() => {
+      console.log('📋 COPY: Successfully copied to clipboard');
       toast({
         title: "Copied!",
         description: message,
       });
+    }).catch(err => {
+      console.error('📋 COPY: Failed to copy to clipboard:', err);
     });
   };
 
   const apiEndpoint = `${domainName}/api/data`;
-  
-  // Use the current source API key if available, otherwise fall back to the stored API key
   const displayApiKey = currentSourceApiKey || apiKey || 'YOUR_API_KEY';
   
-  console.log('🎯 Final display API key:', displayApiKey);
-  console.log('🎯 API key sources - currentSourceApiKey:', currentSourceApiKey, 'fallback apiKey:', apiKey);
+  console.log('🎯 RENDER: Final values being used for display:');
+  console.log('🎯 RENDER: - apiEndpoint:', apiEndpoint);
+  console.log('🎯 RENDER: - displayApiKey:', displayApiKey);
+  console.log('🎯 RENDER: - currentSourceApiKey:', currentSourceApiKey);
+  console.log('🎯 RENDER: - fallback apiKey:', apiKey);
+  console.log('🎯 RENDER: - componentKey:', componentKey);
 
   const curlExample = `curl -X POST ${apiEndpoint} \\
   -H "Content-Type: application/json" \\
@@ -205,6 +217,8 @@ data = {
 
 response = requests.post(url, headers=headers, data=json.dumps(data))
 print(response.json())`;
+
+  console.log('🎯 RENDER: Code examples generated with displayApiKey:', displayApiKey);
 
   return (
     <Card key={componentKey} className="w-full shadow-sm hover:shadow-md transition-all duration-300">
