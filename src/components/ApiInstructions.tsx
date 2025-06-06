@@ -24,14 +24,14 @@ const ApiInstructions: React.FC = () => {
   useEffect(() => {
     const unsubscribe = SourcesService.subscribeToSources((sources) => {
       if (sources.length > 0) {
-        // Get the most recently created source's API key
+        // Get the most recently active source's API key
         const latestSource = sources.sort((a, b) => {
-          // Use last_active if available, otherwise fall back to created_at
-          const dateA = a.last_active ? new Date(a.last_active).getTime() : new Date(a.created_at).getTime();
-          const dateB = b.last_active ? new Date(b.last_active).getTime() : new Date(b.created_at).getTime();
+          // Use lastActive if available, otherwise fall back to id comparison for consistency
+          const dateA = a.lastActive ? new Date(a.lastActive).getTime() : 0;
+          const dateB = b.lastActive ? new Date(b.lastActive).getTime() : 0;
           return dateB - dateA;
         })[0];
-        setCurrentSourceApiKey(latestSource.api_key || '');
+        setCurrentSourceApiKey(latestSource.apiKey || '');
       }
     });
 
