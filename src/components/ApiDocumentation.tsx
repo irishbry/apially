@@ -229,7 +229,7 @@ const ApiDocumentation: React.FC<ApiDocumentationProps> = ({ selectedApiKey }) =
     return JSON.stringify(responseData, null, 2);
   };
 
-  // Use selectedApiKey if available, otherwise fall back to apiKey state, then to placeholder
+  // Always use selectedApiKey if provided, otherwise fall back to apiKey state
   const displayApiKey = selectedApiKey || apiKey || 'YOUR_API_KEY';
   
   console.log('ApiDocumentation rendering with displayApiKey:', displayApiKey);
