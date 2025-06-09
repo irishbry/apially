@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Plus, Trash2, Eye, EyeOff, Settings, Copy, CheckCircle } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,17 +11,30 @@ import { Source, DataSchema } from "@/types/api.types";
 import ApiInstructions from './ApiInstructions';
 import SchemaEditor from './SchemaEditor';
 import { ConfigService } from '@/services/ConfigService';
+import { useForm } from 'react-hook-form';
+
+interface CreateSourceForm {
+  name: string;
+  description?: string;
+}
 
 const SourcesManager: React.FC = () => {
   const [sources, setSources] = useState<Source[]>([]);
-  const [newSourceName, setNewSourceName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedApiKey, setSelectedApiKey] = useState<string>('');
   const [showApiKey, setShowApiKey] = useState<{[key: string]: boolean}>({});
   const [isCreatingSource, setIsCreatingSource] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [currentSchema, setCurrentSchema] = useState<DataSchema | undefined>(undefined);
   const [schemaRefreshKey, setSchemaRefreshKey] = useState(0);
   const { toast } = useToast();
+
+  const form = useForm<CreateSourceForm>({
+    defaultValues: {
+      name: '',
+      description: ''
+    }
+  });
 
   // Load sources on component mount
   useEffect(() => {
@@ -103,8 +118,8 @@ const SourcesManager: React.FC = () => {
     }
   };
 
-  const createSource = async () => {
-    if (!newSourceName.trim()) {
+  const createSource = async (formData: CreateSourceForm) => {
+    if (!formData.name.trim()) {
       toast({
         title: "Error",
         description: "Please enter a source name",
@@ -145,7 +160,7 @@ const SourcesManager: React.FC = () => {
       const { data, error } = await supabase
         .from('sources')
         .insert({
-          name: newSourceName.trim(),
+          name: formData.name.trim(),
           api_key: apiKey,
           user_id: session.user.id,
           active: true,
@@ -166,10 +181,11 @@ const SourcesManager: React.FC = () => {
 
       toast({
         title: "Success",
-        description: `Source "${newSourceName}" created successfully`,
+        description: `Source "${formData.name}" created successfully`,
       });
 
-      setNewSourceName('');
+      form.reset();
+      setIsCreateModalOpen(false);
       loadSources(); // Reload sources
       
       // Set the new source as selected
@@ -261,17 +277,76 @@ const SourcesManager: React.FC = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-2">
-            <Input
-              placeholder="Enter source name (e.g., Weather Station 1)"
-              value={newSourceName}
-              onChange={(e) => setNewSourceName(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && createSource()}
-            />
-            <Button onClick={createSource} disabled={isCreatingSource}>
-              {isCreatingSource ? 'Creating...' : 'Create'}
-            </Button>
-          </div>
+          <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+            <DialogTrigger asChild>
+              <Button className="w-full">
+                <Plus className="h-4 w-4 mr-2" />
+                Create New Source
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Create New Data Source</DialogTitle>
+                <DialogDescription>
+                  Enter details for your new data source. You'll get a unique API key for this source.
+                </DialogDescription>
+              </DialogHeader>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(createSource)} className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Source Name</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g., Weather Station 1"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Give your data source a descriptive name
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Description (Optional)</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Brief description of this source"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Optional description for this data source
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <DialogFooter>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => setIsCreateModalOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={isCreatingSource}>
+                      {isCreatingSource ? 'Creating...' : 'Create Source'}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
         </CardContent>
       </Card>
 
