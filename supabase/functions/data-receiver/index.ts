@@ -65,54 +65,6 @@ setInterval(() => {
   }
 }, 60000); // Run cleanup every minute
 
-// Helper function to determine data type for schema validation
-function getDataType(value: any): string {
-  if (typeof value === 'number') {
-    return 'number';
-  } else if (typeof value === 'boolean') {
-    return 'boolean';
-  } else if (typeof value === 'string') {
-    return 'string';
-  } else if (Array.isArray(value)) {
-    return 'array';
-  } else if (typeof value === 'object' && value !== null) {
-    return 'object';
-  } else {
-    return 'unknown';
-  }
-}
-
-// Validate data against schema
-function validateDataAgainstSchema(data: any, schema: any): { valid: boolean; errors: string[] } {
-  const errors: string[] = [];
-  
-  // Check required fields
-  if (schema.requiredFields && Array.isArray(schema.requiredFields)) {
-    for (const field of schema.requiredFields) {
-      if (data[field] === undefined || data[field] === null || data[field] === '') {
-        errors.push(`Missing required field: ${field}`);
-      }
-    }
-  }
-  
-  // Check field types
-  if (schema.fieldTypes && typeof schema.fieldTypes === 'object') {
-    for (const [field, expectedType] of Object.entries(schema.fieldTypes)) {
-      if (data[field] !== undefined && data[field] !== null && data[field] !== '') {
-        const actualType = getDataType(data[field]);
-        if (actualType !== expectedType) {
-          errors.push(`Field ${field} should be type ${expectedType}, got ${actualType}`);
-        }
-      }
-    }
-  }
-  
-  return { 
-    valid: errors.length === 0,
-    errors: errors
-  };
-}
-
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -211,13 +163,6 @@ serve(async (req) => {
       );
     }
 
-    // Get schema configuration from schema_configs table
-    const { data: schemaConfig, error: schemaError } = await supabase
-      .from('schema_configs')
-      .select('field_types, required_fields')
-      .eq('api_key', apiKey)
-      .single();
-
     // Parse the request body
     const body = await req.json().catch(() => null);
     if (!body) {
@@ -231,76 +176,17 @@ serve(async (req) => {
       );
     }
 
-    // Validate the data against the schema if it exists in schema_configs
-    if (schemaConfig && (
-        Object.keys(schemaConfig.field_types || {}).length > 0 || 
-        (schemaConfig.required_fields && schemaConfig.required_fields.length > 0)
-      )) {
-      console.log('Validating data against schema from schema_configs:', schemaConfig);
-      
-      const schema = {
-        fieldTypes: schemaConfig.field_types || {},
-        requiredFields: schemaConfig.required_fields || []
-      };
-      
-      const validationResult = validateDataAgainstSchema(body, schema);
-      
-      if (!validationResult.valid) {
-        console.error('Schema validation failed:', validationResult.errors);
-        return new Response(
-          JSON.stringify({ 
-            success: false,
-            message: 'Data validation failed',
-            code: 'VALIDATION_ERROR',
-            errors: validationResult.errors 
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-        );
-      }
-      console.log('Schema validation passed');
-    } else {
-      // Fallback to source schema if available or basic validation
-      // Get the source schema if available
-      const { data: sourceWithSchema, error: sourceSchemaError } = await supabase
-        .from('sources')
-        .select('schema')
-        .eq('api_key', apiKey)
-        .single();
-        
-      if (!sourceSchemaError && sourceWithSchema && sourceWithSchema.schema && 
-          (Object.keys(sourceWithSchema.schema.fieldTypes || {}).length > 0 || 
-          (sourceWithSchema.schema.requiredFields && sourceWithSchema.schema.requiredFields.length > 0))) {
-        
-        console.log('Validating data against schema from sources table:', sourceWithSchema.schema);
-        const validationResult = validateDataAgainstSchema(body, sourceWithSchema.schema);
-        
-        if (!validationResult.valid) {
-          console.error('Schema validation failed:', validationResult.errors);
-          return new Response(
-            JSON.stringify({ 
-              success: false,
-              message: 'Data validation failed',
-              code: 'VALIDATION_ERROR',
-              errors: validationResult.errors 
-            }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-          );
-        }
-        console.log('Schema validation passed');
-      } else {
-        // If no schema is defined, just validate required fields - accept either sensorId or sensor_id
-        if (!body.sensorId && !body.sensor_id) {
-          return new Response(
-            JSON.stringify({ 
-              success: false,
-              message: 'Data validation failed',
-              code: 'VALIDATION_ERROR',
-              errors: ['Missing required field: sensorId or sensor_id']
-            }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-          );
-        }
-      }
+    // Basic validation - accept either sensorId or sensor_id
+    if (!body.sensorId && !body.sensor_id) {
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          message: 'Data validation failed',
+          code: 'VALIDATION_ERROR',
+          errors: ['Missing required field: sensorId or sensor_id']
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
     }
 
     // Generate a unique ID if not provided
