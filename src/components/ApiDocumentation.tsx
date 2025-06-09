@@ -22,10 +22,10 @@ const ApiDocumentation: React.FC<ApiDocumentationProps> = ({ selectedApiKey }) =
   const { toast } = useToast();
   const { user } = useAuth();
 
+  // Update the API key whenever selectedApiKey changes
   useEffect(() => {
     console.log('ApiDocumentation: selectedApiKey prop changed:', selectedApiKey);
     
-    // Always prioritize selectedApiKey prop if provided
     if (selectedApiKey) {
       console.log('Using selected API key for documentation:', selectedApiKey);
       setApiKey(selectedApiKey);

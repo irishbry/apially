@@ -78,6 +78,13 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
     return () => window.removeEventListener('schemaUpdated', handleSchemaUpdate);
   }, []);
 
+  // Notify parent component when API key changes
+  useEffect(() => {
+    if (selectedApiKey && onApiKeySelect) {
+      onApiKeySelect(selectedApiKey);
+    }
+  }, [selectedApiKey, onApiKeySelect]);
+
   const loadSources = async () => {
     setIsLoading(true);
     try {
@@ -109,7 +116,8 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
       
       // Set the first source as selected if no source is currently selected
       if (data && data.length > 0 && !selectedApiKey) {
-        setSelectedApiKey(data[0].api_key);
+        const firstApiKey = data[0].api_key;
+        setSelectedApiKey(firstApiKey);
       }
     } catch (error) {
       console.error('Error in loadSources:', error);
@@ -191,9 +199,12 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
 
       form.reset();
       setIsCreateModalOpen(false);
-      loadSources(); // Reload sources
       
-      // Set the new source as selected
+      // Reload sources to get the updated list
+      await loadSources();
+      
+      // Immediately set the new API key as selected to trigger updates in documentation
+      console.log('Setting new API key as selected:', apiKey);
       setSelectedApiKey(apiKey);
 
     } catch (error) {
@@ -265,6 +276,7 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
   };
 
   const handleApiKeySelect = (apiKey: string) => {
+    console.log('API key selected in SourcesManager:', apiKey);
     setSelectedApiKey(apiKey);
     // Notify parent component about the selected API key
     if (onApiKeySelect) {
