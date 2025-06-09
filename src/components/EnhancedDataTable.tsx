@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -86,7 +85,7 @@ const EnhancedDataTable: React.FC = () => {
     activeFilters.forEach(filter => {
       if (filter.enabled && filter.value) {
         filtered = filtered.filter(entry => {
-          const value = entry[filter.key];
+          const value = getValue(entry, filter.key);
           if (value === undefined || value === null) return false;
           return String(value).toLowerCase().includes(filter.value.toLowerCase());
         });
@@ -97,7 +96,7 @@ const EnhancedDataTable: React.FC = () => {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(entry => {
         return visibleColumns.some(column => {
-          const value = entry[column];
+          const value = getValue(entry, column);
           return value !== null && 
                  value !== undefined && 
                  String(value).toLowerCase().includes(term);
@@ -107,12 +106,12 @@ const EnhancedDataTable: React.FC = () => {
     
     if (sortConfig) {
       filtered.sort((a, b) => {
-        if (a[sortConfig.key] === undefined && b[sortConfig.key] === undefined) return 0;
-        if (a[sortConfig.key] === undefined) return 1;
-        if (b[sortConfig.key] === undefined) return -1;
+        const aVal = getValue(a, sortConfig.key);
+        const bVal = getValue(b, sortConfig.key);
         
-        const aVal = a[sortConfig.key];
-        const bVal = b[sortConfig.key];
+        if (aVal === undefined && bVal === undefined) return 0;
+        if (aVal === undefined) return 1;
+        if (bVal === undefined) return -1;
         
         let comparison = 0;
         if (typeof aVal === 'number' && typeof bVal === 'number') {
@@ -131,20 +130,59 @@ const EnhancedDataTable: React.FC = () => {
   const getColumns = (): string[] => {
     if (data.length === 0) return ['No Data'];
     
-    const priorityKeys = ['timestamp', 'id', 'sourceId', 'source_id', 'sensorId', 'sensor_id', 'fileName', 'file_name'];
-    const allKeys = new Set<string>();
+    // Define column mapping to avoid duplicates
+    const columnMapping: Record<string, string> = {
+      'timestamp': 'timestamp',
+      'id': 'id',
+      'sourceId': 'source',
+      'source_id': 'source',
+      'sensorId': 'sensorId',
+      'sensor_id': 'sensorId',
+      'fileName': 'fileName',
+      'file_name': 'fileName',
+      'user_id': 'user_id',
+      'userId': 'user_id',
+      'filePath': 'filePath',
+      'file_path': 'filePath',
+      'metadata': 'metadata',
+      'created_at': 'created_at'
+    };
+
+    const uniqueColumns = new Set<string>();
+    const priorityOrder = ['timestamp', 'id', 'source', 'sensorId', 'fileName', 'user_id', 'filePath', 'metadata', 'created_at'];
     
-    priorityKeys.forEach(key => allKeys.add(key));
+    // Add priority columns first
+    priorityOrder.forEach(col => uniqueColumns.add(col));
     
+    // Add any other columns from the data that aren't mapped
     data.forEach(entry => {
       Object.keys(entry).forEach(key => {
-        if (!priorityKeys.includes(key)) {
-          allKeys.add(key);
+        const mappedColumn = columnMapping[key] || key;
+        if (!priorityOrder.includes(mappedColumn)) {
+          uniqueColumns.add(mappedColumn);
         }
       });
     });
     
-    return Array.from(allKeys);
+    return Array.from(uniqueColumns);
+  };
+
+  // Helper function to get value from entry, handling both snake_case and camelCase
+  const getValue = (entry: DataEntry, column: string): any => {
+    switch (column) {
+      case 'source':
+        return entry.sourceId || entry.source_id;
+      case 'sensorId':
+        return entry.sensorId || entry.sensor_id;
+      case 'fileName':
+        return entry.fileName || entry.file_name;
+      case 'filePath':
+        return entry.filePath || entry.file_path;
+      case 'user_id':
+        return entry.user_id || entry.userId;
+      default:
+        return entry[column];
+    }
   };
 
   const getSourceName = (sourceId: string | undefined): string => {
@@ -155,7 +193,7 @@ const EnhancedDataTable: React.FC = () => {
 
   const formatCellValue = (key: string, value: any) => {
     if (value === undefined || value === null) return '-';
-    if (key === 'sourceId' || key === 'source_id') return getSourceName(value);
+    if (key === 'source') return getSourceName(value);
     if (key === 'metadata' && typeof value === 'object') {
       // Format metadata as a string with newlines
       try {
@@ -166,6 +204,18 @@ const EnhancedDataTable: React.FC = () => {
     }
     if (typeof value === 'object') return JSON.stringify(value);
     return String(value);
+  };
+
+  const getDisplayName = (column: string): string => {
+    const displayNames: Record<string, string> = {
+      'source': 'Source',
+      'sensorId': 'Sensor ID',
+      'fileName': 'File Name',
+      'user_id': 'User ID',
+      'filePath': 'File Path',
+      'created_at': 'Created At'
+    };
+    return displayNames[column] || column;
   };
 
   const handleExportCSV = () => {
@@ -406,7 +456,7 @@ const EnhancedDataTable: React.FC = () => {
                       <SelectContent>
                         {visibleColumns.map(column => (
                           <SelectItem key={column} value={column}>
-                            {column === 'sourceId' || column === 'source_id' ? 'Source' : column}
+                            {getDisplayName(column)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -433,7 +483,7 @@ const EnhancedDataTable: React.FC = () => {
                           <div key={filter.key} className="flex items-center justify-between text-sm">
                             <span>
                               <span className="font-medium">
-                                {filter.key === 'sourceId' || filter.key === 'source_id' ? 'Source' : filter.key}
+                                {getDisplayName(filter.key)}
                               </span>
                               : {filter.value}
                             </span>
@@ -469,7 +519,7 @@ const EnhancedDataTable: React.FC = () => {
                             checked={isColumnVisible(column)}
                             onCheckedChange={(checked) => toggleColumnVisibility(column, !!checked)}
                           />
-                          <Label htmlFor={`column-${column}`}>{column}</Label>
+                          <Label htmlFor={`column-${column}`}>{getDisplayName(column)}</Label>
                         </div>
                       ))}
                     </div>
@@ -498,10 +548,7 @@ const EnhancedDataTable: React.FC = () => {
                             onClick={() => handleSort(column)}
                             className="font-medium flex items-center cursor-pointer hover:text-primary"
                           >
-                            {column === 'sourceId' || column === 'source_id' ? 'Source' : 
-                             column === 'sensorId' || column === 'sensor_id' ? 'Sensor ID' :
-                             column === 'fileName' || column === 'file_name' ? 'File Name' :
-                             column}
+                            {getDisplayName(column)}
                             {getSortIcon(column)}
                           </button>
                           {activeFilters.some(f => f.key === column && f.enabled) && (
@@ -513,7 +560,7 @@ const EnhancedDataTable: React.FC = () => {
                               </PopoverTrigger>
                               <PopoverContent className="w-60 p-2" align="start">
                                 <div className="space-y-2">
-                                  <Label htmlFor={`quick-filter-${column}`}>Filter {column}</Label>
+                                  <Label htmlFor={`quick-filter-${column}`}>Filter {getDisplayName(column)}</Label>
                                   <Input
                                     id={`quick-filter-${column}`}
                                     value={getFilterValue(column)}
@@ -543,7 +590,7 @@ const EnhancedDataTable: React.FC = () => {
                       <TableRow key={entry.id || index} className="animate-fade-in">
                         {visibleColumns.map(column => (
                           <TableCell key={`${entry.id || index}-${column}`} className="whitespace-nowrap">
-                            {formatCellValue(column, entry[column])}
+                            {formatCellValue(column, getValue(entry, column))}
                           </TableCell>
                         ))}
                       </TableRow>
