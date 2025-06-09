@@ -18,6 +18,7 @@ const SourcesManager: React.FC = () => {
   const [showApiKey, setShowApiKey] = useState<{[key: string]: boolean}>({});
   const [isCreatingSource, setIsCreatingSource] = useState(false);
   const [currentSchema, setCurrentSchema] = useState<DataSchema | undefined>(undefined);
+  const [schemaRefreshKey, setSchemaRefreshKey] = useState(0);
   const { toast } = useToast();
 
   // Load sources on component mount
@@ -25,12 +26,14 @@ const SourcesManager: React.FC = () => {
     loadSources();
   }, []);
 
-  // Load schema when selectedApiKey changes
+  // Load schema when selectedApiKey changes or when schema is updated
   useEffect(() => {
     const loadSchema = async () => {
       if (selectedApiKey) {
         try {
+          console.log('Loading schema for selected API key:', selectedApiKey);
           const schema = await ConfigService.getSchema(selectedApiKey);
+          console.log('Loaded schema for API instructions:', schema);
           setCurrentSchema(schema);
         } catch (error) {
           console.error('Error loading schema:', error);
@@ -42,7 +45,18 @@ const SourcesManager: React.FC = () => {
     };
     
     loadSchema();
-  }, [selectedApiKey]);
+  }, [selectedApiKey, schemaRefreshKey]);
+
+  // Listen for schema updates
+  useEffect(() => {
+    const handleSchemaUpdate = () => {
+      console.log('Schema updated event received, refreshing...');
+      setSchemaRefreshKey(prev => prev + 1);
+    };
+
+    window.addEventListener('schemaUpdated', handleSchemaUpdate);
+    return () => window.removeEventListener('schemaUpdated', handleSchemaUpdate);
+  }, []);
 
   const loadSources = async () => {
     setIsLoading(true);

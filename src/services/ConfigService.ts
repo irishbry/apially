@@ -1,3 +1,4 @@
+
 import { DataSchema } from '@/types/api.types';
 import { supabase } from '@/integrations/supabase/client';
 import { Json } from '@/integrations/supabase/types';
@@ -10,7 +11,7 @@ export const ConfigService = {
       if (apiKey) {
         console.log('Fetching schema for API key:', apiKey);
         
-        // Fetch schema from schema_configs table
+        // First try to get schema from schema_configs table
         const { data: schemaConfig, error: schemaConfigError } = await supabase
           .from('schema_configs')
           .select('field_types, required_fields')
@@ -29,7 +30,7 @@ export const ConfigService = {
           console.error('Error fetching schema from schema_configs:', schemaConfigError);
         }
         
-        // Fallback to sources table
+        // Fallback to sources table for backward compatibility
         const { data: source, error: sourceError } = await supabase
           .from('sources')
           .select('schema')
@@ -50,12 +51,6 @@ export const ConfigService = {
         }
       }
       
-      // Fallback to local storage
-      const storedSchema = localStorage.getItem(SCHEMA_KEY);
-      if (storedSchema) {
-        return JSON.parse(storedSchema);
-      }
-      
       // Return default schema if nothing is found
       return {
         fieldTypes: {},
@@ -74,53 +69,8 @@ export const ConfigService = {
     try {
       console.log('Setting schema:', schema, 'for API key:', apiKey);
       
-      // Save to local storage for immediate use
-      localStorage.setItem(SCHEMA_KEY, JSON.stringify(schema));
-      
       if (apiKey) {
-        // First check if the API key exists in sources table
-        const { data: source, error: sourceCheckError } = await supabase
-          .from('sources')
-          .select('id, name, user_id')
-          .eq('api_key', apiKey)
-          .maybeSingle();
-        
-        if (sourceCheckError || !source) {
-          console.error('API key not found in sources table:', sourceCheckError);
-          // Create a source entry first if it doesn't exist
-          const { data: { session } } = await supabase.auth.getSession();
-          const userId = session?.user?.id;
-          
-          if (!userId) {
-            console.error('No user ID found, user must be logged in');
-            return false;
-          }
-          
-          const { data: newSource, error: createSourceError } = await supabase
-            .from('sources')
-            .insert({
-              name: `Source for ${apiKey.substring(0, 8)}...`,
-              api_key: apiKey,
-              user_id: userId,
-              active: true,
-              data_count: 0
-            })
-            .select()
-            .single();
-          
-          if (createSourceError) {
-            console.error('Error creating source:', createSourceError);
-            return false;
-          }
-          
-          console.log('Created new source:', newSource);
-        }
-        
-        // Cast schema to Json type for Supabase
-        const fieldTypesJson = schema.fieldTypes as unknown as Json;
-        const requiredFieldsJson = schema.requiredFields as unknown as Json;
-        
-        // Get user ID from session
+        // Get user session
         const { data: { session } } = await supabase.auth.getSession();
         const userId = session?.user?.id;
         
@@ -128,6 +78,10 @@ export const ConfigService = {
           console.error('No user ID found, user must be logged in to save schema');
           return false;
         }
+        
+        // Cast schema to Json type for Supabase
+        const fieldTypesJson = schema.fieldTypes as unknown as Json;
+        const requiredFieldsJson = schema.requiredFields as unknown as Json;
         
         // Check if entry exists in schema_configs
         const { data: existingConfig, error: checkError } = await supabase
@@ -157,9 +111,12 @@ export const ConfigService = {
             console.error('Error updating schema_configs:', updateError);
             return false;
           }
+          
+          console.log('Successfully updated schema config');
         } else {
           console.log('Creating new schema config for API key:', apiKey);
-          // Fetch source name first
+          
+          // Get source name for the schema config
           const { data: source, error: sourceError } = await supabase
             .from('sources')
             .select('name')
@@ -194,22 +151,26 @@ export const ConfigService = {
           console.log('Successfully created schema config:', insertData);
         }
         
-        // Also update legacy schema in sources table for backward compatibility
-        // Cast the schema to Json type for the sources table
+        // Also update the sources table for backward compatibility
         const schemaAsJson = schema as unknown as Json;
-        const { error } = await supabase
+        const { error: sourcesUpdateError } = await supabase
           .from('sources')
           .update({ 
             schema: schemaAsJson
           })
           .eq('api_key', apiKey);
         
-        if (error) {
-          console.error('Error updating schema in sources table:', error);
-          return false;
+        if (sourcesUpdateError) {
+          console.error('Error updating schema in sources table:', sourcesUpdateError);
+          // Don't return false here as the main schema_configs was successful
         }
+        
+        console.log('Schema saved successfully to database');
+        return true;
       }
       
+      // If no API key, still save to localStorage as fallback
+      localStorage.setItem(SCHEMA_KEY, JSON.stringify(schema));
       return true;
     } catch (error) {
       console.error('Error saving schema:', error);

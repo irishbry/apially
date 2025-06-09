@@ -4,7 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Settings, Plus, Minus, Save, FileJson, Check, X, AlertTriangle } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { ApiService, DataSchema } from "@/services/ApiService";
+import { ConfigService } from "@/services/ConfigService";
+import { DataSchema } from "@/types/api.types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -64,7 +65,7 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
     },
   });
 
-  // Load schema on component mount
+  // Load schema on component mount and when apiKey changes
   useEffect(() => {
     const loadSchema = async () => {
       if (!apiKey) return;
@@ -72,7 +73,7 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
       setIsLoading(true);
       try {
         console.log("Loading schema for API key:", apiKey);
-        const schema = await ApiService.getSchema(apiKey);
+        const schema = await ConfigService.getSchema(apiKey);
         console.log("Loaded schema:", schema);
         
         if (schema) {
@@ -209,8 +210,8 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
       
       console.log("Saving schema:", schema);
       
-      // Save using API service
-      const success = await ApiService.setSchema(schema, apiKey);
+      // Save using ConfigService
+      const success = await ConfigService.setSchema(schema, apiKey);
       
       if (success) {
         toast({
@@ -225,6 +226,9 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
         
         // Validate existing test data against the saved schema
         validateAgainstUpdatedSchema();
+        
+        // Trigger a refresh of the parent component to update API instructions
+        window.dispatchEvent(new CustomEvent('schemaUpdated'));
       } else {
         toast({
           title: "Error",
@@ -345,6 +349,7 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
           <AlertTitle>API Key Specific Schema</AlertTitle>
           <AlertDescription>
             You are configuring validation rules for API key: {apiKey.substring(0, 8)}...
+            This schema will persist in the database and be available after page refresh.
           </AlertDescription>
         </Alert>
       )}
