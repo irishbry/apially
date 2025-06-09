@@ -1,4 +1,3 @@
-
 import { DataSchema } from '@/types/api.types';
 import { supabase } from '@/integrations/supabase/client';
 import { Json } from '@/integrations/supabase/types';
@@ -76,6 +75,23 @@ export const ConfigService = {
       console.log('Setting schema:', schema, 'for API key:', apiKey);
       
       if (apiKey) {
+        // First, verify that the API key exists in the sources table
+        const { data: sourceExists, error: sourceCheckError } = await supabase
+          .from('sources')
+          .select('id')
+          .eq('api_key', apiKey)
+          .maybeSingle();
+        
+        if (sourceCheckError) {
+          console.error('Error checking if source exists:', sourceCheckError);
+          return false;
+        }
+        
+        if (!sourceExists) {
+          console.error('API key does not exist in sources table:', apiKey);
+          return false;
+        }
+        
         // Get user session
         const { data: { session } } = await supabase.auth.getSession();
         const userId = session?.user?.id;
