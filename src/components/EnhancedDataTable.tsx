@@ -128,43 +128,10 @@ const EnhancedDataTable: React.FC = () => {
   }, [data, searchTerm, selectedSource, sortConfig, activeFilters, visibleColumns]);
 
   const getColumns = (): string[] => {
-    if (data.length === 0) return ['No Data'];
+    if (data.length === 0) return ['source', 'metadata'];
     
-    // Define column mapping to avoid duplicates
-    const columnMapping: Record<string, string> = {
-      'timestamp': 'timestamp',
-      'id': 'id',
-      'sourceId': 'source',
-      'source_id': 'source',
-      'sensorId': 'sensorId',
-      'sensor_id': 'sensorId',
-      'fileName': 'fileName',
-      'file_name': 'fileName',
-      'user_id': 'user_id',
-      'userId': 'user_id',
-      'filePath': 'filePath',
-      'file_path': 'filePath',
-      'metadata': 'metadata',
-      'created_at': 'created_at'
-    };
-
-    const uniqueColumns = new Set<string>();
-    const priorityOrder = ['timestamp', 'id', 'source', 'sensorId', 'fileName', 'user_id', 'filePath', 'metadata', 'created_at'];
-    
-    // Add priority columns first
-    priorityOrder.forEach(col => uniqueColumns.add(col));
-    
-    // Add any other columns from the data that aren't mapped
-    data.forEach(entry => {
-      Object.keys(entry).forEach(key => {
-        const mappedColumn = columnMapping[key] || key;
-        if (!priorityOrder.includes(mappedColumn)) {
-          uniqueColumns.add(mappedColumn);
-        }
-      });
-    });
-    
-    return Array.from(uniqueColumns);
+    // Only return source and metadata columns
+    return ['source', 'metadata'];
   };
 
   // Helper function to get value from entry, handling both snake_case and camelCase
@@ -172,14 +139,8 @@ const EnhancedDataTable: React.FC = () => {
     switch (column) {
       case 'source':
         return entry.sourceId || entry.source_id;
-      case 'sensorId':
-        return entry.sensorId || entry.sensor_id;
-      case 'fileName':
-        return entry.fileName || entry.file_name;
-      case 'filePath':
-        return entry.filePath || entry.file_path;
-      case 'user_id':
-        return entry.user_id || entry.userId;
+      case 'metadata':
+        return entry.metadata;
       default:
         return entry[column];
     }
@@ -209,11 +170,7 @@ const EnhancedDataTable: React.FC = () => {
   const getDisplayName = (column: string): string => {
     const displayNames: Record<string, string> = {
       'source': 'Source',
-      'sensorId': 'Sensor ID',
-      'fileName': 'File Name',
-      'user_id': 'User ID',
-      'filePath': 'File Path',
-      'created_at': 'Created At'
+      'metadata': 'Metadata'
     };
     return displayNames[column] || column;
   };
