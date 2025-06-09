@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Code, Copy, FileJson, Globe } from "lucide-react";
@@ -35,7 +34,7 @@ const ApiInstructions: React.FC<ApiInstructionsProps> = ({ currentApiKey, schema
   const apiEndpoint = `${domainName}/api/data`;
   const displayApiKey = currentApiKey || 'YOUR_API_KEY';
   
-  // Generate example data based on schema or use default
+  // Generate example data based on schema or use minimal default
   const generateExampleData = () => {
     if (schema && Object.keys(schema.fieldTypes).length > 0) {
       const exampleData: Record<string, any> = {};
@@ -67,13 +66,9 @@ const ApiInstructions: React.FC<ApiInstructionsProps> = ({ currentApiKey, schema
       return exampleData;
     }
     
-    // Default example data
+    // Minimal default example data - only basic structure
     return {
-      sensorId: "sensor-1",
-      timestamp: new Date().toISOString(),
-      temperature: 25.4,
-      humidity: 68,
-      pressure: 1013.2
+      timestamp: new Date().toISOString()
     };
   };
 
