@@ -67,8 +67,10 @@ const ApiInstructions: React.FC<ApiInstructionsProps> = ({ currentApiKey, schema
       return exampleData;
     }
     
-    // Default example data - removed sensorId and timestamp
+    // Default example data
     return {
+      sensorId: "sensor-1",
+      timestamp: new Date().toISOString(),
       temperature: 25.4,
       humidity: 68,
       pressure: 1013.2
