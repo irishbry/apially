@@ -4,12 +4,11 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Plus, Trash2, Eye, EyeOff, Settings, Copy, CheckCircle } from "lucide-react";
+import { Plus, Trash2, Eye, EyeOff, Copy, CheckCircle } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Source, DataSchema } from "@/types/api.types";
 import ApiInstructions from './ApiInstructions';
-import SchemaEditor from './SchemaEditor';
 import { ConfigService } from '@/services/ConfigService';
 import { useForm } from 'react-hook-form';
 
@@ -432,31 +431,13 @@ const SourcesManager: React.FC = () => {
             </div>
           ) : (
             <div className="text-center py-8 text-muted-foreground">
-              <Settings className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <Plus className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>No sources created yet.</p>
               <p className="text-sm">Create your first source to get started.</p>
             </div>
           )}
         </CardContent>
       </Card>
-
-      {/* Schema Editor for selected API key */}
-      {selectedApiKey && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5" />
-              Schema Validation
-            </CardTitle>
-            <CardDescription>
-              Configure data validation rules for the selected source
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <SchemaEditor apiKey={selectedApiKey} />
-          </CardContent>
-        </Card>
-      )}
 
       {/* API Instructions with schema */}
       <ApiInstructions currentApiKey={selectedApiKey} schema={currentSchema} />
