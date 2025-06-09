@@ -25,7 +25,7 @@ const ApiDocumentation: React.FC<ApiDocumentationProps> = ({ selectedApiKey }) =
   useEffect(() => {
     console.log('ApiDocumentation: selectedApiKey prop changed:', selectedApiKey);
     
-    // Use selectedApiKey if provided, otherwise fetch from database
+    // Always prioritize selectedApiKey prop if provided
     if (selectedApiKey) {
       console.log('Using selected API key for documentation:', selectedApiKey);
       setApiKey(selectedApiKey);
@@ -229,9 +229,10 @@ const ApiDocumentation: React.FC<ApiDocumentationProps> = ({ selectedApiKey }) =
     return JSON.stringify(responseData, null, 2);
   };
 
-  const displayApiKey = apiKey || 'YOUR_API_KEY';
+  // Use selectedApiKey if available, otherwise fall back to apiKey state, then to placeholder
+  const displayApiKey = selectedApiKey || apiKey || 'YOUR_API_KEY';
   
-  console.log('ApiDocumentation rendering with apiKey:', displayApiKey);
+  console.log('ApiDocumentation rendering with displayApiKey:', displayApiKey);
 
   const curlExample = `curl -X POST ${functionUrl} \\
   -H "Content-Type: application/json" \\
@@ -281,9 +282,9 @@ print(response.json())`;
         </CardTitle>
         <CardDescription>
           Comprehensive guide for integrating with your data API
-          {apiKey && (
+          {displayApiKey && displayApiKey !== 'YOUR_API_KEY' && (
             <span className="block mt-1 text-green-600 font-medium">
-              Using API key: {apiKey.substring(0, 8)}...
+              Using API key: {displayApiKey.substring(0, 8)}...
             </span>
           )}
         </CardDescription>
