@@ -1,4 +1,3 @@
-
 import { DataSchema } from '@/types/api.types';
 import { supabase } from '@/integrations/supabase/client';
 import { Json } from '@/integrations/supabase/types';
@@ -11,7 +10,7 @@ export const ConfigService = {
       if (apiKey) {
         console.log('Fetching schema for API key:', apiKey);
         
-        // First try to get schema from schema_configs table
+        // Primary: Try to get schema from schema_configs table
         const { data: schemaConfig, error: schemaConfigError } = await supabase
           .from('schema_configs')
           .select('field_types, required_fields')
@@ -27,10 +26,12 @@ export const ConfigService = {
         }
         
         if (schemaConfigError) {
-          console.error('Error fetching schema from schema_configs:', schemaConfigError);
+          console.warn('Error fetching schema from schema_configs:', schemaConfigError);
+        } else {
+          console.log('No schema found in schema_configs for API key:', apiKey);
         }
         
-        // Fallback to sources table for backward compatibility
+        // Fallback: Try sources table for backward compatibility
         const { data: source, error: sourceError } = await supabase
           .from('sources')
           .select('schema')
@@ -38,8 +39,12 @@ export const ConfigService = {
           .maybeSingle();
         
         if (!sourceError && source && source.schema) {
-          console.log('Found schema in sources table:', source.schema);
+          console.log('Found schema in sources table (fallback):', source.schema);
           const sourceSchema = source.schema as unknown as DataSchema;
+          
+          // Migrate data from sources to schema_configs for future use
+          await ConfigService.migrateSourceSchemaToConfig(apiKey, sourceSchema);
+          
           return {
             fieldTypes: sourceSchema.fieldTypes || {},
             requiredFields: sourceSchema.requiredFields || []
@@ -47,7 +52,7 @@ export const ConfigService = {
         }
         
         if (sourceError) {
-          console.error('Error fetching schema from sources:', sourceError);
+          console.warn('Error fetching schema from sources table:', sourceError);
         }
       }
       
@@ -79,102 +84,142 @@ export const ConfigService = {
           return false;
         }
         
-        // Cast schema to Json type for Supabase
-        const fieldTypesJson = schema.fieldTypes as unknown as Json;
-        const requiredFieldsJson = schema.requiredFields as unknown as Json;
+        // Primary: Save to schema_configs table
+        const success = await ConfigService.saveToSchemaConfigs(apiKey, schema, userId);
         
-        // Check if entry exists in schema_configs
-        const { data: existingConfig, error: checkError } = await supabase
-          .from('schema_configs')
-          .select('id')
-          .eq('api_key', apiKey)
-          .maybeSingle();
-        
-        if (checkError) {
-          console.error('Error checking schema_configs:', checkError);
-          return false;
+        if (success) {
+          // Secondary: Update sources table for backward compatibility
+          await ConfigService.updateSourcesSchema(apiKey, schema);
+          console.log('Schema saved successfully to both tables');
+          return true;
         }
         
-        if (existingConfig) {
-          console.log('Updating existing schema config:', existingConfig.id);
-          // Update existing record
-          const { error: updateError } = await supabase
-            .from('schema_configs')
-            .update({
-              field_types: fieldTypesJson,
-              required_fields: requiredFieldsJson,
-              updated_at: new Date().toISOString()
-            })
-            .eq('api_key', apiKey);
-          
-          if (updateError) {
-            console.error('Error updating schema_configs:', updateError);
-            return false;
-          }
-          
-          console.log('Successfully updated schema config');
-        } else {
-          console.log('Creating new schema config for API key:', apiKey);
-          
-          // Get source name for the schema config
-          const { data: source, error: sourceError } = await supabase
-            .from('sources')
-            .select('name')
-            .eq('api_key', apiKey)
-            .maybeSingle();
-            
-          if (sourceError) {
-            console.error('Error fetching source for API key:', sourceError);
-            return false;
-          }
-          
-          const sourceName = source?.name || 'Unknown Source';
-          
-          // Insert new record
-          const { data: insertData, error: insertError } = await supabase
-            .from('schema_configs')
-            .insert({
-              name: `Schema for ${sourceName}`,
-              description: `Schema validation configuration for API key ${apiKey.substring(0, 8)}...`,
-              api_key: apiKey,
-              field_types: fieldTypesJson,
-              required_fields: requiredFieldsJson,
-              user_id: userId
-            })
-            .select();
-            
-          if (insertError) {
-            console.error('Error inserting schema_configs:', insertError);
-            return false;
-          }
-          
-          console.log('Successfully created schema config:', insertData);
-        }
-        
-        // Also update the sources table for backward compatibility
-        const schemaAsJson = schema as unknown as Json;
-        const { error: sourcesUpdateError } = await supabase
-          .from('sources')
-          .update({ 
-            schema: schemaAsJson
-          })
-          .eq('api_key', apiKey);
-        
-        if (sourcesUpdateError) {
-          console.error('Error updating schema in sources table:', sourcesUpdateError);
-          // Don't return false here as the main schema_configs was successful
-        }
-        
-        console.log('Schema saved successfully to database');
-        return true;
+        return false;
       }
       
-      // If no API key, still save to localStorage as fallback
+      // If no API key, save to localStorage as fallback
       localStorage.setItem(SCHEMA_KEY, JSON.stringify(schema));
       return true;
     } catch (error) {
       console.error('Error saving schema:', error);
       return false;
+    }
+  },
+  
+  saveToSchemaConfigs: async (apiKey: string, schema: DataSchema, userId: string): Promise<boolean> => {
+    try {
+      // Cast schema to Json type for Supabase
+      const fieldTypesJson = schema.fieldTypes as unknown as Json;
+      const requiredFieldsJson = schema.requiredFields as unknown as Json;
+      
+      // Check if entry exists in schema_configs
+      const { data: existingConfig } = await supabase
+        .from('schema_configs')
+        .select('id')
+        .eq('api_key', apiKey)
+        .maybeSingle();
+      
+      if (existingConfig) {
+        console.log('Updating existing schema config:', existingConfig.id);
+        // Update existing record
+        const { error: updateError } = await supabase
+          .from('schema_configs')
+          .update({
+            field_types: fieldTypesJson,
+            required_fields: requiredFieldsJson,
+            updated_at: new Date().toISOString()
+          })
+          .eq('api_key', apiKey);
+        
+        if (updateError) {
+          console.error('Error updating schema_configs:', updateError);
+          return false;
+        }
+        
+        console.log('Successfully updated schema config');
+        return true;
+      } else {
+        console.log('Creating new schema config for API key:', apiKey);
+        
+        // Get source name for the schema config
+        const { data: source } = await supabase
+          .from('sources')
+          .select('name')
+          .eq('api_key', apiKey)
+          .maybeSingle();
+          
+        const sourceName = source?.name || 'Unknown Source';
+        
+        // Insert new record
+        const { error: insertError } = await supabase
+          .from('schema_configs')
+          .insert({
+            name: `Schema for ${sourceName}`,
+            description: `Schema validation configuration for API key ${apiKey.substring(0, 8)}...`,
+            api_key: apiKey,
+            field_types: fieldTypesJson,
+            required_fields: requiredFieldsJson,
+            user_id: userId
+          });
+          
+        if (insertError) {
+          console.error('Error inserting schema_configs:', insertError);
+          return false;
+        }
+        
+        console.log('Successfully created schema config');
+        return true;
+      }
+    } catch (error) {
+      console.error('Error in saveToSchemaConfigs:', error);
+      return false;
+    }
+  },
+  
+  updateSourcesSchema: async (apiKey: string, schema: DataSchema): Promise<void> => {
+    try {
+      // Update the sources table for backward compatibility
+      const schemaAsJson = schema as unknown as Json;
+      const { error } = await supabase
+        .from('sources')
+        .update({ 
+          schema: schemaAsJson
+        })
+        .eq('api_key', apiKey);
+      
+      if (error) {
+        console.warn('Error updating schema in sources table (non-critical):', error);
+      } else {
+        console.log('Successfully updated sources table schema');
+      }
+    } catch (error) {
+      console.warn('Error in updateSourcesSchema (non-critical):', error);
+    }
+  },
+  
+  migrateSourceSchemaToConfig: async (apiKey: string, schema: DataSchema): Promise<void> => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      
+      if (!userId) {
+        console.log('Cannot migrate schema: no user session');
+        return;
+      }
+      
+      // Check if already exists in schema_configs
+      const { data: existing } = await supabase
+        .from('schema_configs')
+        .select('id')
+        .eq('api_key', apiKey)
+        .maybeSingle();
+      
+      if (!existing) {
+        console.log('Migrating schema from sources to schema_configs');
+        await ConfigService.saveToSchemaConfigs(apiKey, schema, userId);
+      }
+    } catch (error) {
+      console.warn('Error during schema migration (non-critical):', error);
     }
   },
   
