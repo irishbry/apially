@@ -5,16 +5,19 @@ import { Code, Copy, FileJson, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DataSchema } from '@/types/api.types';
 
 interface ApiInstructionsProps {
   currentApiKey?: string;
+  schema?: DataSchema;
 }
 
-const ApiInstructions: React.FC<ApiInstructionsProps> = ({ currentApiKey }) => {
+const ApiInstructions: React.FC<ApiInstructionsProps> = ({ currentApiKey, schema }) => {
   const [domainName] = React.useState(window.location.origin || 'https://your-domain.com');
   const { toast } = useToast();
 
   console.log('🔥 ApiInstructions rendered with currentApiKey:', currentApiKey);
+  console.log('🔥 ApiInstructions rendered with schema:', schema);
 
   const copyToClipboard = (text: string, message: string) => {
     console.log('📋 COPY: Copying to clipboard:', message, 'Text:', text);
@@ -32,31 +35,65 @@ const ApiInstructions: React.FC<ApiInstructionsProps> = ({ currentApiKey }) => {
   const apiEndpoint = `${domainName}/api/data`;
   const displayApiKey = currentApiKey || 'YOUR_API_KEY';
   
+  // Generate example data based on schema or use default
+  const generateExampleData = () => {
+    if (schema && Object.keys(schema.fieldTypes).length > 0) {
+      const exampleData: Record<string, any> = {};
+      
+      Object.entries(schema.fieldTypes).forEach(([field, type]) => {
+        switch (type) {
+          case 'string':
+            exampleData[field] = field.toLowerCase().includes('id') ? `${field}-1` : `example_${field}`;
+            break;
+          case 'number':
+            exampleData[field] = field.toLowerCase().includes('temp') ? 25.4 : 
+                                 field.toLowerCase().includes('humidity') ? 68 : 
+                                 field.toLowerCase().includes('pressure') ? 1013.2 : 100;
+            break;
+          case 'boolean':
+            exampleData[field] = true;
+            break;
+          case 'array':
+            exampleData[field] = [`item1`, `item2`];
+            break;
+          case 'object':
+            exampleData[field] = { key: 'value' };
+            break;
+          default:
+            exampleData[field] = `example_${field}`;
+        }
+      });
+      
+      return exampleData;
+    }
+    
+    // Default example data
+    return {
+      sensorId: "sensor-1",
+      temperature: 25.4,
+      humidity: 68,
+      pressure: 1013.2
+    };
+  };
+
+  const exampleData = generateExampleData();
+  const exampleDataJson = JSON.stringify(exampleData, null, 4);
+  
   console.log('🎯 RENDER: Final values being used for display:');
   console.log('🎯 RENDER: - apiEndpoint:', apiEndpoint);
   console.log('🎯 RENDER: - displayApiKey:', displayApiKey);
-  console.log('🎯 RENDER: - currentApiKey prop:', currentApiKey);
+  console.log('🎯 RENDER: - exampleData:', exampleData);
 
   const curlExample = `curl -X POST ${apiEndpoint} \\
   -H "Content-Type: application/json" \\
   -H "X-API-Key: ${displayApiKey}" \\
-  -d '{
-    "sensorId": "sensor-1",
-    "temperature": 25.4,
-    "humidity": 68,
-    "pressure": 1013.2
-  }'`;
+  -d '${exampleDataJson}'`;
 
   const jsExample = `// Using fetch API
 const url = '${apiEndpoint}';
 const apiKey = '${displayApiKey}';
 
-const data = {
-  sensorId: 'sensor-1',
-  temperature: 25.4,
-  humidity: 68,
-  pressure: 1013.2
-};
+const data = ${exampleDataJson};
 
 fetch(url, {
   method: 'POST',
@@ -81,12 +118,7 @@ headers = {
     'X-API-Key': api_key
 }
 
-data = {
-    "sensorId": "sensor-1",
-    "temperature": 25.4,
-    "humidity": 68,
-    "pressure": 1013.2
-}
+data = ${exampleDataJson}
 
 response = requests.post(url, headers=headers, data=json.dumps(data))
 print(response.json())`;
@@ -102,6 +134,11 @@ print(response.json())`;
         </CardTitle>
         <CardDescription>
           Instructions for integrating with your data consolidation API
+          {schema && Object.keys(schema.fieldTypes).length > 0 && (
+            <span className="block mt-1 text-green-600 font-medium">
+              Examples updated based on your schema configuration
+            </span>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent>
