@@ -128,22 +128,38 @@ const EnhancedDataTable: React.FC = () => {
   }, [data, searchTerm, selectedSource, sortConfig, activeFilters, visibleColumns]);
 
   const getColumns = (): string[] => {
-    if (data.length === 0) return ['source', 'metadata'];
+    if (data.length === 0) return ['source'];
     
-    // Only return source and metadata columns
-    return ['source', 'metadata'];
+    const columns = new Set<string>();
+    
+    // Always include source column
+    columns.add('source');
+    
+    // Extract metadata fields from all entries
+    data.forEach(entry => {
+      if (entry.metadata && typeof entry.metadata === 'object') {
+        Object.keys(entry.metadata).forEach(key => {
+          columns.add(key);
+        });
+      }
+    });
+    
+    return Array.from(columns);
   };
 
   // Helper function to get value from entry, handling both snake_case and camelCase
   const getValue = (entry: DataEntry, column: string): any => {
-    switch (column) {
-      case 'source':
-        return entry.sourceId || entry.source_id;
-      case 'metadata':
-        return entry.metadata;
-      default:
-        return entry[column];
+    if (column === 'source') {
+      return entry.sourceId || entry.source_id;
     }
+    
+    // Check if the column is a metadata field
+    if (entry.metadata && typeof entry.metadata === 'object' && entry.metadata[column] !== undefined) {
+      return entry.metadata[column];
+    }
+    
+    // Fallback to entry property
+    return entry[column];
   };
 
   const getSourceName = (sourceId: string | undefined): string => {
@@ -155,22 +171,13 @@ const EnhancedDataTable: React.FC = () => {
   const formatCellValue = (key: string, value: any) => {
     if (value === undefined || value === null) return '-';
     if (key === 'source') return getSourceName(value);
-    if (key === 'metadata' && typeof value === 'object') {
-      // Format metadata as a string with newlines
-      try {
-        return JSON.stringify(value, null, 2);
-      } catch (e) {
-        return JSON.stringify(value);
-      }
-    }
     if (typeof value === 'object') return JSON.stringify(value);
     return String(value);
   };
 
   const getDisplayName = (column: string): string => {
     const displayNames: Record<string, string> = {
-      'source': 'Source',
-      'metadata': 'Metadata'
+      'source': 'Source'
     };
     return displayNames[column] || column;
   };
