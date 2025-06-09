@@ -265,97 +265,92 @@ const SourcesManager: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Create New Source */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Plus className="h-5 w-5" />
-            Create New Source
-          </CardTitle>
-          <CardDescription>
-            Create a new data source to get a unique API key for sending data
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-            <DialogTrigger asChild>
-              <Button className="w-full">
-                <Plus className="h-4 w-4 mr-2" />
-                Create New Source
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Create New Data Source</DialogTitle>
-                <DialogDescription>
-                  Enter details for your new data source. You'll get a unique API key for this source.
-                </DialogDescription>
-              </DialogHeader>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(createSource)} className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Source Name</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="e.g., Weather Station 1"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          Give your data source a descriptive name
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="description"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Description (Optional)</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Brief description of this source"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          Optional description for this data source
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <DialogFooter>
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      onClick={() => setIsCreateModalOpen(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button type="submit" disabled={isCreatingSource}>
-                      {isCreatingSource ? 'Creating...' : 'Create Source'}
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
-        </CardContent>
-      </Card>
+      {/* Header with Create Button */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Data Sources</h2>
+          <p className="text-muted-foreground">
+            Manage your data sources and their API keys
+          </p>
+        </div>
+        <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              New Source
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Create New Data Source</DialogTitle>
+              <DialogDescription>
+                Enter details for your new data source. You'll get a unique API key for this source.
+              </DialogDescription>
+            </DialogHeader>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(createSource)} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Source Name</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="e.g., Weather Station 1"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Give your data source a descriptive name
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description (Optional)</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Brief description of this source"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Optional description for this data source
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <DialogFooter>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => setIsCreateModalOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={isCreatingSource}>
+                    {isCreatingSource ? 'Creating...' : 'Create Source'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+      </div>
 
       {/* Existing Sources */}
       <Card>
         <CardHeader>
           <CardTitle>Your Sources</CardTitle>
           <CardDescription>
-            Manage your data sources and their API keys
+            Select a source to manage its configuration
           </CardDescription>
         </CardHeader>
         <CardContent>
