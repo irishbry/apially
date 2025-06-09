@@ -51,12 +51,14 @@ export interface ApiResponse {
 export interface Source {
   id: string;
   name: string;
-  apiKey?: string;
+  api_key?: string;  // Changed from apiKey to api_key to match database
   active: boolean;
-  lastActive?: string;
-  dataCount?: number;
+  last_active?: string;  // Changed from lastActive to last_active
+  data_count?: number;   // Changed from dataCount to data_count
   url?: string;
-  userId?: string;
+  user_id?: string;      // Changed from userId to user_id
+  created_at?: string;   // Added to match database schema
+  schema?: any;          // Added to match database schema
 }
 
 export interface DataSchema {
