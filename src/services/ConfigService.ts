@@ -75,10 +75,27 @@ export const ConfigService = {
       console.log('Setting schema:', schema, 'for API key:', apiKey);
       
       if (apiKey) {
+        // Check authentication first
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error('Session error:', sessionError);
+          return false;
+        }
+        
+        const userId = session?.user?.id;
+        
+        if (!userId) {
+          console.error('No user ID found, user must be logged in to save schema');
+          return false;
+        }
+
+        console.log('User authenticated, userId:', userId);
+        
         // First, verify that the API key exists in the sources table
         const { data: sourceExists, error: sourceCheckError } = await supabase
           .from('sources')
-          .select('id')
+          .select('id, name')
           .eq('api_key', apiKey)
           .maybeSingle();
         
@@ -91,15 +108,8 @@ export const ConfigService = {
           console.error('API key does not exist in sources table:', apiKey);
           return false;
         }
-        
-        // Get user session
-        const { data: { session } } = await supabase.auth.getSession();
-        const userId = session?.user?.id;
-        
-        if (!userId) {
-          console.error('No user ID found, user must be logged in to save schema');
-          return false;
-        }
+
+        console.log('Source exists:', sourceExists);
         
         // Primary: Save to schema_configs table
         const success = await ConfigService.saveToSchemaConfigs(apiKey, schema, userId);
@@ -125,7 +135,7 @@ export const ConfigService = {
   
   saveToSchemaConfigs: async (apiKey: string, schema: DataSchema, userId: string): Promise<boolean> => {
     try {
-      console.log('Attempting to save schema to schema_configs:', { apiKey, schema, userId });
+      console.log('Attempting to save schema to schema_configs:', { apiKey: apiKey.substring(0, 8) + '...', schema, userId });
       
       // Check if entry exists in schema_configs
       const { data: existingConfig, error: selectError } = await supabase
@@ -159,15 +169,20 @@ export const ConfigService = {
         console.log('Successfully updated schema config');
         return true;
       } else {
-        console.log('Creating new schema config for API key:', apiKey);
+        console.log('Creating new schema config for API key:', apiKey.substring(0, 8) + '...');
         
         // Get source name for the schema config
-        const { data: source } = await supabase
+        const { data: source, error: sourceError } = await supabase
           .from('sources')
           .select('name')
           .eq('api_key', apiKey)
           .maybeSingle();
           
+        if (sourceError) {
+          console.error('Error fetching source name:', sourceError);
+          return false;
+        }
+        
         const sourceName = source?.name || 'Unknown Source';
         
         // Insert new record

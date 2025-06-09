@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -220,6 +219,19 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
       
       console.log("Saving schema for API key:", apiKey, "Schema:", schema);
       
+      // Check if user is authenticated first
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session?.user) {
+        console.error('User not authenticated:', sessionError);
+        toast({
+          title: "Authentication Error",
+          description: "You must be logged in to save schemas. Please log in and try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       // Save using ConfigService
       const success = await ConfigService.setSchema(schema, apiKey);
       
@@ -248,7 +260,7 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
       console.error("Error saving schema:", error);
       toast({
         title: "Error",
-        description: "An unexpected error occurred while saving",
+        description: "An unexpected error occurred while saving. Please check your connection and try again.",
         variant: "destructive",
       });
     } finally {
