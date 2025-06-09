@@ -32,7 +32,10 @@ const ApiInstructions: React.FC<ApiInstructionsProps> = ({ currentApiKey, schema
   };
 
   const apiEndpoint = `${domainName}/api/data`;
+  // Always use currentApiKey if provided, otherwise fall back to placeholder
   const displayApiKey = currentApiKey || 'YOUR_API_KEY';
+  
+  console.log('🎯 RENDER: Using currentApiKey for displayApiKey:', displayApiKey);
   
   // Generate example data based on schema or use minimal default
   const generateExampleData = () => {
