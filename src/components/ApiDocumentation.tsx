@@ -23,12 +23,15 @@ const ApiDocumentation: React.FC<ApiDocumentationProps> = ({ selectedApiKey }) =
   const { user } = useAuth();
 
   useEffect(() => {
+    console.log('ApiDocumentation: selectedApiKey prop changed:', selectedApiKey);
+    
     // Use selectedApiKey if provided, otherwise fetch from database
     if (selectedApiKey) {
-      console.log('Using selected API key:', selectedApiKey);
+      console.log('Using selected API key for documentation:', selectedApiKey);
       setApiKey(selectedApiKey);
       fetchSchema(selectedApiKey);
     } else {
+      console.log('No selectedApiKey provided, fetching from database');
       fetchApiKey();
     }
     
@@ -49,6 +52,7 @@ const ApiDocumentation: React.FC<ApiDocumentationProps> = ({ selectedApiKey }) =
         .maybeSingle();
       
       if (data && !error) {
+        console.log('Fetched API key from database:', data.api_key);
         setApiKey(data.api_key);
         fetchSchema(data.api_key);
       }
@@ -225,14 +229,18 @@ const ApiDocumentation: React.FC<ApiDocumentationProps> = ({ selectedApiKey }) =
     return JSON.stringify(responseData, null, 2);
   };
 
+  const displayApiKey = apiKey || 'YOUR_API_KEY';
+  
+  console.log('ApiDocumentation rendering with apiKey:', displayApiKey);
+
   const curlExample = `curl -X POST ${functionUrl} \\
   -H "Content-Type: application/json" \\
-  -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" \\
+  -H "X-API-Key: ${displayApiKey}" \\
   -d '${getExampleDataJson()}'`;
 
   const jsExample = `// Using fetch API
 const url = '${functionUrl}';
-const apiKey = '${apiKey || 'YOUR_API_KEY'}';
+const apiKey = '${displayApiKey}';
 
 const data = ${getExampleDataJson()};
 
@@ -252,7 +260,7 @@ fetch(url, {
 import json
 
 url = "${functionUrl}"
-api_key = "${apiKey || 'YOUR_API_KEY'}"
+api_key = "${displayApiKey}"
 
 headers = {
     'Content-Type': 'application/json',
@@ -311,11 +319,11 @@ print(response.json())`;
                 All requests must include your API key in the <code>X-API-Key</code> header.
               </p>
               <div className="flex items-center justify-between bg-secondary p-3 rounded-md">
-                <code className="text-xs sm:text-sm">X-API-Key: {apiKey || 'YOUR_API_KEY'}</code>
+                <code className="text-xs sm:text-sm">X-API-Key: {displayApiKey}</code>
                 <Button 
                   variant="ghost" 
                   size="sm"
-                  onClick={() => copyToClipboard(`X-API-Key: ${apiKey || 'YOUR_API_KEY'}`, 'Header copied!')}
+                  onClick={() => copyToClipboard(`X-API-Key: ${displayApiKey}`, 'Header copied!')}
                   className="h-8 px-2"
                 >
                   <Copy className="h-3 w-3" />
@@ -423,7 +431,7 @@ ${getRequiredFieldsText()}`}
                   <li>In Headers tab, add:
                     <ul className="list-disc list-inside ml-4 space-y-1">
                       <li><code>Content-Type: application/json</code></li>
-                      <li><code>X-API-Key: {apiKey || 'YOUR_API_KEY'}</code> (plain text, no Bearer prefix)</li>
+                      <li><code>X-API-Key: {displayApiKey}</code> (plain text, no Bearer prefix)</li>
                     </ul>
                   </li>
                   <li>In Body tab, select "raw" and "JSON", then enter your data payload</li>
