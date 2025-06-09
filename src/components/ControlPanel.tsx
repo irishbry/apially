@@ -73,10 +73,10 @@ const ControlPanel: React.FC = () => {
     
     try {
       // Log the API key being used
-      console.log("Using API key for source:", source.name, "Key:", source.apiKey ? source.apiKey.substring(0, 5) + "..." : "missing");
+      console.log("Using API key for source:", source.name, "Key:", source.api_key ? source.api_key.substring(0, 5) + "..." : "missing");
       
       // Await the result of the API call
-      const result = await ApiService.receiveData(testData, source.apiKey);
+      const result = await ApiService.receiveData(testData, source.api_key);
       
       setLastResult({
         success: result.success,
