@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import ApiInstructions from "./ApiInstructions";
 
 export interface Source {
   id: string;
@@ -32,9 +32,12 @@ const SourcesManager: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentApiKey, setCurrentApiKey] = useState<string>('');
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const { user, isAuthenticated } = useAuth();
+
+  console.log('🚀 SourcesManager rendered, currentApiKey state:', currentApiKey);
 
   // Fetch sources on component mount and when auth state changes
   useEffect(() => {
@@ -47,6 +50,7 @@ const SourcesManager: React.FC = () => {
         .on('postgres_changes', 
           { event: '*', schema: 'public', table: 'sources' }, 
           (payload) => {
+            console.log('🔔 REALTIME: Sources table changed!', payload);
             fetchSources();
           }
         )
@@ -57,12 +61,15 @@ const SourcesManager: React.FC = () => {
       };
     } else {
       setSources([]);
+      setCurrentApiKey('');
     }
   }, [isAuthenticated, user]);
 
   const fetchSources = async () => {
     try {
       setError(null);
+      console.log('📊 FETCH_SOURCES: Starting to fetch sources...');
+      
       const { data, error } = await supabase
         .from('sources')
         .select('*')
@@ -74,7 +81,24 @@ const SourcesManager: React.FC = () => {
         return;
       }
       
+      console.log('📊 FETCH_SOURCES: Raw sources data:', data);
       setSources(data || []);
+      
+      // Update current API key to the latest active source
+      if (data && data.length > 0) {
+        const activeSources = data.filter(source => source.active);
+        if (activeSources.length > 0) {
+          const latestApiKey = activeSources[0].api_key;
+          console.log('🎯 FETCH_SOURCES: Setting currentApiKey to:', latestApiKey);
+          setCurrentApiKey(latestApiKey);
+        } else {
+          console.log('⚠️ FETCH_SOURCES: No active sources, clearing currentApiKey');
+          setCurrentApiKey('');
+        }
+      } else {
+        console.log('⚠️ FETCH_SOURCES: No sources found, clearing currentApiKey');
+        setCurrentApiKey('');
+      }
     } catch (err) {
       console.error('Error in fetchSources:', err);
       setError('An unexpected error occurred while loading sources.');
@@ -105,6 +129,7 @@ const SourcesManager: React.FC = () => {
     setIsLoading(true);
     
     try {
+      console.log('🔨 ADD_SOURCE: Generating new API key...');
       // Call the generate_unique_api_key function
       const { data: apiKeyData, error: apiKeyError } = await supabase.rpc('generate_unique_api_key');
       
@@ -113,6 +138,7 @@ const SourcesManager: React.FC = () => {
       }
       
       const api_key = apiKeyData;
+      console.log('🔨 ADD_SOURCE: Generated API key:', api_key);
       
       // Insert the new source
       const { data, error } = await supabase
@@ -129,6 +155,12 @@ const SourcesManager: React.FC = () => {
       if (error) {
         throw error;
       }
+      
+      console.log('✅ ADD_SOURCE: Source added successfully:', data);
+      console.log('🎯 ADD_SOURCE: Immediately setting currentApiKey to:', api_key);
+      
+      // Immediately update the current API key
+      setCurrentApiKey(api_key);
       
       setNewSourceName('');
       setNewSourceUrl('');
@@ -248,6 +280,12 @@ const SourcesManager: React.FC = () => {
         throw error;
       }
       
+      // Update current API key if this was the active source
+      const currentSource = sources.find(s => s.id === id);
+      if (currentSource && currentSource.active) {
+        setCurrentApiKey(api_key);
+      }
+      
       toast({
         title: "API Key Regenerated",
         description: `A new API key has been generated for source "${name}".`,
@@ -312,199 +350,204 @@ const SourcesManager: React.FC = () => {
   };
 
   return (
-    <Card className="w-full shadow-sm hover:shadow-md transition-all duration-300">
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <span className="text-xl font-medium">Data Sources</span>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" className="hover-lift">
-                <Plus className="h-4 w-4 mr-1" />
-                Add Source
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Data Source</DialogTitle>
-                <DialogDescription>
-                  Create a new data source and generate an API key for it.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="py-4 space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Source Name</label>
-                  <Input
-                    value={newSourceName}
-                    onChange={(e) => setNewSourceName(e.target.value)}
-                    placeholder="Enter source name (e.g., Factory Sensors)"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Source URL (optional)</label>
-                  <Input
-                    value={newSourceUrl}
-                    onChange={(e) => setNewSourceUrl(e.target.value)}
-                    placeholder="Enter source URL (optional)"
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isLoading}>Cancel</Button>
-                <Button onClick={addSource} disabled={isLoading}>
-                  {isLoading ? 'Adding...' : 'Add Source'}
+    <div className="space-y-6">
+      <Card className="w-full shadow-sm hover:shadow-md transition-all duration-300">
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span className="text-xl font-medium">Data Sources</span>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="hover-lift">
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Source
                 </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </CardTitle>
-        <CardDescription>
-          Manage data sources and their API keys
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {error && isAuthenticated && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              {error}
-            </AlertDescription>
-          </Alert>
-        )}
-        
-        {!isAuthenticated && (
-          <Alert className="mb-4">
-            <AlertDescription>
-              You need to be logged in to manage data sources.
-            </AlertDescription>
-          </Alert>
-        )}
-        
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Source Name</TableHead>
-                <TableHead>API Key</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Data Points</TableHead>
-                <TableHead>Last Active</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sources.length > 0 ? (
-                sources.map((source) => (
-                  <TableRow key={source.id}>
-                    <TableCell className="font-medium">{source.name}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center">
-                        <code className="bg-muted px-1 py-0.5 rounded text-xs">
-                          {source.api_key.substring(0, 8)}...
-                        </code>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => copyApiKey(source.api_key)}
-                          title="Copy API key"
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add New Data Source</DialogTitle>
+                  <DialogDescription>
+                    Create a new data source and generate an API key for it.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Source Name</label>
+                    <Input
+                      value={newSourceName}
+                      onChange={(e) => setNewSourceName(e.target.value)}
+                      placeholder="Enter source name (e.g., Factory Sensors)"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Source URL (optional)</label>
+                    <Input
+                      value={newSourceUrl}
+                      onChange={(e) => setNewSourceUrl(e.target.value)}
+                      placeholder="Enter source URL (optional)"
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isLoading}>Cancel</Button>
+                  <Button onClick={addSource} disabled={isLoading}>
+                    {isLoading ? 'Adding...' : 'Add Source'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </CardTitle>
+          <CardDescription>
+            Manage data sources and their API keys
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {error && isAuthenticated && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                {error}
+              </AlertDescription>
+            </Alert>
+          )}
+          
+          {!isAuthenticated && (
+            <Alert className="mb-4">
+              <AlertDescription>
+                You need to be logged in to manage data sources.
+              </AlertDescription>
+            </Alert>
+          )}
+          
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Source Name</TableHead>
+                  <TableHead>API Key</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Data Points</TableHead>
+                  <TableHead>Last Active</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sources.length > 0 ? (
+                  sources.map((source) => (
+                    <TableRow key={source.id}>
+                      <TableCell className="font-medium">{source.name}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center">
+                          <code className="bg-muted px-1 py-0.5 rounded text-xs">
+                            {source.api_key.substring(0, 8)}...
+                          </code>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => copyApiKey(source.api_key)}
+                            title="Copy API key"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge 
+                          variant={source.active ? "default" : "outline"} 
+                          className={source.active ? "bg-green-500" : "text-muted-foreground"}
                         >
-                          <Copy className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge 
-                        variant={source.active ? "default" : "outline"} 
-                        className={source.active ? "bg-green-500" : "text-muted-foreground"}
-                      >
-                        {source.active ? "Active" : "Inactive"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {source.data_count > 0 ? (
-                        <Badge variant="outline">{source.data_count}</Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-muted-foreground">0</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {source.last_active ? formatDate(source.last_active) : 'Never'}
-                    </TableCell>
-                    <TableCell>{formatDate(source.created_at)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => toggleSourceActive(source.id, source.name, source.active)}
-                          title={source.active ? "Deactivate source" : "Activate source"}
-                        >
-                          <Power className={`h-4 w-4 ${source.active ? 'text-green-500' : 'text-gray-400'}`} />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => startEditSource(source)}
-                          title="Edit source"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => regenerateApiKey(source.id, source.name)}
-                          title="Regenerate API key"
-                        >
-                          <KeyRound className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => deleteSource(source.id, source.name)}
-                          title="Delete source"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                          {source.active ? "Active" : "Inactive"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {source.data_count > 0 ? (
+                          <Badge variant="outline">{source.data_count}</Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-muted-foreground">0</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {source.last_active ? formatDate(source.last_active) : 'Never'}
+                      </TableCell>
+                      <TableCell>{formatDate(source.created_at)}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => toggleSourceActive(source.id, source.name, source.active)}
+                            title={source.active ? "Deactivate source" : "Activate source"}
+                          >
+                            <Power className={`h-4 w-4 ${source.active ? 'text-green-500' : 'text-gray-400'}`} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => startEditSource(source)}
+                            title="Edit source"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => regenerateApiKey(source.id, source.name)}
+                            title="Regenerate API key"
+                          >
+                            <KeyRound className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => deleteSource(source.id, source.name)}
+                            title="Delete source"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={7} className="h-24 text-center">
+                      {!isAuthenticated 
+                        ? 'Authentication required to view sources' 
+                        : 'No sources available'}
                     </TableCell>
                   </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center">
-                    {!isAuthenticated 
-                      ? 'Authentication required to view sources' 
-                      : 'No sources available'}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
-
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Source</DialogTitle>
-            <DialogDescription>
-              Update the source name or manage its API key.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <Input
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              placeholder="Enter new source name"
-            />
+                )}
+              </TableBody>
+            </Table>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
-            <Button onClick={updateSource}>Save Changes</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </Card>
+        </CardContent>
+
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Source</DialogTitle>
+              <DialogDescription>
+                Update the source name or manage its API key.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <Input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Enter new source name"
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
+              <Button onClick={updateSource}>Save Changes</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </Card>
+
+      {/* Pass the current API key to ApiInstructions */}
+      <ApiInstructions currentApiKey={currentApiKey} />
+    </div>
   );
 };
 
