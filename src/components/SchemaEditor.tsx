@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -201,6 +202,15 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
 
   // Save the schema
   const saveSchema = async () => {
+    if (!apiKey) {
+      toast({
+        title: "Error",
+        description: "No API key available to save schema",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSaving(true);
     try {
       const schema: DataSchema = {
@@ -208,7 +218,7 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
         fieldTypes
       };
       
-      console.log("Saving schema:", schema);
+      console.log("Saving schema for API key:", apiKey, "Schema:", schema);
       
       // Save using ConfigService
       const success = await ConfigService.setSchema(schema, apiKey);
@@ -216,9 +226,7 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
       if (success) {
         toast({
           title: "Success",
-          description: apiKey 
-            ? "Schema saved successfully and will be used to validate data for this API key" 
-            : "Schema saved successfully",
+          description: "Schema saved successfully and will be used to validate data for this API key",
         });
         
         // Switch to validator tab after successful save
@@ -232,7 +240,7 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
       } else {
         toast({
           title: "Error",
-          description: "Failed to save schema",
+          description: "Failed to save schema. Please check your connection and try again.",
           variant: "destructive",
         });
       }

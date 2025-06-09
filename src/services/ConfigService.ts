@@ -1,3 +1,4 @@
+
 import { DataSchema } from '@/types/api.types';
 import { supabase } from '@/integrations/supabase/client';
 import { Json } from '@/integrations/supabase/types';
@@ -108,16 +109,19 @@ export const ConfigService = {
   
   saveToSchemaConfigs: async (apiKey: string, schema: DataSchema, userId: string): Promise<boolean> => {
     try {
-      // Cast schema to Json type for Supabase
-      const fieldTypesJson = schema.fieldTypes as unknown as Json;
-      const requiredFieldsJson = schema.requiredFields as unknown as Json;
+      console.log('Attempting to save schema to schema_configs:', { apiKey, schema, userId });
       
       // Check if entry exists in schema_configs
-      const { data: existingConfig } = await supabase
+      const { data: existingConfig, error: selectError } = await supabase
         .from('schema_configs')
         .select('id')
         .eq('api_key', apiKey)
         .maybeSingle();
+      
+      if (selectError) {
+        console.error('Error checking existing schema config:', selectError);
+        return false;
+      }
       
       if (existingConfig) {
         console.log('Updating existing schema config:', existingConfig.id);
@@ -125,8 +129,8 @@ export const ConfigService = {
         const { error: updateError } = await supabase
           .from('schema_configs')
           .update({
-            field_types: fieldTypesJson,
-            required_fields: requiredFieldsJson,
+            field_types: schema.fieldTypes as Json,
+            required_fields: schema.requiredFields as Json,
             updated_at: new Date().toISOString()
           })
           .eq('api_key', apiKey);
@@ -157,8 +161,8 @@ export const ConfigService = {
             name: `Schema for ${sourceName}`,
             description: `Schema validation configuration for API key ${apiKey.substring(0, 8)}...`,
             api_key: apiKey,
-            field_types: fieldTypesJson,
-            required_fields: requiredFieldsJson,
+            field_types: schema.fieldTypes as Json,
+            required_fields: schema.requiredFields as Json,
             user_id: userId
           });
           
@@ -179,11 +183,10 @@ export const ConfigService = {
   updateSourcesSchema: async (apiKey: string, schema: DataSchema): Promise<void> => {
     try {
       // Update the sources table for backward compatibility
-      const schemaAsJson = schema as unknown as Json;
       const { error } = await supabase
         .from('sources')
         .update({ 
-          schema: schemaAsJson
+          schema: schema as unknown as Json
         })
         .eq('api_key', apiKey);
       
