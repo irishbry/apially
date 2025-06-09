@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { Separator } from "@/components/ui/separator";
 import ApiKeyForm from "@/components/ApiKeyForm";
@@ -33,6 +32,7 @@ const Index = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [selectedApiKey, setSelectedApiKey] = useState<string>('');
   const { toast } = useToast();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -73,6 +73,11 @@ const Index = () => {
       unsubscribeNotifications();
     };
   }, []);
+
+  const handleApiKeySelect = (apiKey: string) => {
+    console.log('API key selected in Index:', apiKey);
+    setSelectedApiKey(apiKey);
+  };
 
   const handleLogout = async () => {
     try {
@@ -224,7 +229,7 @@ const Index = () => {
               </TabsContent>
               
               <TabsContent value="sources" className="space-y-6">
-                <SourcesManager />
+                <SourcesManager onApiKeySelect={handleApiKeySelect} />
               </TabsContent>
               
               <TabsContent value="data" className="space-y-6">
@@ -252,7 +257,7 @@ const Index = () => {
           {!isMobile && (
             <section className="space-y-6 pb-10">
               <h2 className="text-xl font-medium mb-4">API Documentation</h2>
-              <ApiDocumentation />
+              <ApiDocumentation selectedApiKey={selectedApiKey} />
             </section>
           )}
         </div>

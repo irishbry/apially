@@ -10,7 +10,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { ConfigService } from "@/services/ConfigService";
 import { DataSchema } from "@/types/api.types";
 
-const ApiDocumentation: React.FC = () => {
+interface ApiDocumentationProps {
+  selectedApiKey?: string;
+}
+
+const ApiDocumentation: React.FC<ApiDocumentationProps> = ({ selectedApiKey }) => {
   const [apiKey, setApiKey] = useState('');
   const [functionUrl, setFunctionUrl] = useState('');
   const [schema, setSchema] = useState<DataSchema>({ fieldTypes: {}, requiredFields: [] });
@@ -19,32 +23,39 @@ const ApiDocumentation: React.FC = () => {
   const { user } = useAuth();
 
   useEffect(() => {
-    const fetchApiKey = async () => {
-      if (!user) return;
-      
-      try {
-        const { data, error } = await supabase
-          .from('sources')
-          .select('api_key')
-          .eq('user_id', user.id)
-          .eq('active', true)
-          .limit(1)
-          .maybeSingle();
-        
-        if (data && !error) {
-          setApiKey(data.api_key);
-          fetchSchema(data.api_key);
-        }
-      } catch (err) {
-        console.error('Error fetching API key:', err);
-      }
-    };
-
-    fetchApiKey();
+    // Use selectedApiKey if provided, otherwise fetch from database
+    if (selectedApiKey) {
+      console.log('Using selected API key:', selectedApiKey);
+      setApiKey(selectedApiKey);
+      fetchSchema(selectedApiKey);
+    } else {
+      fetchApiKey();
+    }
     
     const projectRef = "api.apially.com";
     setFunctionUrl(`https://${projectRef}/functions/v1/data-receiver`);
-  }, [user]);
+  }, [selectedApiKey, user]);
+
+  const fetchApiKey = async () => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('sources')
+        .select('api_key')
+        .eq('user_id', user.id)
+        .eq('active', true)
+        .limit(1)
+        .maybeSingle();
+      
+      if (data && !error) {
+        setApiKey(data.api_key);
+        fetchSchema(data.api_key);
+      }
+    } catch (err) {
+      console.error('Error fetching API key:', err);
+    }
+  };
 
   const fetchSchema = async (apiKey: string) => {
     try {
@@ -262,6 +273,11 @@ print(response.json())`;
         </CardTitle>
         <CardDescription>
           Comprehensive guide for integrating with your data API
+          {apiKey && (
+            <span className="block mt-1 text-green-600 font-medium">
+              Using API key: {apiKey.substring(0, 8)}...
+            </span>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent>

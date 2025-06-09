@@ -17,7 +17,11 @@ interface CreateSourceForm {
   description?: string;
 }
 
-const SourcesManager: React.FC = () => {
+interface SourcesManagerProps {
+  onApiKeySelect?: (apiKey: string) => void;
+}
+
+const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
   const [sources, setSources] = useState<Source[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedApiKey, setSelectedApiKey] = useState<string>('');
@@ -260,6 +264,10 @@ const SourcesManager: React.FC = () => {
 
   const handleApiKeySelect = (apiKey: string) => {
     setSelectedApiKey(apiKey);
+    // Notify parent component about the selected API key
+    if (onApiKeySelect) {
+      onApiKeySelect(apiKey);
+    }
   };
 
   return (
