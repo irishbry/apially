@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,15 +56,11 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
   const [activeTab, setActiveTab] = useState('editor');
   const { toast } = useToast();
 
-  // For testing schema validation
+  // For testing schema validation - empty by default
   const form = useForm<TestDataForm>({
     resolver: zodResolver(testDataSchema),
     defaultValues: {
-      testData: JSON.stringify({
-        sensorId: "sensor-1",
-        temperature: 25.4,
-        humidity: 68
-      }, null, 2)
+      testData: ""
     },
   });
 
@@ -480,13 +475,13 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
                         <FormLabel>Test Data (JSON)</FormLabel>
                         <FormControl>
                           <Textarea 
-                            placeholder="Enter JSON data to validate" 
+                            placeholder="Enter JSON data to validate against your schema" 
                             className="font-mono h-40" 
                             {...field} 
                           />
                         </FormControl>
                         <FormDescription>
-                          Enter valid JSON that matches your schema to test validation
+                          Enter valid JSON that matches your defined schema to test validation
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
