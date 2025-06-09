@@ -78,6 +78,44 @@ export const ConfigService = {
       localStorage.setItem(SCHEMA_KEY, JSON.stringify(schema));
       
       if (apiKey) {
+        // First check if the API key exists in sources table
+        const { data: source, error: sourceCheckError } = await supabase
+          .from('sources')
+          .select('id, name, user_id')
+          .eq('api_key', apiKey)
+          .maybeSingle();
+        
+        if (sourceCheckError || !source) {
+          console.error('API key not found in sources table:', sourceCheckError);
+          // Create a source entry first if it doesn't exist
+          const { data: { session } } = await supabase.auth.getSession();
+          const userId = session?.user?.id;
+          
+          if (!userId) {
+            console.error('No user ID found, user must be logged in');
+            return false;
+          }
+          
+          const { data: newSource, error: createSourceError } = await supabase
+            .from('sources')
+            .insert({
+              name: `Source for ${apiKey.substring(0, 8)}...`,
+              api_key: apiKey,
+              user_id: userId,
+              active: true,
+              data_count: 0
+            })
+            .select()
+            .single();
+          
+          if (createSourceError) {
+            console.error('Error creating source:', createSourceError);
+            return false;
+          }
+          
+          console.log('Created new source:', newSource);
+        }
+        
         // Cast schema to Json type for Supabase
         const fieldTypesJson = schema.fieldTypes as unknown as Json;
         const requiredFieldsJson = schema.requiredFields as unknown as Json;
