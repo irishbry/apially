@@ -9,8 +9,10 @@ import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Source, DataSchema } from "@/types/api.types";
 import ApiInstructions from './ApiInstructions';
+import ApiDocumentation from './ApiDocumentation';
 import { ConfigService } from '@/services/ConfigService';
 import { useForm } from 'react-hook-form';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface CreateSourceForm {
   name: string;
@@ -447,8 +449,21 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
         </CardContent>
       </Card>
 
-      {/* API Instructions with schema */}
-      <ApiInstructions currentApiKey={selectedApiKey} schema={currentSchema} />
+      {/* API Documentation Tabs */}
+      <Tabs defaultValue="quick-guide" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="quick-guide">Quick Integration Guide</TabsTrigger>
+          <TabsTrigger value="complete-docs">Complete Documentation</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="quick-guide">
+          <ApiInstructions currentApiKey={selectedApiKey} schema={currentSchema} />
+        </TabsContent>
+        
+        <TabsContent value="complete-docs">
+          <ApiDocumentation selectedApiKey={selectedApiKey} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
