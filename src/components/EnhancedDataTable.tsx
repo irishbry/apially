@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -135,11 +136,14 @@ const EnhancedDataTable: React.FC = () => {
     // Always include source column
     columns.add('source');
     
-    // Extract metadata fields from all entries
+    // Extract metadata fields from all entries, excluding clientIp and receivedAt
     data.forEach(entry => {
       if (entry.metadata && typeof entry.metadata === 'object') {
         Object.keys(entry.metadata).forEach(key => {
-          columns.add(key);
+          // Exclude clientIp and receivedAt from columns
+          if (key !== 'clientIp' && key !== 'receivedAt') {
+            columns.add(key);
+          }
         });
       }
     });
