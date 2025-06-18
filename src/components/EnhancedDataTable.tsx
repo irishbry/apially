@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -9,8 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { AlertTriangle, Download, Filter, Search, SortAsc, SortDesc, Trash2, FileDown, ListFilter, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { DataService } from "@/services/DataService";
-import { DataEntry, Source } from "@/types/api.types";
+import { ApiService, DataEntry, Source } from "@/services/ApiService";
 import { downloadCSV } from "@/utils/csvUtils";
 import NotificationService from "@/services/NotificationService";
 
@@ -30,6 +30,7 @@ const EnhancedDataTable: React.FC = () => {
   const [sources, setSources] = useState<Source[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSource, setSelectedSource] = useState<string>('all');
+  const [visibleData, setVisibleData] = useState<DataEntry[]>([]);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,41 +39,35 @@ const EnhancedDataTable: React.FC = () => {
   const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
   const [allColumns, setAllColumns] = useState<string[]>([]);
   const [activeFilterColumn, setActiveFilterColumn] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
 
-  // Initialize data subscription once
   useEffect(() => {
-    let unsubscribeData: (() => void) | null = null;
-
-    const initializeData = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        
-        // Subscribe to data changes
-        unsubscribeData = DataService.subscribe((newData) => {
-          console.log('Data updated in EnhancedDataTable:', newData.length);
-          setData(newData);
-          setIsLoading(false);
-        });
-        
-      } catch (err) {
-        console.error('Error loading data:', err);
-        setError('Error loading data. Please ensure you are logged in.');
+    try {
+      setIsLoading(true);
+      
+      const unsubscribeData = ApiService.subscribe(newData => {
+        console.log(newData)
+        setData([...newData]);
         setIsLoading(false);
-      }
-    };
-
-    initializeData();
-
-    return () => {
-      if (unsubscribeData) {
+      });
+      
+      const unsubscribeSources = ApiService.subscribeToSources(newSources => {
+        console.log(newSources)
+        setSources([...newSources]);
+      });
+      
+      return () => {
         unsubscribeData();
-      }
-    };
-  }, []); // Empty dependency array - only run once
+        unsubscribeSources();
+      };
+    } catch (err) {
+      console.error('Error loading data:', err);
+      setError('Error loading data. Please ensure you are logged in.');
+      setIsLoading(false);
+    }
+  }, []);
 
-  // Calculate columns when data changes
+  const [isLoading, setIsLoading] = useState(false);
+
   useEffect(() => {
     if (data.length > 0) {
       const cols = getColumns();
@@ -80,9 +75,8 @@ const EnhancedDataTable: React.FC = () => {
       setVisibleColumns(cols);
     }
   }, [data]);
-
-  // Calculate visible data based on filters and search
-  const visibleData = useMemo(() => {
+  
+  useEffect(() => {
     let filtered = [...data];
     
     if (selectedSource !== 'all') {
@@ -133,7 +127,7 @@ const EnhancedDataTable: React.FC = () => {
       });
     }
     
-    return filtered;
+    setVisibleData(filtered);
   }, [data, searchTerm, selectedSource, sortConfig, activeFilters, visibleColumns]);
 
   const getColumns = (): string[] => {
@@ -159,6 +153,7 @@ const EnhancedDataTable: React.FC = () => {
     return Array.from(columns);
   };
 
+  // Helper function to get value from entry, handling both snake_case and camelCase
   const getValue = (entry: DataEntry, column: string): any => {
     if (column === 'source') {
       return entry.sourceId || entry.source_id;
@@ -218,7 +213,7 @@ const EnhancedDataTable: React.FC = () => {
 
   const handleClearData = async () => {
     try {
-      await DataService.clearData();
+      await ApiService.clearData();
       NotificationService.addNotification(
         'Data Cleared', 
         'All data has been cleared successfully.',
@@ -238,7 +233,7 @@ const EnhancedDataTable: React.FC = () => {
     try {
       setIsRefreshing(true);
       setError(null);
-      await DataService.refreshData();
+      await ApiService.refreshData();
       setIsRefreshing(false);
       NotificationService.addNotification(
         'Data Refreshed', 
