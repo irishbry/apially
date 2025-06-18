@@ -199,11 +199,11 @@ const ApiDocumentation: React.FC<ApiDocumentationProps> = ({ selectedApiKey }) =
         entries: [
           { 
             id: "entry-" + Date.now().toString().substring(0, 10) + "-123", 
-            sensorId: exampleData.sensorId 
+           sourceId: "source-123"
           },
           { 
             id: "entry-" + Date.now().toString().substring(0, 10) + "-124", 
-            sensorId: exampleData2.sensorId 
+            sourceId: "source-123"
           }
         ]
       }
