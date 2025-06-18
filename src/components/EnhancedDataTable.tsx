@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -38,8 +39,6 @@ const EnhancedDataTable: React.FC = () => {
   const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
   const [allColumns, setAllColumns] = useState<string[]>([]);
   const [activeFilterColumn, setActiveFilterColumn] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [dataVersion, setDataVersion] = useState(0); // Add version tracking
 
   useEffect(() => {
     try {
@@ -50,7 +49,6 @@ const EnhancedDataTable: React.FC = () => {
         console.log(newData)
         setData([...newData]);
         setIsLoading(false);
-        setDataVersion(prev => prev + 1); // Increment version when data changes
       });
       
       const unsubscribeSources = ApiService.subscribeToSources(newSources => {
@@ -67,7 +65,9 @@ const EnhancedDataTable: React.FC = () => {
       setError('Error loading data. Please ensure you are logged in.');
       setIsLoading(false);
     }
-  }, [dataVersion]); // Re-run when dataVersion changes
+  }, []);
+
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (data.length > 0) {
@@ -215,7 +215,7 @@ const EnhancedDataTable: React.FC = () => {
   const handleClearData = async () => {
     try {
       await ApiService.clearData();
-      setDataVersion(prev => prev + 1); // Force re-subscription
+      setData([])
       NotificationService.addNotification(
         'Data Cleared', 
         'All data has been cleared successfully.',
@@ -235,9 +235,8 @@ const EnhancedDataTable: React.FC = () => {
     try {
       setIsRefreshing(true);
       setError(null);
-      const apiData = await ApiService.refreshData();
-      setData([...apiData]);
-      setDataVersion(prev => prev + 1); // Force re-subscription
+      const apiData=await ApiService.refreshData();
+      setData([...apiData])
       setIsRefreshing(false);
       NotificationService.addNotification(
         'Data Refreshed', 
