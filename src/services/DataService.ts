@@ -60,11 +60,10 @@ export const DataService = {
   
   deleteDataEntry: async (id: string): Promise<boolean> => {
     try {
-      // Fix type error by using explicit type casting
       const { error } = await supabase
         .from('data_entries')
         .delete()
-        .eq('id', id as any);
+        .eq('id', id);
       
       if (error) {
         console.error('Error deleting entry:', error);
@@ -83,7 +82,7 @@ export const DataService = {
       const { error } = await supabase
         .from('data_entries')
         .delete()
-        .is('id', 'not.null' as any);
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // This will match all rows since no row will have this ID
       
       if (error) {
         console.error('Error clearing data:', error);
