@@ -45,11 +45,13 @@ const EnhancedDataTable: React.FC = () => {
       setIsLoading(true);
       
       const unsubscribeData = ApiService.subscribe(newData => {
+        console.log(newData)
         setData([...newData]);
         setIsLoading(false);
       });
       
       const unsubscribeSources = ApiService.subscribeToSources(newSources => {
+        console.log(newSources)
         setSources([...newSources]);
       });
       
