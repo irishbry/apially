@@ -235,7 +235,8 @@ const EnhancedDataTable: React.FC = () => {
     try {
       setIsRefreshing(true);
       setError(null);
-      await ApiService.refreshData();
+      const apiData=await ApiService.refreshData();
+      setData([...apiData])
       setIsRefreshing(false);
       NotificationService.addNotification(
         'Data Refreshed', 
