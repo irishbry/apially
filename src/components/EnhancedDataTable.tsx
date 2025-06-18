@@ -132,7 +132,7 @@ const EnhancedDataTable: React.FC = () => {
   }, [data, searchTerm, selectedSource, sortConfig, activeFilters, visibleColumns]);
 
   const getColumns = (): string[] => {
-    if (data.length === 0) return ['source'];
+    if (data.length === 0) return [];
     
     const columns = new Set<string>();
     
