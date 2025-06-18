@@ -32,7 +32,7 @@ const ApiInstructions: React.FC<ApiInstructionsProps> = ({ currentApiKey, schema
     });
   };
 
-  const apiEndpoint = `https://ybionvegojopebtkdgyt.supabase.co/functions/v1/data-receiver`;
+  const apiEndpoint = `https://api.apially.com/functions/v1/data-receiver`;
   // Always use currentApiKey if provided, otherwise fall back to placeholder
   const displayApiKey = currentApiKey || 'YOUR_API_KEY';
   
@@ -179,7 +179,7 @@ print(response.json())`;
               </div>
             )}
             <p className="text-xs text-muted-foreground mt-2">
-              <span className="font-medium flex items-center gap-1"><Globe className="h-3 w-3" /> Note:</span> This is the Supabase edge function endpoint for receiving data. The endpoint is hosted on Supabase's infrastructure.
+              <span className="font-medium flex items-center gap-1"><Globe className="h-3 w-3" /> Note:</span> This is the API endpoint for receiving data. The endpoint is hosted on Apially's infrastructure.
             </p>
           </div>
           
