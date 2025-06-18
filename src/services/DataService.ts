@@ -69,6 +69,7 @@ export const DataService = {
         console.error('Error deleting entry:', error);
         return false;
       }
+      const getdata=await getdata()
       
       return true;
     } catch (error) {
