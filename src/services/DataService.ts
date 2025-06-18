@@ -69,7 +69,7 @@ export const DataService = {
         console.error('Error deleting entry:', error);
         return false;
       }
-      const getdata=await getdata()
+     
       
       return true;
     } catch (error) {
@@ -89,6 +89,7 @@ export const DataService = {
         console.error('Error clearing data:', error);
         throw error;
       }
+     await getdata()
     } catch (error) {
       console.error('Error in clearData:', error);
       throw error;
