@@ -50,11 +50,13 @@ const DataTable: React.FC = () => {
       setIsLoading(true);
       
       const unsubscribeData = ApiService.subscribe(newData => {
+        console.log('DataTable: Received new data:', newData.length, 'entries');
         setData([...newData]);
         setIsLoading(false);
       });
       
       const unsubscribeSources = ApiService.subscribeToSources(newSources => {
+        console.log('DataTable: Received new sources:', newSources.length, 'sources');
         setSources([...newSources]);
       });
       
@@ -115,7 +117,15 @@ const DataTable: React.FC = () => {
     try {
       setIsRefreshing(true);
       setError(null);
+      
+      // Refresh both data and sources to ensure proper mapping
+      console.log('DataTable: Refreshing data and sources...');
       await ApiService.refreshData();
+      
+      // Force refresh sources as well to ensure we have the latest source names
+      const freshSources = await ApiService.getSources();
+      setSources([...freshSources]);
+      
       setIsRefreshing(false);
     } catch (err) {
       console.error('Error refreshing data:', err);
@@ -155,8 +165,17 @@ const DataTable: React.FC = () => {
 
   const getSourceName = (sourceId: string | undefined): string => {
     if (!sourceId) return 'Unknown';
+    
+    // Find the source by ID
     const source = sources.find(s => s.id === sourceId);
-    return source ? source.name : sourceId;
+    if (source) {
+      console.log('DataTable: Found source name for ID', sourceId, ':', source.name);
+      return source.name;
+    }
+    
+    console.log('DataTable: No source found for ID:', sourceId, 'Available sources:', sources.length);
+    // Return the ID itself if no source name is found (helps with debugging)
+    return `Unknown (${sourceId.substring(0, 8)}...)`;
   };
 
   const getColumns = () => {
