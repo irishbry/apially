@@ -45,6 +45,7 @@ const EnhancedDataTable: React.FC = () => {
       setIsLoading(true);
       
       const unsubscribeData = ApiService.subscribe(newData => {
+        console.log('Data is fetched from the api')
         console.log(newData)
         setData([...newData]);
         setIsLoading(false);
