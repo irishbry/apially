@@ -70,7 +70,7 @@ const EnhancedDataTable: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (data.length > 0) {
+    if (data.length >= 0) {
       const cols = getColumns();
       setAllColumns(cols);
       setVisibleColumns(cols);
