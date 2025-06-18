@@ -184,7 +184,7 @@ const ApiDocumentation: React.FC<ApiDocumentationProps> = ({ selectedApiKey }) =
 
   const getDynamicBatchSuccessResponse = () => {
     const exampleData = getExampleDataObject();
-    const exampleData2: Record<string, any> = { ...exampleData, sensorId: "sensor-2" };
+    const exampleData2: Record<string, any> = { ...exampleData };
     
     if ("temperature" in exampleData2) {
       exampleData2.temperature = 22.1;
