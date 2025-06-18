@@ -112,8 +112,8 @@ const ApiDocumentation: React.FC<ApiDocumentationProps> = ({ selectedApiKey }) =
   const getSchemaDescription = () => {
     const fieldDescriptions: string[] = [];
     
-    fieldDescriptions.push('"sensorId": "string"     // Unique identifier for the sensor');
-    fieldDescriptions.push('"timestamp": "string"    // ISO date string (auto-generated if not provided)');
+    // fieldDescriptions.push('"sensorId": "string"     // Unique identifier for the sensor');
+    // fieldDescriptions.push('"timestamp": "string"    // ISO date string (auto-generated if not provided)');
     
     if (schemaLoaded && schema && schema.fieldTypes) {
       for (const [field, type] of Object.entries(schema.fieldTypes)) {
@@ -129,7 +129,7 @@ const ApiDocumentation: React.FC<ApiDocumentationProps> = ({ selectedApiKey }) =
 
   const getExampleDataObject = () => {
     const exampleData: Record<string, any> = {
-      "sensorId": "sensor-1",
+    
     };
     
     if (schemaLoaded && schema && schema.fieldTypes) {
