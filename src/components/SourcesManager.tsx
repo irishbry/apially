@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Plus, Trash2, Eye, EyeOff, Copy, CheckCircle } from "lucide-react";
+import { Plus, Trash2, Eye, EyeOff, Copy, CheckCircle, Database } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Source, DataSchema } from "@/types/api.types";
@@ -23,8 +24,12 @@ interface SourcesManagerProps {
   onApiKeySelect?: (apiKey: string) => void;
 }
 
+interface SourceWithRecords extends Source {
+  recordCount: number;
+}
+
 const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
-  const [sources, setSources] = useState<Source[]>([]);
+  const [sources, setSources] = useState<SourceWithRecords[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedApiKey, setSelectedApiKey] = useState<string>('');
   const [showApiKey, setShowApiKey] = useState<{[key: string]: boolean}>({});
@@ -96,14 +101,14 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
         return;
       }
 
-      const { data, error } = await supabase
+      const { data: sourcesData, error: sourcesError } = await supabase
         .from('sources')
         .select('*')
         .eq('user_id', session.user.id)
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Error loading sources:', error);
+      if (sourcesError) {
+        console.error('Error loading sources:', sourcesError);
         toast({
           title: "Error",
           description: "Failed to load sources",
@@ -112,11 +117,30 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
         return;
       }
 
-      setSources(data || []);
+      // Fetch data entry counts for each source
+      const sourcesWithRecords: SourceWithRecords[] = [];
+      
+      for (const source of sourcesData || []) {
+        const { count, error: countError } = await supabase
+          .from('data_entries')
+          .select('*', { count: 'exact', head: true })
+          .eq('source_id', source.id);
+
+        if (countError) {
+          console.error('Error counting records for source:', source.id, countError);
+        }
+
+        sourcesWithRecords.push({
+          ...source,
+          recordCount: count || 0
+        });
+      }
+
+      setSources(sourcesWithRecords);
       
       // Set the first source as selected if no source is currently selected
-      if (data && data.length > 0 && !selectedApiKey) {
-        const firstApiKey = data[0].api_key;
+      if (sourcesWithRecords && sourcesWithRecords.length > 0 && !selectedApiKey) {
+        const firstApiKey = sourcesWithRecords[0].api_key;
         setSelectedApiKey(firstApiKey);
       }
     } catch (error) {
@@ -398,9 +422,14 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                       )}
                       <div>
                         <h3 className="font-medium">{source.name}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {source.data_count || 0} records • {source.active ? 'Active' : 'Inactive'}
-                        </p>
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <Database className="h-3 w-3" />
+                            <span>{source.recordCount} records</span>
+                          </div>
+                          <span>•</span>
+                          <span>{source.active ? 'Active' : 'Inactive'}</span>
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
