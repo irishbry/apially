@@ -451,12 +451,12 @@ ${getRequiredFieldsText()}`}
 {
   "data": [
     {
-      "sensorId": "sensor-1",
+      
       "temperature": 25.4,
       "humidity": 68
     },
     {
-      "sensorId": "sensor-2",
+      
       "temperature": 22.1,
       "pressure": 1015.3
     }
