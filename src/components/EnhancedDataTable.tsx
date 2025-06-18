@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -28,9 +27,14 @@ type ColumnFilter = {
 interface EnhancedDataTableProps {
   data?: DataEntry[];
   sources?: Source[];
+  onDataChange?: (data: DataEntry[]) => void;
 }
 
-const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({ data: propData, sources: propSources }) => {
+const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({ 
+  data: propData, 
+  sources: propSources,
+  onDataChange 
+}) => {
   const [internalData, setInternalData] = useState<DataEntry[]>([]);
   const [internalSources, setInternalSources] = useState<Source[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -224,11 +228,18 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({ data: propData, s
 
   const handleClearData = async () => {
     try {
-      setIsLoading(true)
+      setIsLoading(true);
       await ApiService.clearData();
+      
+      // Update both internal state and notify parent
+      const emptyData: DataEntry[] = [];
       if (!propData) {
-        setInternalData([])
+        setInternalData(emptyData);
       }
+      if (onDataChange) {
+        onDataChange(emptyData);
+      }
+      
       NotificationService.addNotification(
         'Data Cleared', 
         'All data has been cleared successfully.',
@@ -241,20 +252,26 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({ data: propData, s
         'Failed to clear data.',
         'error'
       );
-    }finally{
-      setIsLoading(false)
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleRefreshData = async () => {
     try {
-      setIsLoading(true)
+      setIsLoading(true);
       setIsRefreshing(true);
       setError(null);
-      const apiData=await ApiService.refreshData();
+      const apiData = await ApiService.refreshData();
+      
+      // Update both internal state and notify parent
       if (!propData) {
-        setInternalData([...apiData])
+        setInternalData([...apiData]);
       }
+      if (onDataChange) {
+        onDataChange([...apiData]);
+      }
+      
       setIsRefreshing(false);
       NotificationService.addNotification(
         'Data Refreshed', 
@@ -270,8 +287,8 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({ data: propData, s
         'Failed to refresh data from storage.',
         'error'
       );
-    }finally{
-      setIsLoading(false)
+    } finally {
+      setIsLoading(false);
     }
   };
 

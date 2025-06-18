@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { Separator } from "@/components/ui/separator";
 import ApiKeyForm from "@/components/ApiKeyForm";
@@ -104,6 +103,12 @@ const Index = () => {
   const handleApiKeySelect = (apiKey: string) => {
     console.log('API key selected in Index:', apiKey);
     setSelectedApiKey(apiKey);
+  };
+
+  // Handle data changes from EnhancedDataTable
+  const handleDataChange = (newData: DataEntry[]) => {
+    console.log('Data changed from EnhancedDataTable:', newData.length, 'entries');
+    setData([...newData]);
   };
 
   const handleLogout = async () => {
@@ -260,7 +265,11 @@ const Index = () => {
               </TabsContent>
               
               <TabsContent value="data" className="space-y-6">
-                <EnhancedDataTable data={data} sources={sources} />
+                <EnhancedDataTable 
+                  data={data} 
+                  sources={sources} 
+                  onDataChange={handleDataChange}
+                />
               </TabsContent>
               
               <TabsContent value="analytics" className="space-y-6">
