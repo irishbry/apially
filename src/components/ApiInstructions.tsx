@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Code, Copy, FileJson, Globe } from "lucide-react";
@@ -31,7 +32,7 @@ const ApiInstructions: React.FC<ApiInstructionsProps> = ({ currentApiKey, schema
     });
   };
 
-  const apiEndpoint = `${domainName}/api/data`;
+  const apiEndpoint = `https://ybionvegojopebtkdgyt.supabase.co/functions/v1/data-receiver`;
   // Always use currentApiKey if provided, otherwise fall back to placeholder
   const displayApiKey = currentApiKey || 'YOUR_API_KEY';
   
@@ -71,6 +72,7 @@ const ApiInstructions: React.FC<ApiInstructionsProps> = ({ currentApiKey, schema
     
     // Minimal default example data - only basic structure
     return {
+      sensorId: "sensor-001",
       timestamp: new Date().toISOString()
     };
   };
@@ -177,7 +179,7 @@ print(response.json())`;
               </div>
             )}
             <p className="text-xs text-muted-foreground mt-2">
-              <span className="font-medium flex items-center gap-1"><Globe className="h-3 w-3" /> Note:</span> This endpoint will automatically use your domain name. After deployment to SiteGround, this will reflect your actual server address.
+              <span className="font-medium flex items-center gap-1"><Globe className="h-3 w-3" /> Note:</span> This is the Supabase edge function endpoint for receiving data. The endpoint is hosted on Supabase's infrastructure.
             </p>
           </div>
           
