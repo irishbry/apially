@@ -88,8 +88,7 @@ const ApiDocumentation: React.FC<ApiDocumentationProps> = ({ selectedApiKey }) =
 
   const getSchemaJsonDisplay = () => {
     const schemaObj: Record<string, string> = {
-      "sensorId": "string",
-      "timestamp": "string"
+     
     };
     
     if (schemaLoaded && schema && schema.fieldTypes) {
