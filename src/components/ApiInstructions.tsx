@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Code, Copy, FileJson, Globe } from "lucide-react";
@@ -6,18 +5,63 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataSchema } from '@/types/api.types';
+import { ConfigService } from '@/services/ConfigService';
 
 interface ApiInstructionsProps {
   currentApiKey?: string;
   schema?: DataSchema;
 }
 
-const ApiInstructions: React.FC<ApiInstructionsProps> = ({ currentApiKey, schema }) => {
+const ApiInstructions: React.FC<ApiInstructionsProps> = ({ currentApiKey, schema: propSchema }) => {
   const [domainName] = React.useState(window.location.origin || 'https://your-domain.com');
+  const [schema, setSchema] = React.useState<DataSchema | undefined>(propSchema);
   const { toast } = useToast();
 
   console.log('🔥 ApiInstructions rendered with currentApiKey:', currentApiKey);
   console.log('🔥 ApiInstructions rendered with schema:', schema);
+
+  // Listen for schema updates from other components
+  React.useEffect(() => {
+    const handleSchemaUpdate = async () => {
+      if (currentApiKey) {
+        console.log('📡 Schema update event received, refreshing schema for API key:', currentApiKey);
+        try {
+          const updatedSchema = await ConfigService.getSchema(currentApiKey);
+          console.log('📡 Updated schema loaded:', updatedSchema);
+          setSchema(updatedSchema);
+        } catch (error) {
+          console.error('📡 Error loading updated schema:', error);
+        }
+      }
+    };
+
+    // Listen for custom schema update events
+    window.addEventListener('schemaUpdated', handleSchemaUpdate);
+    
+    return () => {
+      window.removeEventListener('schemaUpdated', handleSchemaUpdate);
+    };
+  }, [currentApiKey]);
+
+  // Load schema when component mounts or API key changes
+  React.useEffect(() => {
+    const loadSchema = async () => {
+      if (currentApiKey && !propSchema) {
+        console.log('🔄 Loading schema for API key:', currentApiKey);
+        try {
+          const loadedSchema = await ConfigService.getSchema(currentApiKey);
+          console.log('🔄 Schema loaded on mount:', loadedSchema);
+          setSchema(loadedSchema);
+        } catch (error) {
+          console.error('🔄 Error loading schema on mount:', error);
+        }
+      } else if (propSchema) {
+        setSchema(propSchema);
+      }
+    };
+
+    loadSchema();
+  }, [currentApiKey, propSchema]);
 
   const copyToClipboard = (text: string, message: string) => {
     console.log('📋 COPY: Copying to clipboard:', message, 'Text:', text);
