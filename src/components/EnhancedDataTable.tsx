@@ -215,6 +215,7 @@ const EnhancedDataTable: React.FC = () => {
   const handleClearData = async () => {
     try {
       await ApiService.clearData();
+      setData([])
       NotificationService.addNotification(
         'Data Cleared', 
         'All data has been cleared successfully.',
