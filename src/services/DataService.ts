@@ -89,7 +89,7 @@ export const DataService = {
         console.error('Error clearing data:', error);
         throw error;
       }
-     await getdata()
+     await getData()
     } catch (error) {
       console.error('Error in clearData:', error);
       throw error;
