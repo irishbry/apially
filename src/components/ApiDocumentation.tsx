@@ -451,12 +451,10 @@ ${getRequiredFieldsText()}`}
 {
   "data": [
     {
-      
       "temperature": 25.4,
       "humidity": 68
     },
     {
-      
       "temperature": 22.1,
       "pressure": 1015.3
     }
