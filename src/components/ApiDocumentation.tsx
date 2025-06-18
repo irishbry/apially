@@ -172,9 +172,9 @@ const ApiDocumentation: React.FC<ApiDocumentationProps> = ({ selectedApiKey }) =
       message: "Data received successfully",
       data: {
         id: "entry-" + Date.now().toString().substring(0, 10) + "-123",
-        timestamp: new Date().toISOString(),
+  
         sourceId: "source-123",
-        sensorId: exampleData.sensorId,
+
         ...exampleData
       }
     };
