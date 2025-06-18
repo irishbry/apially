@@ -2,10 +2,15 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Database, Clock, Activity, Users, Layers } from "lucide-react";
-import { ApiService } from "@/services/ApiService";
+import { ApiService, DataEntry, Source } from "@/services/ApiService";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-const ApiUsageStats: React.FC = () => {
+interface ApiUsageStatsProps {
+  data?: DataEntry[];
+  sources?: Source[];
+}
+
+const ApiUsageStats: React.FC<ApiUsageStatsProps> = ({ data: propData, sources: propSources }) => {
   const [stats, setStats] = useState({
     totalRequests: 0,
     uniqueSources: 0,
@@ -21,55 +26,47 @@ const ApiUsageStats: React.FC = () => {
   const [schemaFieldCount, setSchemaFieldCount] = useState(0);
   const isMobile = useIsMobile();
 
+  // Use prop data if provided, otherwise fetch from API
+  const data = propData || [];
+  const sources = propSources || [];
+
   useEffect(() => {
-    // Get initial stats
-    const fetchStats = async () => {
+    // Calculate stats from data
+    const statsData = {
+      totalRequests: data.length,
+      uniqueSources: new Set(data.map(item => item.sourceId || item.source_id)).size,
+      lastReceived: data.length > 0 ? data[0].timestamp : 'No data'
+    };
+    
+    setStats(statsData);
+    
+    // Calculate source stats
+    const srcStats = {
+      totalSources: sources.length,
+      activeSources: sources.filter(s => s.active).length,
+      totalDataPoints: data.length
+    };
+    
+    setSourceStats(srcStats);
+  }, [data, sources]);
+
+  useEffect(() => {
+    // Get schema field count
+    const fetchSchemaFieldCount = async () => {
       try {
-        // Use existing methods instead of the non-existent getApiUsageStats
-        const data = await ApiService.getData();
-        const sources = await ApiService.getSources();
-        
-        // Calculate stats from available data
-        const statsData = {
-          totalRequests: data.length,
-          uniqueSources: new Set(data.map(item => item.sourceId || item.source_id)).size,
-          lastReceived: data.length > 0 ? data[0].timestamp : 'No data'
-        };
-        
-        setStats(statsData);
-        
-        const srcStats = await ApiService.getSourcesStats();
-        setSourceStats(srcStats);
-        
-        // Get schema field count
         const schema = await ApiService.getSchema();
         setSchemaFieldCount(Object.keys(schema.fieldTypes || {}).length);
       } catch (error) {
-        console.error("Error fetching API stats:", error);
+        console.error("Error fetching schema:", error);
       }
     };
     
-    fetchStats();
-    
-    // Subscribe to data changes
-    const unsubscribeData = ApiService.subscribe(() => {
-      fetchStats();
-    });
-    
-    // Subscribe to source changes
-    const unsubscribeSources = ApiService.subscribeToSources(() => {
-      fetchStats();
-    });
-    
-    return () => {
-      unsubscribeData();
-      unsubscribeSources();
-    };
+    fetchSchemaFieldCount();
   }, []);
 
   // Format timestamp - modified to only show hours and minutes
   const formatTimestamp = (timestamp: string): string => {
-    if (timestamp === 'No data received') return 'No data';
+    if (timestamp === 'No data received' || timestamp === 'No data') return 'No data';
     
     try {
       const date = new Date(timestamp);

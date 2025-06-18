@@ -25,12 +25,16 @@ type ColumnFilter = {
   enabled: boolean;
 };
 
-const EnhancedDataTable: React.FC = () => {
-  const [data, setData] = useState<DataEntry[]>([]);
-  const [sources, setSources] = useState<Source[]>([]);
+interface EnhancedDataTableProps {
+  data?: DataEntry[];
+  sources?: Source[];
+}
+
+const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({ data: propData, sources: propSources }) => {
+  const [internalData, setInternalData] = useState<DataEntry[]>([]);
+  const [internalSources, setInternalSources] = useState<Source[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSource, setSelectedSource] = useState<string>('all');
-  const [visibleData, setVisibleData] = useState<DataEntry[]>([]);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,35 +43,41 @@ const EnhancedDataTable: React.FC = () => {
   const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
   const [allColumns, setAllColumns] = useState<string[]>([]);
   const [activeFilterColumn, setActiveFilterColumn] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Use prop data if provided, otherwise use internal data from subscriptions
+  const data = propData || internalData;
+  const sources = propSources || internalSources;
 
   useEffect(() => {
-    try {
-      setIsLoading(true);
-      
-      const unsubscribeData = ApiService.subscribe(newData => {
-        console.log('Data is fetched from the api')
-        console.log(newData)
-        setData([...newData]);
+    // Only set up subscriptions if no prop data is provided
+    if (!propData || !propSources) {
+      try {
+        setIsLoading(true);
+        
+        const unsubscribeData = ApiService.subscribe(newData => {
+          console.log('Data is fetched from the api')
+          console.log(newData)
+          setInternalData([...newData]);
+          setIsLoading(false);
+        });
+        
+        const unsubscribeSources = ApiService.subscribeToSources(newSources => {
+          console.log(newSources)
+          setInternalSources([...newSources]);
+        });
+        
+        return () => {
+          unsubscribeData();
+          unsubscribeSources();
+        };
+      } catch (err) {
+        console.error('Error loading data:', err);
+        setError('Error loading data. Please ensure you are logged in.');
         setIsLoading(false);
-      });
-      
-      const unsubscribeSources = ApiService.subscribeToSources(newSources => {
-        console.log(newSources)
-        setSources([...newSources]);
-      });
-      
-      return () => {
-        unsubscribeData();
-        unsubscribeSources();
-      };
-    } catch (err) {
-      console.error('Error loading data:', err);
-      setError('Error loading data. Please ensure you are logged in.');
-      setIsLoading(false);
+      }
     }
-  }, []);
-
-  const [isLoading, setIsLoading] = useState(false);
+  }, [propData, propSources]);
 
   useEffect(() => {
     if (data.length >= 0) {
@@ -77,7 +87,7 @@ const EnhancedDataTable: React.FC = () => {
     }
   }, [data]);
   
-  useEffect(() => {
+  const visibleData = useMemo(() => {
     let filtered = [...data];
     
     if (selectedSource !== 'all') {
@@ -128,7 +138,7 @@ const EnhancedDataTable: React.FC = () => {
       });
     }
     
-    setVisibleData(filtered);
+    return filtered;
   }, [data, searchTerm, selectedSource, sortConfig, activeFilters, visibleColumns]);
 
   const getColumns = (): string[] => {
@@ -216,7 +226,9 @@ const EnhancedDataTable: React.FC = () => {
     try {
       setIsLoading(true)
       await ApiService.clearData();
-      setData([])
+      if (!propData) {
+        setInternalData([])
+      }
       NotificationService.addNotification(
         'Data Cleared', 
         'All data has been cleared successfully.',
@@ -240,7 +252,9 @@ const EnhancedDataTable: React.FC = () => {
       setIsRefreshing(true);
       setError(null);
       const apiData=await ApiService.refreshData();
-      setData([...apiData])
+      if (!propData) {
+        setInternalData([...apiData])
+      }
       setIsRefreshing(false);
       NotificationService.addNotification(
         'Data Refreshed', 

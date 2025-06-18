@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { Separator } from "@/components/ui/separator";
 import ApiKeyForm from "@/components/ApiKeyForm";
@@ -18,7 +19,7 @@ import NotificationsCenter, { Notification } from "@/components/NotificationsCen
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { LogOut, Bell, Menu, Database } from "lucide-react";
-import { ApiService } from "@/services/ApiService";
+import { ApiService, DataEntry, Source } from "@/services/ApiService";
 import NotificationService from "@/services/NotificationService";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
@@ -33,6 +34,8 @@ const Index = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [selectedApiKey, setSelectedApiKey] = useState<string>('');
+  const [data, setData] = useState<DataEntry[]>([]);
+  const [sources, setSources] = useState<Source[]>([]);
   const { toast } = useToast();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -73,6 +76,30 @@ const Index = () => {
       unsubscribeNotifications();
     };
   }, []);
+
+  // Centralized data management
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    try {
+      const unsubscribeData = ApiService.subscribe(newData => {
+        console.log('Data updated:', newData.length, 'entries');
+        setData([...newData]);
+      });
+      
+      const unsubscribeSources = ApiService.subscribeToSources(newSources => {
+        console.log('Sources updated:', newSources.length, 'sources');
+        setSources([...newSources]);
+      });
+      
+      return () => {
+        unsubscribeData();
+        unsubscribeSources();
+      };
+    } catch (err) {
+      console.error('Error setting up data subscriptions:', err);
+    }
+  }, [isAuthenticated]);
 
   const handleApiKeySelect = (apiKey: string) => {
     console.log('API key selected in Index:', apiKey);
@@ -207,7 +234,7 @@ const Index = () => {
           {isMobile && <MobileDataSummary />}
           
           <section>
-            <ApiUsageStats />
+            <ApiUsageStats data={data} sources={sources} />
           </section>
           
           <section>
@@ -233,7 +260,7 @@ const Index = () => {
               </TabsContent>
               
               <TabsContent value="data" className="space-y-6">
-                <EnhancedDataTable />
+                <EnhancedDataTable data={data} sources={sources} />
               </TabsContent>
               
               <TabsContent value="analytics" className="space-y-6">
