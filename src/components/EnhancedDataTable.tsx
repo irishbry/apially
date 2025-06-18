@@ -214,8 +214,9 @@ const EnhancedDataTable: React.FC = () => {
 
   const handleClearData = async () => {
     try {
+      setIsLoading(true)
       await ApiService.clearData();
-      // setData([])
+      setData([])
       NotificationService.addNotification(
         'Data Cleared', 
         'All data has been cleared successfully.',
@@ -228,11 +229,14 @@ const EnhancedDataTable: React.FC = () => {
         'Failed to clear data.',
         'error'
       );
+    }finally{
+      setIsLoading(false)
     }
   };
 
   const handleRefreshData = async () => {
     try {
+      setIsLoading(true)
       setIsRefreshing(true);
       setError(null);
       const apiData=await ApiService.refreshData();
@@ -252,6 +256,8 @@ const EnhancedDataTable: React.FC = () => {
         'Failed to refresh data from storage.',
         'error'
       );
+    }finally{
+      setIsLoading(false)
     }
   };
 
