@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -369,47 +370,47 @@ const ScheduledExports = () => {
         </div>
 
         {/* Your Scheduled Exports Section */}
-        <div className="space-y-4">
+        <div className="space-y-2">
           <h3 className="text-lg font-medium">Your Scheduled Exports</h3>
           
           {exports.length === 0 ? (
-            <div className="text-center py-12 border rounded-lg">
-              <Calendar className="h-16 w-16 mx-auto mb-4 text-muted-foreground/50" />
-              <h4 className="text-lg font-medium mb-2">No scheduled exports yet</h4>
-              <p className="text-muted-foreground mb-4">
+            <div className="text-center py-8 border rounded-lg">
+              <Calendar className="h-12 w-12 mx-auto mb-2 text-muted-foreground/50" />
+              <h4 className="text-lg font-medium mb-1">No scheduled exports yet</h4>
+              <p className="text-muted-foreground text-sm">
                 Create your first automated data export to get started
               </p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-2">
               {exports.map((exportItem) => (
-                <div key={exportItem.id} className="border rounded-lg p-4 hover:bg-muted/20 transition-colors">
+                <div key={exportItem.id} className="border rounded-lg p-3 hover:bg-muted/20 transition-colors">
                   <div className="flex items-start justify-between">
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center gap-3">
-                        <h4 className="font-medium text-lg">{exportItem.name}</h4>
-                        <Badge variant={exportItem.active ? "default" : "secondary"}>
+                    <div className="flex-1 space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-medium text-base">{exportItem.name}</h4>
+                        <Badge variant={exportItem.active ? "default" : "secondary"} className="text-xs">
                           {exportItem.active ? 'Active' : 'Paused'}
                         </Badge>
-                        <Badge variant="outline" className="capitalize">
+                        <Badge variant="outline" className="capitalize text-xs">
                           {exportItem.frequency}
                         </Badge>
                       </div>
                       
-                      <div className="flex items-center gap-6 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
-                          <Clock className="h-4 w-4" />
+                          <Clock className="h-3 w-3" />
                           {exportItem.format.toUpperCase()} format
                         </span>
                         <span className="flex items-center gap-1">
                           {exportItem.delivery === 'email' ? (
                             <>
-                              <Mail className="h-4 w-4" />
+                              <Mail className="h-3 w-3" />
                               {exportItem.email}
                             </>
                           ) : (
                             <>
-                              <Download className="h-4 w-4" />
+                              <Download className="h-3 w-3" />
                               Download link
                             </>
                           )}
@@ -417,36 +418,36 @@ const ScheduledExports = () => {
                       </div>
                       
                       {exportItem.next_export && (
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-xs text-muted-foreground">
                           Next export: {new Date(exportItem.next_export).toLocaleString()}
                         </p>
                       )}
                     </div>
                     
-                    <div className="flex items-center gap-2 ml-4">
+                    <div className="flex items-center gap-1 ml-3">
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => editExport(exportItem)}
-                        className="flex items-center gap-1"
+                        className="flex items-center gap-1 h-7 px-2 text-xs"
                       >
-                        <Edit className="h-4 w-4" />
+                        <Edit className="h-3 w-3" />
                         Edit
                       </Button>
                       <Button
                         variant={exportItem.active ? "outline" : "default"}
                         size="sm"
                         onClick={() => toggleActive(exportItem)}
-                        className="flex items-center gap-1"
+                        className="flex items-center gap-1 h-7 px-2 text-xs"
                       >
                         {exportItem.active ? (
                           <>
-                            <Pause className="h-4 w-4" />
+                            <Pause className="h-3 w-3" />
                             Pause
                           </>
                         ) : (
                           <>
-                            <Play className="h-4 w-4" />
+                            <Play className="h-3 w-3" />
                             Resume
                           </>
                         )}
@@ -455,9 +456,9 @@ const ScheduledExports = () => {
                         variant="outline"
                         size="sm"
                         onClick={() => deleteExport(exportItem.id)}
-                        className="text-destructive hover:text-destructive flex items-center gap-1"
+                        className="text-destructive hover:text-destructive flex items-center gap-1 h-7 px-2 text-xs"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3 w-3" />
                         Delete
                       </Button>
                     </div>
