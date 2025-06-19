@@ -242,8 +242,9 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
   const handleClearData = async () => {
     try {
       setIsLoading(true);
+       setIsChanged(true)
       await ApiService.clearData();
-   setIsChanged(true)
+  
       
       NotificationService.addNotification(
         'Data Cleared', 
