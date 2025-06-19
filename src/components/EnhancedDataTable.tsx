@@ -88,6 +88,10 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
       const cols = getColumns();
       setAllColumns(cols);
       setVisibleColumns(cols);
+       const sources=await ApiService.getSources();
+      if(sources){
+        setInternalSources([...sources])
+      }
     }
   }, [data]);
   
