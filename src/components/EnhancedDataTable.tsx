@@ -242,15 +242,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
     try {
       setIsLoading(true);
       await ApiService.clearData();
-      
-      // Update both internal state and notify parent
-      const emptyData: DataEntry[] = [];
-      if (!propData) {
-        setInternalData(emptyData);
-      }
-      if (onDataChange) {
-        onDataChange(emptyData);
-      }
+   setIsChanged(true)
       
       NotificationService.addNotification(
         'Data Cleared', 
