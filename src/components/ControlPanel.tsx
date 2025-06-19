@@ -122,7 +122,7 @@ const ControlPanel: React.FC = () => {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="space-y-6">
+        <div className="space-y-4">
           <div className="space-y-3">
             <h3 className="text-sm font-medium">Test Data Submission</h3>
             <div className="flex flex-col gap-3">
