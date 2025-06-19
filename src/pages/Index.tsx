@@ -31,7 +31,7 @@ import { supabase } from "@/integrations/supabase/client";
 const Index = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-    const [isChanged, setIsChanged] = useState(false);
+  const [isChanged, setIsChanged] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [selectedApiKey, setSelectedApiKey] = useState<string>('');
   const [data, setData] = useState<DataEntry[]>([]);
@@ -110,6 +110,10 @@ const Index = () => {
   const handleDataChange = (newData: DataEntry[]) => {
     console.log('Data changed from EnhancedDataTable:', newData.length, 'entries');
     setData([...newData]);
+  };
+
+  const handleSetIsChanged = (changed: boolean) => {
+    setIsChanged(changed);
   };
 
   const handleLogout = async () => {
@@ -270,7 +274,7 @@ const Index = () => {
                   data={data} 
                   sources={sources} 
                   onDataChange={handleDataChange}
-                  setIsChanged={setIsChanged}
+                  setIsChanged={handleSetIsChanged}
                 />
               </TabsContent>
               

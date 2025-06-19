@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -28,13 +29,14 @@ interface EnhancedDataTableProps {
   data?: DataEntry[];
   sources?: Source[];
   onDataChange?: (data: DataEntry[]) => void;
-  setIsChanged?:boolean;
+  setIsChanged?: (changed: boolean) => void;
 }
 
 const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({ 
   data: propData, 
   sources: propSources,
-  onDataChange 
+  onDataChange,
+  setIsChanged
 }) => {
   const [internalData, setInternalData] = useState<DataEntry[]>([]);
   const [internalSources, setInternalSources] = useState<Source[]>([]);
@@ -280,6 +282,9 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
       }
       if (onDataChange) {
         onDataChange([...apiData]);
+      }
+      if (setIsChanged) {
+        setIsChanged(true);
       }
      
       setIsRefreshing(false);
