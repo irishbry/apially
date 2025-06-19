@@ -1,14 +1,17 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { CalendarIcon, Clock, Mail, Download, Trash } from "lucide-react";
+import { CalendarIcon, Clock, Mail, Download, Trash, AlertCircle } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { getFormattedDateTime } from '@/utils/csvUtils';
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { supabase } from "@/integrations/supabase/client";
 import { ApiService, DataEntry } from '@/services/ApiService';
+import { getFormattedDateTime } from '@/utils/csvUtils';
 
 interface ScheduledExport {
   id: string;
@@ -17,17 +20,16 @@ interface ScheduledExport {
   format: 'csv' | 'json';
   delivery: 'email' | 'download';
   email?: string;
-  lastExport?: string;
-  nextExport?: string;
+  last_export?: string;
+  next_export?: string;
   active: boolean;
+  user_id: string;
 }
 
 const ScheduledExports: React.FC = () => {
-  const [exports, setExports] = useState<ScheduledExport[]>(() => {
-    const saved = localStorage.getItem('scheduled-exports');
-    return saved ? JSON.parse(saved) : [];
-  });
-  
+  const [exports, setExports] = useState<ScheduledExport[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [newExport, setNewExport] = useState<Partial<ScheduledExport>>({
     frequency: 'daily',
     format: 'csv',
@@ -37,12 +39,43 @@ const ScheduledExports: React.FC = () => {
   
   const { toast } = useToast();
 
-  const saveExports = (updatedExports: ScheduledExport[]) => {
-    localStorage.setItem('scheduled-exports', JSON.stringify(updatedExports));
-    setExports(updatedExports);
+  // Load scheduled exports from Supabase
+  const loadScheduledExports = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('scheduled_exports')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error loading scheduled exports:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load scheduled exports",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      setExports(data || []);
+    } catch (error) {
+      console.error('Error in loadScheduledExports:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load scheduled exports",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const addExport = () => {
+  useEffect(() => {
+    loadScheduledExports();
+  }, []);
+
+  const addExport = async () => {
     if (!newExport.name) {
       toast({
         title: "Error",
@@ -61,75 +94,140 @@ const ScheduledExports: React.FC = () => {
       return;
     }
 
-    const now = new Date();
-    let nextExport = new Date();
-    
-    if (newExport.frequency === 'daily') {
-      nextExport.setDate(now.getDate() + 1);
-      nextExport.setHours(8, 0, 0, 0);
-    } else if (newExport.frequency === 'weekly') {
-      nextExport.setDate(now.getDate() + (8 - now.getDay()) % 7);
-      nextExport.setHours(8, 0, 0, 0);
-    } else if (newExport.frequency === 'monthly') {
-      nextExport.setMonth(now.getMonth() + 1);
-      nextExport.setDate(1);
-      nextExport.setHours(8, 0, 0, 0);
-    }
-    
-    const newScheduledExport: ScheduledExport = {
-      id: Date.now().toString(),
-      name: newExport.name || `Export ${exports.length + 1}`,
-      frequency: newExport.frequency as 'daily' | 'weekly' | 'monthly',
-      format: newExport.format as 'csv' | 'json',
-      delivery: newExport.delivery as 'email' | 'download',
-      email: newExport.email,
-      nextExport: nextExport.toISOString(),
-      active: true
-    };
-    
-    const updatedExports = [...exports, newScheduledExport];
-    saveExports(updatedExports);
-    
-    setNewExport({
-      frequency: 'daily',
-      format: 'csv',
-      delivery: 'email',
-      active: true
-    });
-    
-    toast({
-      title: "Export Scheduled",
-      description: `Export "${newScheduledExport.name}" has been scheduled for ${new Date(newScheduledExport.nextExport).toLocaleString()}`
-    });
-  };
-
-  const deleteExport = (id: string) => {
-    const updatedExports = exports.filter(exp => exp.id !== id);
-    saveExports(updatedExports);
-    
-    toast({
-      title: "Export Deleted",
-      description: "The scheduled export has been removed"
-    });
-  };
-
-  const toggleActive = (id: string) => {
-    const updatedExports = exports.map(exp => {
-      if (exp.id === id) {
-        return { ...exp, active: !exp.active };
+    try {
+      setSaving(true);
+      
+      const now = new Date();
+      let nextExport = new Date();
+      
+      if (newExport.frequency === 'daily') {
+        nextExport.setDate(now.getDate() + 1);
+        nextExport.setHours(8, 0, 0, 0);
+      } else if (newExport.frequency === 'weekly') {
+        nextExport.setDate(now.getDate() + (8 - now.getDay()) % 7 || 7);
+        nextExport.setHours(8, 0, 0, 0);
+      } else if (newExport.frequency === 'monthly') {
+        nextExport.setMonth(now.getMonth() + 1);
+        nextExport.setDate(1);
+        nextExport.setHours(8, 0, 0, 0);
       }
-      return exp;
-    });
-    
-    saveExports(updatedExports);
-    
-    const export_ = updatedExports.find(exp => exp.id === id);
-    toast({
-      title: export_?.active ? "Export Activated" : "Export Paused",
-      description: export_?.active 
-        ? `"${export_.name}" will run as scheduled` 
-        : `"${export_.name}" has been paused`
-    });
+
+      const { data, error } = await supabase
+        .from('scheduled_exports')
+        .insert([{
+          name: newExport.name,
+          frequency: newExport.frequency as 'daily' | 'weekly' | 'monthly',
+          format: newExport.format as 'csv' | 'json',
+          delivery: newExport.delivery as 'email' | 'download',
+          email: newExport.email,
+          next_export: nextExport.toISOString(),
+          active: true
+        }])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating scheduled export:', error);
+        toast({
+          title: "Error",
+          description: "Failed to create scheduled export",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      await loadScheduledExports();
+      
+      setNewExport({
+        frequency: 'daily',
+        format: 'csv',
+        delivery: 'email',
+        active: true
+      });
+      
+      toast({
+        title: "Export Scheduled",
+        description: `Export "${data.name}" has been scheduled for ${new Date(data.next_export).toLocaleString()}`
+      });
+    } catch (error) {
+      console.error('Error in addExport:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create scheduled export",
+        variant: "destructive"
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteExport = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('scheduled_exports')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error deleting scheduled export:', error);
+        toast({
+          title: "Error",
+          description: "Failed to delete scheduled export",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      await loadScheduledExports();
+      
+      toast({
+        title: "Export Deleted",
+        description: "The scheduled export has been removed"
+      });
+    } catch (error) {
+      console.error('Error in deleteExport:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete scheduled export",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const toggleActive = async (id: string, currentActive: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('scheduled_exports')
+        .update({ active: !currentActive })
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error updating scheduled export:', error);
+        toast({
+          title: "Error",
+          description: "Failed to update scheduled export",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      await loadScheduledExports();
+      
+      const exportItem = exports.find(exp => exp.id === id);
+      toast({
+        title: !currentActive ? "Export Activated" : "Export Paused",
+        description: !currentActive 
+          ? `"${exportItem?.name}" will run as scheduled` 
+          : `"${exportItem?.name}" has been paused`
+      });
+    } catch (error) {
+      console.error('Error in toggleActive:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update scheduled export",
+        variant: "destructive"
+      });
+    }
   };
 
   const runExportNow = async (export_: ScheduledExport) => {
@@ -142,40 +240,46 @@ const ScheduledExports: React.FC = () => {
         description: `Preparing to email ${export_.format.toUpperCase()} to ${export_.email}`
       });
       
-      setTimeout(() => {
-        const updatedExports = exports.map(exp => {
-          if (exp.id === export_.id) {
-            return { 
-              ...exp, 
-              lastExport: new Date().toISOString() 
-            };
-          }
-          return exp;
+      // Call the edge function to process this specific export
+      try {
+        const { error } = await supabase.functions.invoke('process-scheduled-exports', {
+          body: { exportId: export_.id, runNow: true }
         });
-        
-        saveExports(updatedExports);
-        
+
+        if (error) {
+          console.error('Error running export:', error);
+          toast({
+            title: "Export Error",
+            description: "Failed to run export",
+            variant: "destructive"
+          });
+          return;
+        }
+
         toast({
-          title: "Export Emailed",
-          description: `${export_.format.toUpperCase()} exported and emailed to ${export_.email}`
+          title: "Export Processing",
+          description: `Export is being processed and will be emailed to ${export_.email}`
         });
-      }, 2000);
+      } catch (error) {
+        console.error('Error running export:', error);
+        toast({
+          title: "Export Error",
+          description: "Failed to run export",
+          variant: "destructive"
+        });
+      }
     } else {
       try {
         const data = await ApiService.getData();
         handleDownload(data, export_.format, fileName);
         
-        const updatedExports = exports.map(exp => {
-          if (exp.id === export_.id) {
-            return { 
-              ...exp, 
-              lastExport: new Date().toISOString() 
-            };
-          }
-          return exp;
-        });
+        // Update last export time
+        await supabase
+          .from('scheduled_exports')
+          .update({ last_export: new Date().toISOString() })
+          .eq('id', export_.id);
         
-        saveExports(updatedExports);
+        await loadScheduledExports();
       } catch (error) {
         console.error("Error getting data for export:", error);
         toast({
@@ -188,14 +292,11 @@ const ScheduledExports: React.FC = () => {
   };
 
   const handleDownload = (data: DataEntry[], format: 'csv' | 'json', fileName: string) => {
-    let blob, contentType;
-    
     if (format === 'csv') {
       ApiService.exportToCsv();
     } else {
       const jsonContent = JSON.stringify(data, null, 2);
-      blob = new Blob([jsonContent], { type: 'application/json' });
-      contentType = 'application/json';
+      const blob = new Blob([jsonContent], { type: 'application/json' });
       
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -224,16 +325,33 @@ const ScheduledExports: React.FC = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <Card className="w-full shadow-sm hover:shadow-md transition-all duration-300">
+        <CardContent className="flex items-center justify-center p-8">
+          <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="w-full shadow-sm hover:shadow-md transition-all duration-300">
       <CardHeader>
         <CardTitle className="text-xl font-medium">Scheduled Exports</CardTitle>
         <CardDescription>
-          Configure automatic data exports on a schedule
+          Configure automatic data exports on a schedule using cron jobs
         </CardDescription>
       </CardHeader>
       
       <CardContent className="space-y-6">
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Scheduled exports now run automatically using cron jobs. Email exports require a valid Resend API key to be configured.
+          </AlertDescription>
+        </Alert>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-4 border rounded-lg p-4">
             <h3 className="text-base font-medium">New Scheduled Export</h3>
@@ -312,33 +430,32 @@ const ScheduledExports: React.FC = () => {
               </div>
             )}
             
-            <Button className="w-full" onClick={addExport}>
-              Schedule Export
+            <Button className="w-full" onClick={addExport} disabled={saving}>
+              {saving ? 'Scheduling...' : 'Schedule Export'}
             </Button>
           </div>
           
           <div className="border rounded-lg p-4">
-            <h3 className="text-base font-medium mb-2">About Scheduled Exports</h3>
+            <h3 className="text-base font-medium mb-2">About Automated Exports</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Scheduled exports allow you to automatically export your data on a regular basis. 
-              You can choose between CSV and JSON formats, and have the exports emailed to you 
-              or automatically downloaded.
+              Scheduled exports now run automatically using Supabase cron jobs. 
+              The system checks for due exports every hour and processes them in the background.
             </p>
             
             <div className="space-y-2">
               <div className="flex items-center">
                 <CalendarIcon className="h-4 w-4 mr-2 text-primary" />
-                <span className="text-sm">Daily, weekly, or monthly schedules</span>
+                <span className="text-sm">Automated scheduling with cron jobs</span>
               </div>
               
               <div className="flex items-center">
                 <Mail className="h-4 w-4 mr-2 text-primary" />
-                <span className="text-sm">Email delivery to any address</span>
+                <span className="text-sm">Email delivery with attachments</span>
               </div>
               
               <div className="flex items-center">
                 <Clock className="h-4 w-4 mr-2 text-primary" />
-                <span className="text-sm">Automated background processing</span>
+                <span className="text-sm">Reliable background processing</span>
               </div>
             </div>
           </div>
@@ -362,11 +479,11 @@ const ScheduledExports: React.FC = () => {
                       {exp.delivery === 'email' ? ` Email to ${exp.email}` : ' Download'}
                     </div>
                     <div className="text-xs mt-1">
-                      {exp.lastExport && (
-                        <span className="mr-3">Last: {new Date(exp.lastExport).toLocaleString()}</span>
+                      {exp.last_export && (
+                        <span className="mr-3">Last: {new Date(exp.last_export).toLocaleString()}</span>
                       )}
-                      {exp.nextExport && exp.active && (
-                        <span>Next: {new Date(exp.nextExport).toLocaleString()}</span>
+                      {exp.next_export && exp.active && (
+                        <span>Next: {new Date(exp.next_export).toLocaleString()}</span>
                       )}
                     </div>
                   </div>
@@ -374,7 +491,7 @@ const ScheduledExports: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <Switch 
                       checked={exp.active} 
-                      onCheckedChange={() => toggleActive(exp.id)} 
+                      onCheckedChange={() => toggleActive(exp.id, exp.active)} 
                       aria-label="Toggle activation"
                     />
                     <Button 

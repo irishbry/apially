@@ -53,6 +53,51 @@ export type Database = {
           },
         ]
       }
+      scheduled_exports: {
+        Row: {
+          active: boolean | null
+          created_at: string | null
+          delivery: string
+          email: string | null
+          format: string
+          frequency: string
+          id: string
+          last_export: string | null
+          name: string
+          next_export: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string | null
+          delivery: string
+          email?: string | null
+          format: string
+          frequency: string
+          id?: string
+          last_export?: string | null
+          name: string
+          next_export?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string | null
+          delivery?: string
+          email?: string | null
+          format?: string
+          frequency?: string
+          id?: string
+          last_export?: string | null
+          name?: string
+          next_export?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       schema_configs: {
         Row: {
           api_key: string | null
@@ -144,6 +189,10 @@ export type Database = {
       generate_unique_api_key: {
         Args: Record<PropertyKey, never>
         Returns: string
+      }
+      process_scheduled_exports: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
       update_source_schema: {
         Args: { p_api_key: string; p_schema: Json }
