@@ -81,7 +81,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
         setIsLoading(false);
       }
     }
-  }, [propData, propSources,handleRefreshData]);
+  }, [propData, propSources]);
 
   useEffect(() => {
     if (data.length >= 0) {
@@ -279,7 +279,10 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
       if (onDataChange) {
         onDataChange([...apiData]);
       }
-      
+       const unsubscribeSources = ApiService.subscribeToSources(newSources => {
+          console.log(newSources)
+          setInternalSources([...newSources]);
+        });
       setIsRefreshing(false);
       NotificationService.addNotification(
         'Data Refreshed', 
