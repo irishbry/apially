@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -30,14 +29,15 @@ interface EnhancedDataTableProps {
   sources?: Source[];
   onDataChange?: (data: DataEntry[]) => void;
   setIsChanged?: (changed: boolean) => void;
-  isChanged?:boolean;
+  isChanged?: boolean;
 }
 
 const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({ 
   data: propData, 
   sources: propSources,
   onDataChange,
-  setIsChanged,isChanged
+  setIsChanged,
+  isChanged
 }) => {
   const [internalData, setInternalData] = useState<DataEntry[]>([]);
   const [internalSources, setInternalSources] = useState<Source[]>([]);
@@ -45,6 +45,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
   const [selectedSource, setSelectedSource] = useState<string>('all');
   const [isDownloading, setIsDownloading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
   const [activeFilters, setActiveFilters] = useState<ColumnFilter[]>([]);
@@ -241,9 +242,11 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
 
   const handleClearData = async () => {
     try {
-      setIsLoading(true);
+      setIsClearing(true);
       await ApiService.clearData();
-   setIsChanged(true);
+      if (setIsChanged) {
+        setIsChanged(true);
+      }
       
       NotificationService.addNotification(
         'Data Cleared', 
@@ -258,7 +261,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
         'error'
       );
     } finally {
-      setIsLoading(false);
+      setIsClearing(false);
     }
   };
 
@@ -369,7 +372,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
             <Button 
               variant="outline" 
               size="sm"
-              onClick={()=>setIsChanged(true)}
+              onClick={()=>setIsChanged && setIsChanged(true)}
               disabled={isRefreshing}
               className="hover-lift"
             >
@@ -389,10 +392,20 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
               variant="outline" 
               size="sm"
               onClick={handleClearData}
+              disabled={isClearing}
               className="hover-lift"
             >
-              <Trash2 className="h-4 w-4 mr-1" />
-              Clear
+              {isClearing ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
+                  Clearing...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Clear
+                </>
+              )}
             </Button>
             <Button 
               size="sm"
@@ -551,7 +564,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
       <CardContent className="p-0">
         <div className="rounded-md border">
           <div className="relative overflow-auto max-h-[400px]">
-            {isLoading || isChanged ? (
+            {(isLoading && !isClearing) || isChanged ? (
               <div className="flex justify-center items-center p-8">
                 <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
               </div>
@@ -616,7 +629,16 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
                   ) : (
                     <TableRow>
                       <TableCell colSpan={visibleColumns.length} className="h-24 text-center">
-                        {error ? 'Authentication required to view data' : 'No data available'}
+                        {isClearing ? (
+                          <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                            Clearing data...
+                          </div>
+                        ) : error ? (
+                          'Authentication required to view data'
+                        ) : (
+                          'No data available'
+                        )}
                       </TableCell>
                     </TableRow>
                   )}
