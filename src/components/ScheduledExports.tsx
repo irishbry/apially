@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -239,7 +240,7 @@ const ScheduledExports = () => {
           <Calendar className="h-4 w-4" />
           Scheduled Exports
         </CardTitle>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           Configure automatic data exports on a schedule
         </p>
       </CardHeader>
@@ -247,32 +248,32 @@ const ScheduledExports = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Left Column - New Scheduled Export Form */}
           <div className="space-y-3">
-            <div className="border rounded-lg p-4">
-              <h3 className="text-base font-medium mb-3">New Scheduled Export</h3>
+            <div className="border rounded-lg p-4 h-full flex flex-col">
+              <h3 className="text-sm font-medium mb-3">New Scheduled Export</h3>
               
-              <form onSubmit={handleSubmit} className="space-y-3">
+              <form onSubmit={handleSubmit} className="space-y-3 flex-1 flex flex-col">
                 <div className="space-y-1">
-                  <Label htmlFor="name" className="text-xs">Export Name</Label>
+                  <Label htmlFor="name" className="text-sm">Export Name</Label>
                   <Input
                     id="name"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="Weekly Backup"
                     required
-                    className="h-8 text-xs"
+                    className="h-8 text-sm"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label htmlFor="frequency" className="text-xs">Frequency</Label>
+                    <Label htmlFor="frequency" className="text-sm">Frequency</Label>
                     <Select
                       value={formData.frequency}
                       onValueChange={(value: 'daily' | 'weekly' | 'monthly') => 
                         setFormData({ ...formData, frequency: value })
                       }
                     >
-                      <SelectTrigger className="h-8 text-xs">
+                      <SelectTrigger className="h-8 text-sm">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -284,14 +285,14 @@ const ScheduledExports = () => {
                   </div>
 
                   <div className="space-y-1">
-                    <Label htmlFor="format" className="text-xs">Format</Label>
+                    <Label htmlFor="format" className="text-sm">Format</Label>
                     <Select
                       value={formData.format}
                       onValueChange={(value: 'csv' | 'json') => 
                         setFormData({ ...formData, format: value })
                       }
                     >
-                      <SelectTrigger className="h-8 text-xs">
+                      <SelectTrigger className="h-8 text-sm">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -303,14 +304,14 @@ const ScheduledExports = () => {
                 </div>
 
                 <div className="space-y-1">
-                  <Label htmlFor="delivery" className="text-xs">Delivery Method</Label>
+                  <Label htmlFor="delivery" className="text-sm">Delivery Method</Label>
                   <Select
                     value={formData.delivery}
                     onValueChange={(value: 'email' | 'download') => 
                       setFormData({ ...formData, delivery: value })
                     }
                   >
-                    <SelectTrigger className="h-8 text-xs">
+                    <SelectTrigger className="h-8 text-sm">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -322,7 +323,7 @@ const ScheduledExports = () => {
                 
                 {formData.delivery === 'email' && (
                   <div className="space-y-1">
-                    <Label htmlFor="email" className="text-xs">Email Address</Label>
+                    <Label htmlFor="email" className="text-sm">Email Address</Label>
                     <Input
                       id="email"
                       type="email"
@@ -330,37 +331,43 @@ const ScheduledExports = () => {
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       placeholder="your.email@example.com"
                       required={formData.delivery === 'email'}
-                      className="h-8 text-xs"
+                      className="h-8 text-sm"
                     />
                   </div>
                 )}
                 
-                <Button type="submit" className="w-full h-8 text-xs">
-                  Schedule Export
-                </Button>
+                <div className="mt-auto">
+                  <Button type="submit" className="w-full h-8 text-sm">
+                    Schedule Export
+                  </Button>
+                </div>
               </form>
             </div>
           </div>
 
           {/* Right Column - About Scheduled Exports */}
           <div className="space-y-3">
-            <div className="border rounded-lg p-4">
-              <h3 className="text-base font-medium mb-3">About Scheduled Exports</h3>
-              <p className="text-xs text-muted-foreground mb-3">
-                Scheduled exports allow you to automatically export your data on a regular basis. 
-                You can choose between CSV and JSON formats, and have the exports emailed to you 
-                or automatically downloaded.
-              </p>
-              
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs">
-                  <span>• Daily, weekly, or monthly schedules</span>
-                </div>
-                <div className="flex items-center gap-2 text-xs">
-                  <span>• Email delivery to any address</span>
-                </div>
-                <div className="flex items-center gap-2 text-xs">
-                  <span>• Automated background processing</span>
+            <div className="border rounded-lg p-4 h-full flex flex-col">
+              <h3 className="text-sm font-medium mb-3">About Scheduled Exports</h3>
+              <div className="flex-1 flex flex-col justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Scheduled exports allow you to automatically export your data on a regular basis. 
+                    You can choose between CSV and JSON formats, and have the exports emailed to you 
+                    or automatically downloaded.
+                  </p>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm">
+                      <span>• Daily, weekly, or monthly schedules</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <span>• Email delivery to any address</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <span>• Automated background processing</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -369,12 +376,12 @@ const ScheduledExports = () => {
 
         {/* Your Scheduled Exports Section */}
         <div className="space-y-1">
-          <h3 className="text-base font-medium">Your Scheduled Exports</h3>
+          <h3 className="text-sm font-medium">Your Scheduled Exports</h3>
           
           {exports.length === 0 ? (
             <div className="text-center py-4 border rounded-lg">
               <h4 className="text-sm font-medium mb-1">No scheduled exports yet</h4>
-              <p className="text-muted-foreground text-xs">
+              <p className="text-muted-foreground text-sm">
                 Create your first automated data export to get started
               </p>
             </div>
@@ -394,7 +401,7 @@ const ScheduledExports = () => {
                         </Badge>
                       </div>
                       
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-3 text-sm text-muted-foreground">
                         <span>{exportItem.format.toUpperCase()}</span>
                         <span className="flex items-center gap-1">
                           {exportItem.delivery === 'email' ? (
@@ -412,7 +419,7 @@ const ScheduledExports = () => {
                       </div>
                       
                       {exportItem.next_export && (
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-sm text-muted-foreground">
                           Next: {new Date(exportItem.next_export).toLocaleString()}
                         </p>
                       )}
