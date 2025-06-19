@@ -562,7 +562,7 @@ ${getDynamicBatchSuccessResponse()}`}
                 <AccordionContent>
                   <div className="bg-secondary p-3 rounded-md overflow-x-auto">
                     <pre className="text-xs sm:text-sm whitespace-pre-wrap">
-{`// 401 Unauthorized
+{`// 403 Forbidden
 {
   "success": false,
   "message": "Invalid API key or inactive source",
