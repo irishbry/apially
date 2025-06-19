@@ -22,24 +22,42 @@ const ApiInstructions: React.FC<ApiInstructionsProps> = ({ currentApiKey, schema
 
   // Listen for schema updates from other components
   React.useEffect(() => {
-    const handleSchemaUpdate = async () => {
+    const handleSchemaUpdate = async (event?: CustomEvent) => {
+      console.log('📡 Schema update event received:', event?.detail);
+      
+      // If event has detail with apiKey, check if it matches current API key
+      if (event?.detail?.apiKey && event.detail.apiKey !== currentApiKey) {
+        console.log('📡 Schema update for different API key, ignoring');
+        return;
+      }
+      
       if (currentApiKey) {
-        console.log('📡 Schema update event received, refreshing schema for API key:', currentApiKey);
+        console.log('📡 Refreshing schema for API key:', currentApiKey);
         try {
           const updatedSchema = await ConfigService.getSchema(currentApiKey);
           console.log('📡 Updated schema loaded:', updatedSchema);
           setSchema(updatedSchema);
+          
+          // Force a re-render by updating the state
+          setTimeout(() => {
+            console.log('📡 Schema state updated, component should re-render');
+          }, 100);
         } catch (error) {
           console.error('📡 Error loading updated schema:', error);
         }
       }
     };
 
-    // Listen for custom schema update events
-    window.addEventListener('schemaUpdated', handleSchemaUpdate);
+    // Listen for multiple types of schema update events
+    const handleSchemaUpdated = (e: Event) => handleSchemaUpdate(e as CustomEvent);
+    const handleApiSchemaChanged = (e: Event) => handleSchemaUpdate(e as CustomEvent);
+    
+    window.addEventListener('schemaUpdated', handleSchemaUpdated);
+    window.addEventListener('apiSchemaChanged', handleApiSchemaChanged);
     
     return () => {
-      window.removeEventListener('schemaUpdated', handleSchemaUpdate);
+      window.removeEventListener('schemaUpdated', handleSchemaUpdated);
+      window.removeEventListener('apiSchemaChanged', handleApiSchemaChanged);
     };
   }, [currentApiKey]);
 
@@ -56,6 +74,7 @@ const ApiInstructions: React.FC<ApiInstructionsProps> = ({ currentApiKey, schema
           console.error('🔄 Error loading schema on mount:', error);
         }
       } else if (propSchema) {
+        console.log('🔄 Using prop schema:', propSchema);
         setSchema(propSchema);
       }
     };
@@ -84,6 +103,8 @@ const ApiInstructions: React.FC<ApiInstructionsProps> = ({ currentApiKey, schema
   
   // Generate example data based on schema or use minimal default
   const generateExampleData = () => {
+    console.log('🎯 Generating example data with schema:', schema);
+    
     if (schema && Object.keys(schema.fieldTypes).length > 0) {
       const exampleData: Record<string, any> = {};
       
@@ -111,14 +132,18 @@ const ApiInstructions: React.FC<ApiInstructionsProps> = ({ currentApiKey, schema
         }
       });
       
+      console.log('🎯 Generated schema-based example data:', exampleData);
       return exampleData;
     }
     
     // Minimal default example data - only basic structure
-    return {
+    const defaultData = {
       sensorId: "sensor-001",
       timestamp: new Date().toISOString()
     };
+    
+    console.log('🎯 Generated default example data:', defaultData);
+    return defaultData;
   };
 
   const exampleData = generateExampleData();

@@ -248,7 +248,15 @@ const SchemaEditor: React.FC<SchemaEditorProps> = ({ apiKey }) => {
         validateAgainstUpdatedSchema();
         
         // Trigger a refresh of the parent component to update API instructions
-        window.dispatchEvent(new CustomEvent('schemaUpdated'));
+        console.log('🚀 Dispatching schemaUpdated event for API key:', apiKey);
+        window.dispatchEvent(new CustomEvent('schemaUpdated', { 
+          detail: { apiKey, schema } 
+        }));
+        
+        // Also dispatch a more specific event
+        window.dispatchEvent(new CustomEvent('apiSchemaChanged', { 
+          detail: { apiKey, schema } 
+        }));
       } else {
         toast({
           title: "Error",
