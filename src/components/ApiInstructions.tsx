@@ -138,8 +138,7 @@ const ApiInstructions: React.FC<ApiInstructionsProps> = ({ currentApiKey, schema
     
     // Minimal default example data - only basic structure
     const defaultData = {
-      sensorId: "sensor-001",
-      timestamp: new Date().toISOString()
+     
     };
     
     console.log('🎯 Generated default example data:', defaultData);
