@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -156,8 +157,9 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
     
     const columns = new Set<string>();
     
-    // Always include source column
+    // Always include source and created_at columns first
     columns.add('source');
+    columns.add('created_at');
     
     // Extract metadata fields from all entries, excluding clientIp and receivedAt
     data.forEach(entry => {
@@ -180,6 +182,10 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
       return entry.sourceId || entry.source_id;
     }
     
+    if (column === 'created_at') {
+      return entry.created_at || entry.timestamp;
+    }
+    
     // Check if the column is a metadata field
     if (entry.metadata && typeof entry.metadata === 'object' && entry.metadata[column] !== undefined) {
       return entry.metadata[column];
@@ -198,13 +204,21 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
   const formatCellValue = (key: string, value: any) => {
     if (value === undefined || value === null) return '-';
     if (key === 'source') return getSourceName(value);
+    if (key === 'created_at') {
+      try {
+        return new Date(value).toLocaleString();
+      } catch (e) {
+        return value;
+      }
+    }
     if (typeof value === 'object') return JSON.stringify(value);
     return String(value);
   };
 
   const getDisplayName = (column: string): string => {
     const displayNames: Record<string, string> = {
-      'source': 'Source'
+      'source': 'Source',
+      'created_at': 'Date/Time'
     };
     return displayNames[column] || column;
   };
