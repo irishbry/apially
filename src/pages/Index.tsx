@@ -91,6 +91,7 @@ const Index = () => {
         console.log('Sources updated:', newSources.length, 'sources');
         setSources([...newSources]);
       });
+      setIsChanged(false)
       
       return () => {
         unsubscribeData();
