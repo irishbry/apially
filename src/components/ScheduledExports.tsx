@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,6 +13,14 @@ import { Tables } from '@/integrations/supabase/types';
 // Use the database type directly
 type ScheduledExport = Tables<'scheduled_exports'>;
 
+type FormDataType = {
+  name: string;
+  frequency: 'daily' | 'weekly' | 'monthly';
+  format: 'csv' | 'json';
+  delivery: 'email' | 'download';
+  email: string;
+};
+
 const ScheduledExports = () => {
   const [exports, setExports] = useState<ScheduledExport[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -21,11 +28,11 @@ const ScheduledExports = () => {
   const [editingExport, setEditingExport] = useState<ScheduledExport | null>(null);
   const { toast } = useToast();
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormDataType>({
     name: '',
-    frequency: 'daily' as const,
-    format: 'csv' as const,
-    delivery: 'email' as const,
+    frequency: 'daily',
+    format: 'csv',
+    delivery: 'email',
     email: ''
   });
 
