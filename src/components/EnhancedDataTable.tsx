@@ -30,13 +30,14 @@ interface EnhancedDataTableProps {
   sources?: Source[];
   onDataChange?: (data: DataEntry[]) => void;
   setIsChanged?: (changed: boolean) => void;
+  isChanged?:boolean;
 }
 
 const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({ 
   data: propData, 
   sources: propSources,
   onDataChange,
-  setIsChanged
+  setIsChanged,isChanged
 }) => {
   const [internalData, setInternalData] = useState<DataEntry[]>([]);
   const [internalSources, setInternalSources] = useState<Source[]>([]);
@@ -550,7 +551,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
       <CardContent className="p-0">
         <div className="rounded-md border">
           <div className="relative overflow-auto max-h-[400px]">
-            {isLoading ? (
+            {isLoading || isChanged ? (
               <div className="flex justify-center items-center p-8">
                 <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
               </div>

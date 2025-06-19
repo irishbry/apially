@@ -275,6 +275,7 @@ const Index = () => {
                   data={data} 
                   sources={sources} 
                   onDataChange={handleDataChange}
+                  isChanged={isChanged}
                   setIsChanged={handleSetIsChanged}
                 />
               </TabsContent>
