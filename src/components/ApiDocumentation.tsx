@@ -226,6 +226,33 @@ const ApiDocumentation: React.FC<ApiDocumentationProps> = ({ selectedApiKey }) =
     return JSON.stringify(responseData, null, 2);
   };
 
+  const getDynamicBatchExample = () => {
+    const exampleData = getExampleDataObject();
+    const exampleData2: Record<string, any> = { ...exampleData };
+    
+    // Create variation for second entry
+    if (schemaLoaded && schema && schema.fieldTypes) {
+      Object.entries(schema.fieldTypes).forEach(([field, type]) => {
+        if (type === "number") {
+          if (field === "temperature") exampleData2[field] = 22.1;
+          else if (field === "humidity") exampleData2[field] = 65;
+          else if (field === "pressure") exampleData2[field] = 1015.3;
+          else exampleData2[field] = exampleData[field] + 5;
+        } else if (type === "string") {
+          exampleData2[field] = `modified-${field}`;
+        } else if (type === "boolean") {
+          exampleData2[field] = !exampleData[field];
+        }
+      });
+    }
+    
+    const batchData = {
+      data: [exampleData, exampleData2]
+    };
+    
+    return JSON.stringify(batchData, null, 2);
+  };
+
   const getDynamicBatchSuccessResponse = () => {
     const exampleData = getExampleDataObject();
     const exampleData2: Record<string, any> = { ...exampleData };
@@ -489,22 +516,19 @@ ${getRequiredFieldsText()}`}
               <p className="text-sm text-muted-foreground mb-2">
                 Send multiple data points in a single request:
               </p>
-              <div className="bg-secondary p-3 rounded-md overflow-x-auto">
+              <div className="bg-secondary p-3 rounded-md overflow-x-auto relative">
                 <pre className="text-xs sm:text-sm whitespace-pre-wrap">
 {`// POST to ${functionUrl}/batch
-{
-  "data": [
-    {
-      "temperature": 25.4,
-      "humidity": 68
-    },
-    {
-      "temperature": 22.1,
-      "pressure": 1015.3
-    }
-  ]
-}`}
+${getDynamicBatchExample()}`}
                 </pre>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="absolute top-2 right-2 h-8 w-8 p-0"
+                  onClick={() => copyToClipboard(`// POST to ${functionUrl}/batch\n${getDynamicBatchExample()}`, 'Batch example copied!')}
+                >
+                  <Copy className="h-3 w-3" />
+                </Button>
               </div>
             </div>
           </TabsContent>
