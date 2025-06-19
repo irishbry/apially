@@ -207,11 +207,19 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
     try {
       setIsDownloading(true);
       setTimeout(() => {
-        downloadCSV(visibleData);
+        // Use the new CSV export format that matches the Data Explorer
+        downloadCSV(
+          visibleData, 
+          visibleColumns, 
+          sources, 
+          getDisplayName, 
+          getValue, 
+          formatCellValue
+        );
         setIsDownloading(false);
         NotificationService.addNotification(
           'CSV Export Complete', 
-          `Successfully exported ${visibleData.length} records to CSV.`,
+          `Successfully exported ${visibleData.length} records to CSV with ${visibleColumns.length} columns.`,
           'success'
         );
       }, 500);

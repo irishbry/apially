@@ -1,42 +1,40 @@
 
-import { DataEntry } from "@/services/ApiService";
+import { DataEntry, Source } from "@/services/ApiService";
 
-// Convert an array of objects to CSV string
-export function convertToCSV(data: DataEntry[]): string {
+// Convert an array of objects to CSV string with Data Explorer format
+export function convertToCSV(
+  data: DataEntry[], 
+  visibleColumns: string[], 
+  sources: Source[] = [],
+  getDisplayName: (column: string) => string,
+  getValue: (entry: DataEntry, column: string) => any,
+  formatCellValue: (key: string, value: any) => string
+): string {
   if (data.length === 0) return '';
   
-  // Get all unique keys from all objects
-  const allKeys = new Set<string>();
-  data.forEach(entry => {
-    Object.keys(entry).forEach(key => allKeys.add(key));
-  });
-  
-  // Sort keys to ensure timestamp and id come first
-  const headers = Array.from(allKeys).sort((a, b) => {
-    if (a === 'timestamp') return -1;
-    if (b === 'timestamp') return 1;
-    if (a === 'id') return -1;
-    if (b === 'id') return 1;
-    return a.localeCompare(b);
-  });
+  // Use the visible columns as headers with display names
+  const headers = visibleColumns.map(column => getDisplayName(column));
   
   // Create CSV header row
   const headerRow = headers.join(',');
   
-  // Create data rows
+  // Create data rows using the same logic as the table
   const dataRows = data.map(entry => {
-    return headers.map(header => {
-      const value = entry[header];
-      // Handle different types of values
-      if (value === undefined || value === null) return '';
-      if (typeof value === 'string') {
-        // Escape quotes and wrap in quotes if contains commas or quotes
-        if (value.includes(',') || value.includes('"')) {
-          return `"${value.replace(/"/g, '""')}"`;
-        }
-        return value;
+    return visibleColumns.map(column => {
+      const value = getValue(entry, column);
+      const formattedValue = formatCellValue(column, value);
+      
+      // Handle CSV escaping
+      if (formattedValue === undefined || formattedValue === null || formattedValue === '-') {
+        return '';
       }
-      return String(value);
+      
+      const stringValue = String(formattedValue);
+      // Escape quotes and wrap in quotes if contains commas, quotes, or newlines
+      if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+        return `"${stringValue.replace(/"/g, '""')}"`;
+      }
+      return stringValue;
     }).join(',');
   });
   
@@ -50,9 +48,17 @@ export function formatDateForFilename(): string {
   return `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}`;
 }
 
-// Download CSV as a file
-export function downloadCSV(data: DataEntry[], filename?: string): void {
-  const csvContent = convertToCSV(data);
+// Download CSV as a file with Data Explorer format
+export function downloadCSV(
+  data: DataEntry[], 
+  visibleColumns: string[], 
+  sources: Source[] = [],
+  getDisplayName: (column: string) => string,
+  getValue: (entry: DataEntry, column: string) => any,
+  formatCellValue: (key: string, value: any) => string,
+  filename?: string
+): void {
+  const csvContent = convertToCSV(data, visibleColumns, sources, getDisplayName, getValue, formatCellValue);
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
