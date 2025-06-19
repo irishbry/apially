@@ -279,10 +279,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
       if (onDataChange) {
         onDataChange([...apiData]);
       }
-      const sources=await ApiService.getSources();
-      if(sources){
-        setInternalSources([...sources])
-      }
+     
       setIsRefreshing(false);
       NotificationService.addNotification(
         'Data Refreshed', 
