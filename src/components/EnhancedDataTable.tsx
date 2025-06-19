@@ -81,7 +81,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
         setIsLoading(false);
       }
     }
-  }, [propData, propSources]);
+  }, [propData, propSources,handleRefreshData]);
 
   useEffect(() => {
     if (data.length >= 0) {
