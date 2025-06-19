@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -240,9 +241,19 @@ const ScheduledExports = () => {
           Scheduled Exports
         </CardTitle>
         <div className="flex justify-between items-start">
-          <p className="text-sm text-muted-foreground">
-            Automatically export your data on a schedule
-          </p>
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Automatically export your data on a schedule
+            </p>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h4 className="font-semibold text-blue-900 mb-2">About Scheduled Exports</h4>
+              <p className="text-sm text-blue-800">
+                Scheduled exports allow you to automatically export your data on a regular basis. 
+                You can choose between CSV and JSON formats, and have the exports emailed to you 
+                or automatically downloaded.
+              </p>
+            </div>
+          </div>
           <Button 
             onClick={() => setShowForm(!showForm)} 
             size="sm"
