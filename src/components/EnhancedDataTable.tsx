@@ -28,6 +28,7 @@ interface EnhancedDataTableProps {
   data?: DataEntry[];
   sources?: Source[];
   onDataChange?: (data: DataEntry[]) => void;
+  setIsChanged?:boolean;
 }
 
 const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({ 
@@ -88,10 +89,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
       const cols = getColumns();
       setAllColumns(cols);
       setVisibleColumns(cols);
-       const sources=await ApiService.getSources();
-      if(sources){
-        setInternalSources([...sources])
-      }
+      
     }
   }, [data]);
   
@@ -373,7 +371,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
             <Button 
               variant="outline" 
               size="sm"
-              onClick={handleRefreshData}
+              onClick={()=>setIsChanged(true)}
               disabled={isRefreshing}
               className="hover-lift"
             >
