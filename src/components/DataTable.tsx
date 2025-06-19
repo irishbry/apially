@@ -92,11 +92,37 @@ const DataTable: React.FC = () => {
     setVisibleData(filtered);
   }, [data, searchTerm, selectedSource]);
 
+  // Helper function to get value from entry
+  const getValue = (entry: DataEntry, column: string): any => {
+    return entry[column];
+  };
+
+  // Helper function to get display name for columns
+  const getDisplayName = (column: string): string => {
+    const displayNames: Record<string, string> = {
+      'sourceId': 'Source',
+      'source_id': 'Source',
+      'sensorId': 'Sensor ID',
+      'sensor_id': 'Sensor ID',
+      'fileName': 'File Name',
+      'file_name': 'File Name'
+    };
+    return displayNames[column] || column;
+  };
+
   const handleExportCSV = () => {
     try {
       setIsDownloading(true);
       setTimeout(() => {
-        downloadCSV(visibleData);
+        // Use the new CSV export format that matches the Data Explorer
+        downloadCSV(
+          visibleData, 
+          columns, 
+          sources, 
+          getDisplayName, 
+          getValue, 
+          formatCellValue
+        );
         setIsDownloading(false);
       }, 500);
     } catch (err) {
