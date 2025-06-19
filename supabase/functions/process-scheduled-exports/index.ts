@@ -123,6 +123,7 @@ const handler = async (req: Request): Promise<Response> => {
           exportContent = generateCSV(userData || [], sources);
           contentType = 'text/csv';
           fileExtension = 'csv';
+          console.log('Generated CSV content:', exportContent.substring(0, 200) + '...');
         } else {
           exportContent = JSON.stringify(userData || [], null, 2);
           contentType = 'application/json';
@@ -134,6 +135,9 @@ const handler = async (req: Request): Promise<Response> => {
           const fileName = `${exportConfig.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.${fileExtension}`;
           
           try {
+            // Convert string to base64 properly
+            const base64Content = btoa(exportContent);
+            
             await smtpClient.send({
               from: Deno.env.get('SMTP_USER') ?? 'noreply@apially.com',
               to: exportConfig.email,
@@ -156,7 +160,7 @@ const handler = async (req: Request): Promise<Response> => {
               attachments: [
                 {
                   filename: fileName,
-                  content: new TextEncoder().encode(exportContent),
+                  content: base64Content,
                   encoding: "base64",
                   contentType: contentType,
                 },
@@ -245,7 +249,9 @@ function generateCSV(data: DataEntry[], sources: Source[]): string {
       ...Array.from(metadataKeys).map(key => {
         const value = entry.metadata?.[key];
         if (value === undefined || value === null) return '""';
-        return `"${String(value).replace(/"/g, '""')}"`;
+        // Properly escape CSV values
+        const stringValue = String(value);
+        return `"${stringValue.replace(/"/g, '""')}"`;
       })
     ];
     csvRows.push(row.join(','));
