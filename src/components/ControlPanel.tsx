@@ -122,10 +122,10 @@ const ControlPanel: React.FC = () => {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          <div className="space-y-3">
+        <div className="space-y-2">
+          <div className="space-y-2">
             <h3 className="text-sm font-medium">Test Data Submission</h3>
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
               <div className="flex flex-col gap-2">
                 <label htmlFor="source-select" className="text-sm text-muted-foreground">
                   Select Source for Test Data
@@ -186,7 +186,7 @@ const ControlPanel: React.FC = () => {
             </div>
           </div>
           
-          <div className="space-y-3">
+          <div className="space-y-2">
             <h3 className="text-sm font-medium">Manual Operations</h3>
             <div className="flex flex-wrap gap-2">
               <Button
