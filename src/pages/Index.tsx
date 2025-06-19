@@ -91,7 +91,7 @@ const Index = () => {
         console.log('Sources updated:', newSources.length, 'sources');
         setSources([...newSources]);
       });
-      setIsChanged(false)
+     
       
       return () => {
         unsubscribeData();
@@ -99,6 +99,8 @@ const Index = () => {
       };
     } catch (err) {
       console.error('Error setting up data subscriptions:', err);
+    } finally{
+       setIsChanged(false)
     }
   }, [isAuthenticated,isChanged]);
 
