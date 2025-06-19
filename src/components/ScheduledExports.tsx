@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Mail, Download, Plus, Trash2, Edit, Clock, Play, Pause } from 'lucide-react';
+import { Calendar, Mail, Download, Trash2, Edit, Play, Pause } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Tables } from '@/integrations/supabase/types';
@@ -235,44 +234,45 @@ const ScheduledExports = () => {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Calendar className="h-5 w-5" />
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <Calendar className="h-4 w-4" />
           Scheduled Exports
         </CardTitle>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           Configure automatic data exports on a schedule
         </p>
       </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Left Column - New Scheduled Export Form */}
-          <div className="space-y-6">
-            <div className="border rounded-lg p-6">
-              <h3 className="text-lg font-medium mb-4">New Scheduled Export</h3>
+          <div className="space-y-3">
+            <div className="border rounded-lg p-4">
+              <h3 className="text-base font-medium mb-3">New Scheduled Export</h3>
               
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Export Name</Label>
+              <form onSubmit={handleSubmit} className="space-y-3">
+                <div className="space-y-1">
+                  <Label htmlFor="name" className="text-xs">Export Name</Label>
                   <Input
                     id="name"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="Weekly Backup"
                     required
+                    className="h-8 text-xs"
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="frequency">Frequency</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="frequency" className="text-xs">Frequency</Label>
                     <Select
                       value={formData.frequency}
                       onValueChange={(value: 'daily' | 'weekly' | 'monthly') => 
                         setFormData({ ...formData, frequency: value })
                       }
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="h-8 text-xs">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -283,15 +283,15 @@ const ScheduledExports = () => {
                     </Select>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="format">Format</Label>
+                  <div className="space-y-1">
+                    <Label htmlFor="format" className="text-xs">Format</Label>
                     <Select
                       value={formData.format}
                       onValueChange={(value: 'csv' | 'json') => 
                         setFormData({ ...formData, format: value })
                       }
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="h-8 text-xs">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -302,15 +302,15 @@ const ScheduledExports = () => {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="delivery">Delivery Method</Label>
+                <div className="space-y-1">
+                  <Label htmlFor="delivery" className="text-xs">Delivery Method</Label>
                   <Select
                     value={formData.delivery}
                     onValueChange={(value: 'email' | 'download') => 
                       setFormData({ ...formData, delivery: value })
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-8 text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -321,8 +321,8 @@ const ScheduledExports = () => {
                 </div>
                 
                 {formData.delivery === 'email' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email Address</Label>
+                  <div className="space-y-1">
+                    <Label htmlFor="email" className="text-xs">Email Address</Label>
                     <Input
                       id="email"
                       type="email"
@@ -330,11 +330,12 @@ const ScheduledExports = () => {
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       placeholder="your.email@example.com"
                       required={formData.delivery === 'email'}
+                      className="h-8 text-xs"
                     />
                   </div>
                 )}
                 
-                <Button type="submit" className="w-full">
+                <Button type="submit" className="w-full h-8 text-xs">
                   Schedule Export
                 </Button>
               </form>
@@ -342,27 +343,24 @@ const ScheduledExports = () => {
           </div>
 
           {/* Right Column - About Scheduled Exports */}
-          <div className="space-y-6">
-            <div className="border rounded-lg p-6">
-              <h3 className="text-lg font-medium mb-4">About Scheduled Exports</h3>
-              <p className="text-sm text-muted-foreground mb-4">
+          <div className="space-y-3">
+            <div className="border rounded-lg p-4">
+              <h3 className="text-base font-medium mb-3">About Scheduled Exports</h3>
+              <p className="text-xs text-muted-foreground mb-3">
                 Scheduled exports allow you to automatically export your data on a regular basis. 
                 You can choose between CSV and JSON formats, and have the exports emailed to you 
                 or automatically downloaded.
               </p>
               
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-sm">
-                  <Calendar className="h-4 w-4 text-blue-600" />
-                  <span>Daily, weekly, or monthly schedules</span>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs">
+                  <span>• Daily, weekly, or monthly schedules</span>
                 </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <Mail className="h-4 w-4 text-blue-600" />
-                  <span>Email delivery to any address</span>
+                <div className="flex items-center gap-2 text-xs">
+                  <span>• Email delivery to any address</span>
                 </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <Clock className="h-4 w-4 text-blue-600" />
-                  <span>Automated background processing</span>
+                <div className="flex items-center gap-2 text-xs">
+                  <span>• Automated background processing</span>
                 </div>
               </div>
             </div>
@@ -370,38 +368,34 @@ const ScheduledExports = () => {
         </div>
 
         {/* Your Scheduled Exports Section */}
-        <div className="space-y-2">
-          <h3 className="text-lg font-medium">Your Scheduled Exports</h3>
+        <div className="space-y-1">
+          <h3 className="text-base font-medium">Your Scheduled Exports</h3>
           
           {exports.length === 0 ? (
-            <div className="text-center py-8 border rounded-lg">
-              <Calendar className="h-12 w-12 mx-auto mb-2 text-muted-foreground/50" />
-              <h4 className="text-lg font-medium mb-1">No scheduled exports yet</h4>
-              <p className="text-muted-foreground text-sm">
+            <div className="text-center py-4 border rounded-lg">
+              <h4 className="text-sm font-medium mb-1">No scheduled exports yet</h4>
+              <p className="text-muted-foreground text-xs">
                 Create your first automated data export to get started
               </p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-1">
               {exports.map((exportItem) => (
-                <div key={exportItem.id} className="border rounded-lg p-3 hover:bg-muted/20 transition-colors">
+                <div key={exportItem.id} className="border rounded-lg p-2 hover:bg-muted/20 transition-colors">
                   <div className="flex items-start justify-between">
                     <div className="flex-1 space-y-1">
                       <div className="flex items-center gap-2">
-                        <h4 className="font-medium text-base">{exportItem.name}</h4>
-                        <Badge variant={exportItem.active ? "default" : "secondary"} className="text-xs">
+                        <h4 className="font-medium text-sm">{exportItem.name}</h4>
+                        <Badge variant={exportItem.active ? "default" : "secondary"} className="text-xs px-1 py-0 h-4">
                           {exportItem.active ? 'Active' : 'Paused'}
                         </Badge>
-                        <Badge variant="outline" className="capitalize text-xs">
+                        <Badge variant="outline" className="capitalize text-xs px-1 py-0 h-4">
                           {exportItem.frequency}
                         </Badge>
                       </div>
                       
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {exportItem.format.toUpperCase()} format
-                        </span>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        <span>{exportItem.format.toUpperCase()}</span>
                         <span className="flex items-center gap-1">
                           {exportItem.delivery === 'email' ? (
                             <>
@@ -411,7 +405,7 @@ const ScheduledExports = () => {
                           ) : (
                             <>
                               <Download className="h-3 w-3" />
-                              Download link
+                              Download
                             </>
                           )}
                         </span>
@@ -419,47 +413,39 @@ const ScheduledExports = () => {
                       
                       {exportItem.next_export && (
                         <p className="text-xs text-muted-foreground">
-                          Next export: {new Date(exportItem.next_export).toLocaleString()}
+                          Next: {new Date(exportItem.next_export).toLocaleString()}
                         </p>
                       )}
                     </div>
                     
-                    <div className="flex items-center gap-1 ml-3">
+                    <div className="flex items-center gap-1 ml-2">
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => editExport(exportItem)}
-                        className="flex items-center gap-1 h-7 px-2 text-xs"
+                        className="h-6 px-2 text-xs"
                       >
                         <Edit className="h-3 w-3" />
-                        Edit
                       </Button>
                       <Button
                         variant={exportItem.active ? "outline" : "default"}
                         size="sm"
                         onClick={() => toggleActive(exportItem)}
-                        className="flex items-center gap-1 h-7 px-2 text-xs"
+                        className="h-6 px-2 text-xs"
                       >
                         {exportItem.active ? (
-                          <>
-                            <Pause className="h-3 w-3" />
-                            Pause
-                          </>
+                          <Pause className="h-3 w-3" />
                         ) : (
-                          <>
-                            <Play className="h-3 w-3" />
-                            Resume
-                          </>
+                          <Play className="h-3 w-3" />
                         )}
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => deleteExport(exportItem.id)}
-                        className="text-destructive hover:text-destructive flex items-center gap-1 h-7 px-2 text-xs"
+                        className="text-destructive hover:text-destructive h-6 px-2 text-xs"
                       >
                         <Trash2 className="h-3 w-3" />
-                        Delete
                       </Button>
                     </div>
                   </div>
