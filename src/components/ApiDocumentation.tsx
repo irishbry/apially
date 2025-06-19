@@ -196,9 +196,9 @@ const ApiDocumentation: React.FC<ApiDocumentationProps> = ({ selectedApiKey }) =
         }
       }
     } else {
-      exampleData["temperature"] = 25.4;
-      exampleData["humidity"] = 68;
-      exampleData["pressure"] = 1013.2;
+      // exampleData["temperature"] = 25.4;
+      // exampleData["humidity"] = 68;
+      // exampleData["pressure"] = 1013.2;
     }
     
     return exampleData;
