@@ -39,6 +39,51 @@ const ApiDocumentation: React.FC<ApiDocumentationProps> = ({ selectedApiKey }) =
     setFunctionUrl(`https://${projectRef}/functions/v1/data-receiver`);
   }, [selectedApiKey, user]);
 
+  // Listen for schema updates from other components
+  useEffect(() => {
+    const handleSchemaUpdate = async (event?: CustomEvent) => {
+      console.log('📡 ApiDocumentation: Schema update event received:', event?.detail);
+      
+      // Get the current API key to use for comparison
+      const currentApiKey = selectedApiKey || apiKey;
+      
+      // If event has detail with apiKey, check if it matches current API key
+      if (event?.detail?.apiKey && event.detail.apiKey !== currentApiKey) {
+        console.log('📡 ApiDocumentation: Schema update for different API key, ignoring');
+        return;
+      }
+      
+      if (currentApiKey) {
+        console.log('📡 ApiDocumentation: Refreshing schema for API key:', currentApiKey);
+        try {
+          const updatedSchema = await ConfigService.getSchema(currentApiKey);
+          console.log('📡 ApiDocumentation: Updated schema loaded:', updatedSchema);
+          setSchema(updatedSchema);
+          setSchemaLoaded(true);
+          
+          // Force a re-render by updating the state
+          setTimeout(() => {
+            console.log('📡 ApiDocumentation: Schema state updated, component should re-render');
+          }, 100);
+        } catch (error) {
+          console.error('📡 ApiDocumentation: Error loading updated schema:', error);
+        }
+      }
+    };
+
+    // Listen for multiple types of schema update events
+    const handleSchemaUpdated = (e: Event) => handleSchemaUpdate(e as CustomEvent);
+    const handleApiSchemaChanged = (e: Event) => handleSchemaUpdate(e as CustomEvent);
+    
+    window.addEventListener('schemaUpdated', handleSchemaUpdated);
+    window.addEventListener('apiSchemaChanged', handleApiSchemaChanged);
+    
+    return () => {
+      window.removeEventListener('schemaUpdated', handleSchemaUpdated);
+      window.removeEventListener('apiSchemaChanged', handleApiSchemaChanged);
+    };
+  }, [selectedApiKey, apiKey]);
+
   const fetchApiKey = async () => {
     if (!user) return;
     
