@@ -102,80 +102,91 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
       return [];
     }
 
-    let filtered = [...data];
-    
-    // Source filtering with safety checks
-    if (selectedSource !== 'all') {
-      filtered = filtered.filter(entry => {
-        if (!entry) return false;
-        const entrySourceId = entry.sourceId || entry.source_id;
-        return entrySourceId === selectedSource;
+    try {
+      let filtered = [...data];
+      
+      // Source filtering with safety checks
+      if (selectedSource !== 'all') {
+        filtered = filtered.filter(entry => {
+          if (!entry) return false;
+          const entrySourceId = entry.sourceId || entry.source_id;
+          return entrySourceId === selectedSource;
+        });
+      }
+      
+      // Column filters with safety checks
+      activeFilters.forEach(filter => {
+        if (filter.enabled && filter.value) {
+          filtered = filtered.filter(entry => {
+            if (!entry) return false;
+            try {
+              const value = getValue(entry, filter.key);
+              const searchableValue = getSearchableValue(value);
+              return searchableValue.includes(filter.value.toLowerCase());
+            } catch (error) {
+              console.error('Error filtering entry:', error);
+              return false;
+            }
+          });
+        }
       });
-    }
-    
-    // Column filters with safety checks
-    activeFilters.forEach(filter => {
-      if (filter.enabled && filter.value) {
+      
+      // Search term filtering with improved safety checks
+      if (searchTerm && searchTerm.trim()) {
+        const term = searchTerm.toLowerCase().trim();
         filtered = filtered.filter(entry => {
           if (!entry) return false;
           try {
-            const value = getValue(entry, filter.key);
-            if (value === undefined || value === null) return false;
-            return String(value).toLowerCase().includes(filter.value.toLowerCase());
+            // Search across all visible columns
+            return visibleColumns.some(column => {
+              try {
+                const value = getValue(entry, column);
+                const searchableValue = getSearchableValue(value);
+                return searchableValue.includes(term);
+              } catch (error) {
+                console.error('Error searching column:', column, error);
+                return false;
+              }
+            });
           } catch (error) {
-            console.error('Error filtering entry:', error);
+            console.error('Error during search filtering:', error);
             return false;
           }
         });
       }
-    });
-    
-    // Search term filtering with safety checks
-    if (searchTerm && searchTerm.trim()) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(entry => {
-        if (!entry) return false;
-        try {
-          return visibleColumns.some(column => {
-            const value = getValue(entry, column);
-            if (value === null || value === undefined) return false;
-            return String(value).toLowerCase().includes(term);
-          });
-        } catch (error) {
-          console.error('Error during search filtering:', error);
-          return false;
-        }
-      });
-    }
-    
-    // Sorting with safety checks
-    if (sortConfig) {
-      filtered.sort((a, b) => {
-        if (!a || !b) return 0;
-        try {
-          const aVal = getValue(a, sortConfig.key);
-          const bVal = getValue(b, sortConfig.key);
-          
-          if (aVal === undefined && bVal === undefined) return 0;
-          if (aVal === undefined) return 1;
-          if (bVal === undefined) return -1;
-          
-          let comparison = 0;
-          if (typeof aVal === 'number' && typeof bVal === 'number') {
-            comparison = aVal - bVal;
-          } else {
-            comparison = String(aVal).localeCompare(String(bVal));
+      
+      // Sorting with safety checks
+      if (sortConfig) {
+        filtered.sort((a, b) => {
+          if (!a || !b) return 0;
+          try {
+            const aVal = getValue(a, sortConfig.key);
+            const bVal = getValue(b, sortConfig.key);
+            
+            if (aVal === undefined && bVal === undefined) return 0;
+            if (aVal === undefined) return 1;
+            if (bVal === undefined) return -1;
+            
+            let comparison = 0;
+            if (typeof aVal === 'number' && typeof bVal === 'number') {
+              comparison = aVal - bVal;
+            } else {
+              comparison = String(aVal).localeCompare(String(bVal));
+            }
+            
+            return sortConfig.direction === 'asc' ? comparison : -comparison;
+          } catch (error) {
+            console.error('Error during sorting:', error);
+            return 0;
           }
-          
-          return sortConfig.direction === 'asc' ? comparison : -comparison;
-        } catch (error) {
-          console.error('Error during sorting:', error);
-          return 0;
-        }
-      });
+        });
+      }
+      
+      return filtered;
+    } catch (error) {
+      console.error('Error in visibleData calculation:', error);
+      return [];
     }
-    
-    return filtered;
   }, [data, searchTerm, selectedSource, sortConfig, activeFilters, visibleColumns]);
 
   const getColumns = (): string[] => {
@@ -202,7 +213,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
     return Array.from(columns);
   };
 
-  // Helper function to get value from entry, handling both snake_case and camelCase with safety checks
+  // Helper function to safely get value from entry
   const getValue = (entry: DataEntry, column: string): any => {
     if (!entry) return undefined;
     
@@ -226,6 +237,19 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
       console.error('Error getting value for column:', column, error);
       return undefined;
     }
+  };
+
+  // Helper function to safely convert value to searchable string
+  const getSearchableValue = (value: any): string => {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'object') {
+      try {
+        return JSON.stringify(value).toLowerCase();
+      } catch {
+        return '';
+      }
+    }
+    return String(value).toLowerCase();
   };
 
   const getSourceName = (sourceId: string | undefined): string => {
