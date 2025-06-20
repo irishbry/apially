@@ -125,9 +125,10 @@ const handler = async (req: Request): Promise<Response> => {
           fileExtension = 'csv';
           console.log('Generated CSV content:', exportContent.substring(0, 200) + '...');
         } else {
-          exportContent = JSON.stringify(userData || [], null, 2);
+          exportContent = generateJSON(userData || [], sources);
           contentType = 'application/json';
           fileExtension = 'json';
+          console.log('Generated JSON content:', exportContent.substring(0, 200) + '...');
         }
 
         // Send email if delivery method is email
@@ -258,6 +259,37 @@ function generateCSV(data: DataEntry[], sources: Source[]): string {
   });
 
   return csvRows.join('\n');
+}
+
+function generateJSON(data: DataEntry[], sources: Source[]): string {
+  if (data.length === 0) return JSON.stringify([]);
+
+  const getSourceName = (sourceId: string | undefined): string => {
+    if (!sourceId) return 'Unknown';
+    const source = sources.find(s => s.id === sourceId);
+    return source ? source.name : sourceId;
+  };
+
+  // Transform data to match CSV format structure
+  const transformedData = data.map(entry => {
+    const transformedEntry: any = {
+      'Source': getSourceName(entry.source_id),
+      'Created At': new Date(entry.created_at).toLocaleString()
+    };
+
+    // Add metadata fields (excluding clientIp and receivedAt)
+    if (entry.metadata && typeof entry.metadata === 'object') {
+      Object.keys(entry.metadata).forEach(key => {
+        if (key !== 'clientIp' && key !== 'receivedAt') {
+          transformedEntry[key] = entry.metadata[key];
+        }
+      });
+    }
+
+    return transformedEntry;
+  });
+
+  return JSON.stringify(transformedData, null, 2);
 }
 
 function calculateNextExport(frequency: string, from: Date): Date {
