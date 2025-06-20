@@ -58,6 +58,47 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
   const data = propData || internalData;
   const sources = propSources || internalSources;
 
+  // Helper function to safely get value from entry
+  const getValue = (entry: DataEntry, column: string): any => {
+    if (!entry) return '';
+    
+    try {
+      if (column === 'source') {
+        return entry.sourceId || entry.source_id || '';
+      }
+      
+      if (column === 'created_at') {
+        return entry.created_at || entry.timestamp || '';
+      }
+      
+      // Check if the column is a metadata field
+      if (entry.metadata && typeof entry.metadata === 'object' && entry.metadata[column] !== undefined) {
+        return entry.metadata[column];
+      }
+      
+      // Fallback to entry property
+      return entry[column] || '';
+    } catch (error) {
+      console.error('Error getting value for column:', column, error);
+      return '';
+    }
+  };
+
+  // Helper function to safely convert value to searchable string
+  const getSearchableValue = (value: any): string => {
+    if (value === null || value === undefined || value === '') return '';
+    
+    try {
+      if (typeof value === 'object') {
+        return JSON.stringify(value).toLowerCase();
+      }
+      return String(value).toLowerCase();
+    } catch (error) {
+      console.error('Error converting value to searchable string:', error);
+      return '';
+    }
+  };
+
   useEffect(() => {
     // Only set up subscriptions if no prop data is provided
     if (!propData || !propSources) {
@@ -89,7 +130,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
   }, [propData, propSources]);
 
   useEffect(() => {
-    if (data.length >= 0) {
+    if (data && data.length >= 0) {
       const cols = getColumns();
       setAllColumns(cols);
       setVisibleColumns(cols);
@@ -106,7 +147,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
       let filtered = [...data];
       
       // Source filtering with safety checks
-      if (selectedSource !== 'all') {
+      if (selectedSource && selectedSource !== 'all') {
         filtered = filtered.filter(entry => {
           if (!entry) return false;
           const entrySourceId = entry.sourceId || entry.source_id;
@@ -115,30 +156,33 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
       }
       
       // Column filters with safety checks
-      activeFilters.forEach(filter => {
-        if (filter.enabled && filter.value) {
-          filtered = filtered.filter(entry => {
-            if (!entry) return false;
-            try {
-              const value = getValue(entry, filter.key);
-              const searchableValue = getSearchableValue(value);
-              return searchableValue.includes(filter.value.toLowerCase());
-            } catch (error) {
-              console.error('Error filtering entry:', error);
-              return false;
-            }
-          });
-        }
-      });
+      if (activeFilters && activeFilters.length > 0) {
+        activeFilters.forEach(filter => {
+          if (filter && filter.enabled && filter.value && filter.value.trim()) {
+            filtered = filtered.filter(entry => {
+              if (!entry) return false;
+              try {
+                const value = getValue(entry, filter.key);
+                const searchableValue = getSearchableValue(value);
+                return searchableValue.includes(filter.value.toLowerCase().trim());
+              } catch (error) {
+                console.error('Error filtering entry:', error);
+                return false;
+              }
+            });
+          }
+        });
+      }
       
       // Search term filtering with improved safety checks
       if (searchTerm && searchTerm.trim()) {
         const term = searchTerm.toLowerCase().trim();
         filtered = filtered.filter(entry => {
           if (!entry) return false;
+          
           try {
             // Search across all visible columns
-            return visibleColumns.some(column => {
+            return visibleColumns && visibleColumns.length > 0 && visibleColumns.some(column => {
               try {
                 const value = getValue(entry, column);
                 const searchableValue = getSearchableValue(value);
@@ -156,7 +200,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
       }
       
       // Sorting with safety checks
-      if (sortConfig) {
+      if (sortConfig && sortConfig.key) {
         filtered.sort((a, b) => {
           if (!a || !b) return 0;
           try {
@@ -211,45 +255,6 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
     });
     
     return Array.from(columns);
-  };
-
-  // Helper function to safely get value from entry
-  const getValue = (entry: DataEntry, column: string): any => {
-    if (!entry) return undefined;
-    
-    try {
-      if (column === 'source') {
-        return entry.sourceId || entry.source_id;
-      }
-      
-      if (column === 'created_at') {
-        return entry.created_at || entry.timestamp;
-      }
-      
-      // Check if the column is a metadata field
-      if (entry.metadata && typeof entry.metadata === 'object' && entry.metadata[column] !== undefined) {
-        return entry.metadata[column];
-      }
-      
-      // Fallback to entry property
-      return entry[column];
-    } catch (error) {
-      console.error('Error getting value for column:', column, error);
-      return undefined;
-    }
-  };
-
-  // Helper function to safely convert value to searchable string
-  const getSearchableValue = (value: any): string => {
-    if (value === null || value === undefined) return '';
-    if (typeof value === 'object') {
-      try {
-        return JSON.stringify(value).toLowerCase();
-      } catch {
-        return '';
-      }
-    }
-    return String(value).toLowerCase();
   };
 
   const getSourceName = (sourceId: string | undefined): string => {
