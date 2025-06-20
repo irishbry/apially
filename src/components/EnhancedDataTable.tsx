@@ -58,6 +58,13 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
   const data = propData || internalData;
   const sources = propSources || internalSources;
 
+  // Helper function to get source name
+  const getSourceName = (sourceId: string | undefined): string => {
+    if (!sourceId) return 'Unknown';
+    const source = sources.find(s => s.id === sourceId);
+    return source ? source.name : sourceId;
+  };
+
   // Helper function to safely get value from entry
   const getValue = (entry: DataEntry, column: string): any => {
     if (!entry) return '';
@@ -84,17 +91,27 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
     }
   };
 
-  // Helper function to safely convert value to searchable string
-  const getSearchableValue = (value: any): string => {
-    if (value === null || value === undefined || value === '') return '';
-    
+  // Helper function to safely convert value to searchable string, with special handling for source
+  const getSearchableValue = (entry: DataEntry, column: string): string => {
     try {
+      let value;
+      
+      // Special handling for source column - search by source name, not ID
+      if (column === 'source') {
+        const sourceId = entry.sourceId || entry.source_id;
+        value = getSourceName(sourceId);
+      } else {
+        value = getValue(entry, column);
+      }
+      
+      if (value === null || value === undefined || value === '') return '';
+      
       if (typeof value === 'object') {
         return JSON.stringify(value).toLowerCase();
       }
       return String(value).toLowerCase();
     } catch (error) {
-      console.error('Error converting value to searchable string:', error);
+      console.error('Error converting value to searchable string for column:', column, error);
       return '';
     }
   };
@@ -162,8 +179,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
             filtered = filtered.filter(entry => {
               if (!entry) return false;
               try {
-                const value = getValue(entry, filter.key);
-                const searchableValue = getSearchableValue(value);
+                const searchableValue = getSearchableValue(entry, filter.key);
                 return searchableValue.includes(filter.value.toLowerCase().trim());
               } catch (error) {
                 console.error('Error filtering entry:', error);
@@ -174,7 +190,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
         });
       }
       
-      // Search term filtering with improved safety checks
+      // Search term filtering with improved safety checks and proper source name searching
       if (searchTerm && searchTerm.trim()) {
         const term = searchTerm.toLowerCase().trim();
         filtered = filtered.filter(entry => {
@@ -184,8 +200,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
             // Search across all visible columns
             return visibleColumns && visibleColumns.length > 0 && visibleColumns.some(column => {
               try {
-                const value = getValue(entry, column);
-                const searchableValue = getSearchableValue(value);
+                const searchableValue = getSearchableValue(entry, column);
                 return searchableValue.includes(term);
               } catch (error) {
                 console.error('Error searching column:', column, error);
@@ -204,8 +219,16 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
         filtered.sort((a, b) => {
           if (!a || !b) return 0;
           try {
-            const aVal = getValue(a, sortConfig.key);
-            const bVal = getValue(b, sortConfig.key);
+            let aVal, bVal;
+            
+            // Special handling for source column sorting
+            if (sortConfig.key === 'source') {
+              aVal = getSourceName(a.sourceId || a.source_id);
+              bVal = getSourceName(b.sourceId || b.source_id);
+            } else {
+              aVal = getValue(a, sortConfig.key);
+              bVal = getValue(b, sortConfig.key);
+            }
             
             if (aVal === undefined && bVal === undefined) return 0;
             if (aVal === undefined) return 1;
@@ -231,7 +254,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
       console.error('Error in visibleData calculation:', error);
       return [];
     }
-  }, [data, searchTerm, selectedSource, sortConfig, activeFilters, visibleColumns]);
+  }, [data, searchTerm, selectedSource, sortConfig, activeFilters, visibleColumns, sources]);
 
   const getColumns = (): string[] => {
     if (!data || data.length === 0) return [];
@@ -255,12 +278,6 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
     });
     
     return Array.from(columns);
-  };
-
-  const getSourceName = (sourceId: string | undefined): string => {
-    if (!sourceId) return 'Unknown';
-    const source = sources.find(s => s.id === sourceId);
-    return source ? source.name : sourceId;
   };
 
   const formatCellValue = (key: string, value: any) => {
