@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -94,58 +93,85 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
       const cols = getColumns();
       setAllColumns(cols);
       setVisibleColumns(cols);
-      
     }
   }, [data]);
   
   const visibleData = useMemo(() => {
+    // Early return if no data to prevent crashes
+    if (!data || data.length === 0) {
+      return [];
+    }
+
     let filtered = [...data];
     
+    // Source filtering with safety checks
     if (selectedSource !== 'all') {
-      filtered = filtered.filter(entry => 
-        entry.sourceId === selectedSource || entry.source_id === selectedSource
-      );
+      filtered = filtered.filter(entry => {
+        if (!entry) return false;
+        const entrySourceId = entry.sourceId || entry.source_id;
+        return entrySourceId === selectedSource;
+      });
     }
     
+    // Column filters with safety checks
     activeFilters.forEach(filter => {
       if (filter.enabled && filter.value) {
         filtered = filtered.filter(entry => {
-          const value = getValue(entry, filter.key);
-          if (value === undefined || value === null) return false;
-          return String(value).toLowerCase().includes(filter.value.toLowerCase());
+          if (!entry) return false;
+          try {
+            const value = getValue(entry, filter.key);
+            if (value === undefined || value === null) return false;
+            return String(value).toLowerCase().includes(filter.value.toLowerCase());
+          } catch (error) {
+            console.error('Error filtering entry:', error);
+            return false;
+          }
         });
       }
     });
     
-    if (searchTerm.trim()) {
+    // Search term filtering with safety checks
+    if (searchTerm && searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(entry => {
-        return visibleColumns.some(column => {
-          const value = getValue(entry, column);
-          return value !== null && 
-                 value !== undefined && 
-                 String(value).toLowerCase().includes(term);
-        });
+        if (!entry) return false;
+        try {
+          return visibleColumns.some(column => {
+            const value = getValue(entry, column);
+            if (value === null || value === undefined) return false;
+            return String(value).toLowerCase().includes(term);
+          });
+        } catch (error) {
+          console.error('Error during search filtering:', error);
+          return false;
+        }
       });
     }
     
+    // Sorting with safety checks
     if (sortConfig) {
       filtered.sort((a, b) => {
-        const aVal = getValue(a, sortConfig.key);
-        const bVal = getValue(b, sortConfig.key);
-        
-        if (aVal === undefined && bVal === undefined) return 0;
-        if (aVal === undefined) return 1;
-        if (bVal === undefined) return -1;
-        
-        let comparison = 0;
-        if (typeof aVal === 'number' && typeof bVal === 'number') {
-          comparison = aVal - bVal;
-        } else {
-          comparison = String(aVal).localeCompare(String(bVal));
+        if (!a || !b) return 0;
+        try {
+          const aVal = getValue(a, sortConfig.key);
+          const bVal = getValue(b, sortConfig.key);
+          
+          if (aVal === undefined && bVal === undefined) return 0;
+          if (aVal === undefined) return 1;
+          if (bVal === undefined) return -1;
+          
+          let comparison = 0;
+          if (typeof aVal === 'number' && typeof bVal === 'number') {
+            comparison = aVal - bVal;
+          } else {
+            comparison = String(aVal).localeCompare(String(bVal));
+          }
+          
+          return sortConfig.direction === 'asc' ? comparison : -comparison;
+        } catch (error) {
+          console.error('Error during sorting:', error);
+          return 0;
         }
-        
-        return sortConfig.direction === 'asc' ? comparison : -comparison;
       });
     }
     
@@ -153,7 +179,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
   }, [data, searchTerm, selectedSource, sortConfig, activeFilters, visibleColumns]);
 
   const getColumns = (): string[] => {
-    if (data.length === 0) return [];
+    if (!data || data.length === 0) return [];
     
     const columns = new Set<string>();
     
@@ -163,7 +189,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
     
     // Extract metadata fields from all entries, excluding clientIp and receivedAt
     data.forEach(entry => {
-      if (entry.metadata && typeof entry.metadata === 'object') {
+      if (entry && entry.metadata && typeof entry.metadata === 'object') {
         Object.keys(entry.metadata).forEach(key => {
           // Exclude clientIp and receivedAt from columns
           if (key !== 'clientIp' && key !== 'receivedAt') {
@@ -176,23 +202,30 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
     return Array.from(columns);
   };
 
-  // Helper function to get value from entry, handling both snake_case and camelCase
+  // Helper function to get value from entry, handling both snake_case and camelCase with safety checks
   const getValue = (entry: DataEntry, column: string): any => {
-    if (column === 'source') {
-      return entry.sourceId || entry.source_id;
-    }
+    if (!entry) return undefined;
     
-    if (column === 'created_at') {
-      return entry.created_at || entry.timestamp;
+    try {
+      if (column === 'source') {
+        return entry.sourceId || entry.source_id;
+      }
+      
+      if (column === 'created_at') {
+        return entry.created_at || entry.timestamp;
+      }
+      
+      // Check if the column is a metadata field
+      if (entry.metadata && typeof entry.metadata === 'object' && entry.metadata[column] !== undefined) {
+        return entry.metadata[column];
+      }
+      
+      // Fallback to entry property
+      return entry[column];
+    } catch (error) {
+      console.error('Error getting value for column:', column, error);
+      return undefined;
     }
-    
-    // Check if the column is a metadata field
-    if (entry.metadata && typeof entry.metadata === 'object' && entry.metadata[column] !== undefined) {
-      return entry.metadata[column];
-    }
-    
-    // Fallback to entry property
-    return entry[column];
   };
 
   const getSourceName = (sourceId: string | undefined): string => {
