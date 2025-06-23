@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
@@ -400,13 +399,19 @@ async function uploadToDropbox(token: string, folderPath: string, fileName: stri
   try {
     console.log(`Uploading ${fileName} directly to Dropbox path: ${folderPath}`);
     
+    // Ensure the path format is correct - remove any trailing slashes and ensure single slash separator
+    const cleanPath = folderPath.endsWith('/') ? folderPath.slice(0, -1) : folderPath;
+    const fullPath = `${cleanPath}/${fileName}`;
+    
+    console.log(`Full upload path: ${fullPath}`);
+    
     const response = await fetch('https://content.dropboxapi.com/2/files/upload', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/octet-stream',
         'Dropbox-API-Arg': JSON.stringify({
-          path: `${folderPath}/${fileName}`,
+          path: fullPath,
           mode: 'overwrite'
         })
       },
