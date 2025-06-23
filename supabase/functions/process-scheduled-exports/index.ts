@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
@@ -33,6 +32,11 @@ interface Source {
   id: string;
   name: string;
   user_id: string;
+}
+
+interface UserProfile {
+  id: string;
+  dropbox_link?: string;
 }
 
 const supabase = createClient(
@@ -91,6 +95,15 @@ const handler = async (req: Request): Promise<Response> => {
       try {
         console.log(`Processing export: ${exportConfig.name} for user: ${exportConfig.user_id}`);
         
+        // Get user's Dropbox configuration
+        const { data: userProfile } = await supabase
+          .from('profiles')
+          .select('dropbox_link')
+          .eq('id', exportConfig.user_id)
+          .maybeSingle();
+
+        const dropboxLink = userProfile?.dropbox_link;
+        
         // Get user's data
         const { data: userData, error: dataError } = await supabase
           .from('data_entries')
@@ -131,33 +144,62 @@ const handler = async (req: Request): Promise<Response> => {
           console.log('Generated JSON content:', exportContent.substring(0, 200) + '...');
         }
 
+        const fileName = `${exportConfig.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.${fileExtension}`;
+
+        // Upload to Dropbox if user has configured it
+        if (dropboxLink) {
+          try {
+            console.log(`Uploading to Dropbox for user ${exportConfig.user_id}`);
+            
+            const dropboxResponse = await supabase.functions.invoke('dropbox-upload', {
+              body: {
+                dropboxLink: dropboxLink,
+                content: exportContent,
+                fileName: fileName,
+                contentType: contentType
+              }
+            });
+
+            if (dropboxResponse.error) {
+              console.error(`Error uploading to Dropbox for user ${exportConfig.user_id}:`, dropboxResponse.error);
+            } else {
+              console.log(`Successfully uploaded ${fileName} to Dropbox for user ${exportConfig.user_id}`);
+            }
+          } catch (dropboxError) {
+            console.error(`Error calling Dropbox upload function:`, dropboxError);
+          }
+        }
+
         // Send email if delivery method is email
         if (exportConfig.delivery === 'email' && exportConfig.email) {
-          const fileName = `${exportConfig.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.${fileExtension}`;
-          
           try {
             // Convert string to base64 properly
             const base64Content = btoa(exportContent);
             
+            const emailSubject = `Scheduled Export: ${exportConfig.name}`;
+            const emailBody = `
+              <h2>Your Scheduled Export is Ready</h2>
+              <p>Hello,</p>
+              <p>Your scheduled export "<strong>${exportConfig.name}</strong>" has been generated successfully.</p>
+              <p><strong>Export Details:</strong></p>
+              <ul>
+                <li>Format: ${exportConfig.format.toUpperCase()}</li>
+                <li>Frequency: ${exportConfig.frequency}</li>
+                <li>Records: ${userData?.length || 0}</li>
+                <li>Generated: ${new Date().toLocaleString()}</li>
+                ${dropboxLink ? '<li>✅ Backed up to your Dropbox</li>' : ''}
+              </ul>
+              <p>Please find your data export attached to this email.</p>
+              ${dropboxLink ? '<p><strong>Note:</strong> This export has also been automatically backed up to your configured Dropbox folder.</p>' : ''}
+              <p>Best regards,<br>ApiAlly Team</p>
+            `;
+            
             await smtpClient.send({
               from: Deno.env.get('SMTP_USER') ?? 'noreply@apially.com',
               to: exportConfig.email,
-              subject: `Scheduled Export: ${exportConfig.name}`,
+              subject: emailSubject,
               content: "auto",
-              html: `
-                <h2>Your Scheduled Export is Ready</h2>
-                <p>Hello,</p>
-                <p>Your scheduled export "<strong>${exportConfig.name}</strong>" has been generated successfully.</p>
-                <p><strong>Export Details:</strong></p>
-                <ul>
-                  <li>Format: ${exportConfig.format.toUpperCase()}</li>
-                  <li>Frequency: ${exportConfig.frequency}</li>
-                  <li>Records: ${userData?.length || 0}</li>
-                  <li>Generated: ${new Date().toLocaleString()}</li>
-                </ul>
-                <p>Please find your data export attached to this email.</p>
-                <p>Best regards,<br>ApiAlly Team</p>
-              `,
+              html: emailBody,
               attachments: [
                 {
                   filename: fileName,
@@ -250,7 +292,6 @@ function generateCSV(data: DataEntry[], sources: Source[]): string {
       ...Array.from(metadataKeys).map(key => {
         const value = entry.metadata?.[key];
         if (value === undefined || value === null) return '""';
-        // Properly escape CSV values
         const stringValue = String(value);
         return `"${stringValue.replace(/"/g, '""')}"`;
       })
@@ -270,14 +311,12 @@ function generateJSON(data: DataEntry[], sources: Source[]): string {
     return source ? source.name : sourceId;
   };
 
-  // Transform data to match CSV format structure
   const transformedData = data.map(entry => {
     const transformedEntry: any = {
       'Source': getSourceName(entry.source_id),
       'Created At': new Date(entry.created_at).toLocaleString()
     };
 
-    // Add metadata fields (excluding clientIp and receivedAt)
     if (entry.metadata && typeof entry.metadata === 'object') {
       Object.keys(entry.metadata).forEach(key => {
         if (key !== 'clientIp' && key !== 'receivedAt') {
@@ -307,7 +346,6 @@ function calculateNextExport(frequency: string, from: Date): Date {
       break;
   }
   
-  // Set to 8 AM
   next.setHours(8, 0, 0, 0);
   return next;
 }
