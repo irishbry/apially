@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,10 +18,12 @@ const DropboxLinkForm: React.FC = () => {
   const [dropboxLink, setDropboxLink] = useState('');
   const [dropboxToken, setDropboxToken] = useState('');
   const [isValidConfig, setIsValidConfig] = useState(false);
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [isCreatingBackup, setIsCreatingBackup] = useState(false);
   const [isSettingUpDaily, setIsSettingUpDaily] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isDailyEnabled, setIsDailyEnabled] = useState(false);
+  const [validationMessage, setValidationMessage] = useState('');
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -42,13 +43,15 @@ const DropboxLinkForm: React.FC = () => {
         setDropboxToken(config.dropbox_token);
         setIsDailyEnabled(config.daily_backup_enabled);
         
-        // Validate the existing config
+        // Test the existing config
         if (config.is_active) {
+          setValidationMessage('Testing existing configuration...');
           const isValid = await DropboxBackupService.testDropboxConnection(
             config.dropbox_path, 
             config.dropbox_token
           );
           setIsValidConfig(isValid);
+          setValidationMessage(isValid ? 'Configuration is valid' : 'Configuration test failed');
         }
       }
     } catch (error) {
@@ -63,9 +66,53 @@ const DropboxLinkForm: React.FC = () => {
     }
   };
 
-  const validateDropboxConfig = async (link: string, token: string) => {
-    const isValid = await DropboxBackupService.testDropboxConnection(link, token);
-    setIsValidConfig(isValid);
+  const testConnection = async () => {
+    if (!dropboxLink || !dropboxToken) {
+      setValidationMessage('Please enter both folder path and API token');
+      setIsValidConfig(false);
+      return;
+    }
+
+    // Basic validation first
+    if (!dropboxLink.startsWith('/')) {
+      setValidationMessage('Folder path must start with /');
+      setIsValidConfig(false);
+      return;
+    }
+
+    if (!dropboxToken.startsWith('sl.') && !dropboxToken.startsWith('aal')) {
+      setValidationMessage('Invalid token format. Dropbox tokens should start with "sl." or "aal"');
+      setIsValidConfig(false);
+      return;
+    }
+
+    setIsTestingConnection(true);
+    setValidationMessage('Testing connection...');
+
+    try {
+      const isValid = await DropboxBackupService.testDropboxConnection(dropboxLink, dropboxToken);
+      setIsValidConfig(isValid);
+      setValidationMessage(isValid ? 'Connection successful!' : 'Connection failed. Please check your token and folder path.');
+      
+      if (!isValid) {
+        toast({
+          title: "Connection Failed",
+          description: "Please verify your Dropbox API token and folder path. Make sure the folder exists and your token has the necessary permissions.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Connection test error:', error);
+      setIsValidConfig(false);
+      setValidationMessage('Connection test failed');
+      toast({
+        title: "Error",
+        description: "Failed to test connection",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTestingConnection(false);
+    }
   };
 
   const saveDropboxConfig = async () => {
@@ -79,12 +126,14 @@ const DropboxLinkForm: React.FC = () => {
         return;
       }
 
+      // Test connection before saving
+      setValidationMessage('Testing connection before saving...');
       const isValid = await DropboxBackupService.testDropboxConnection(dropboxLink, dropboxToken);
       
       if (!isValid) {
         toast({
           title: "Invalid Configuration",
-          description: "Please check your Dropbox folder path and API token",
+          description: "Connection test failed. Please check your Dropbox folder path and API token",
           variant: "destructive",
         });
         return;
@@ -92,6 +141,7 @@ const DropboxLinkForm: React.FC = () => {
 
       await ApiService.saveDropboxConfig(dropboxLink, dropboxToken, isDailyEnabled);
       setIsValidConfig(true);
+      setValidationMessage('Configuration saved successfully!');
       
       toast({
         title: "Success",
@@ -228,9 +278,8 @@ const DropboxLinkForm: React.FC = () => {
               value={dropboxLink}
               onChange={(e) => {
                 setDropboxLink(e.target.value);
-                if (e.target.value && dropboxToken) {
-                  validateDropboxConfig(e.target.value, dropboxToken);
-                }
+                setValidationMessage('');
+                setIsValidConfig(false);
               }}
               className="w-full"
             />
@@ -247,9 +296,8 @@ const DropboxLinkForm: React.FC = () => {
               value={dropboxToken}
               onChange={(e) => {
                 setDropboxToken(e.target.value);
-                if (e.target.value && dropboxLink) {
-                  validateDropboxConfig(dropboxLink, e.target.value);
-                }
+                setValidationMessage('');
+                setIsValidConfig(false);
               }}
               className="w-full"
             />
@@ -259,12 +307,25 @@ const DropboxLinkForm: React.FC = () => {
           </div>
           
           {dropboxLink && dropboxToken && (
-            <div className="text-sm">
-              {isValidConfig ? (
-                <span className="text-green-600">✓ Valid Dropbox configuration</span>
-              ) : (
-                <span className="text-red-600">✗ Invalid configuration - check your folder path and token</span>
-              )}
+            <div className="space-y-2">
+              <Button 
+                onClick={testConnection} 
+                variant="outline" 
+                disabled={isTestingConnection}
+                className="w-full"
+              >
+                {isTestingConnection ? 'Testing...' : 'Test Connection'}
+              </Button>
+            </div>
+          )}
+          
+          {validationMessage && (
+            <div className={`text-sm p-2 rounded ${
+              isValidConfig 
+                ? 'text-green-600 bg-green-50 border border-green-200' 
+                : 'text-orange-600 bg-orange-50 border border-orange-200'
+            }`}>
+              {isValidConfig ? '✓' : '⚠'} {validationMessage}
             </div>
           )}
           
@@ -304,7 +365,7 @@ const DropboxLinkForm: React.FC = () => {
             )}
           </>
         )}
-        <Button onClick={saveDropboxConfig} className="hover-lift">
+        <Button onClick={saveDropboxConfig} disabled={!isValidConfig} className="hover-lift">
           <Check className="mr-2 h-4 w-4" />
           Save Configuration
         </Button>

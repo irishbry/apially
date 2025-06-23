@@ -89,18 +89,23 @@ export const DropboxBackupService = {
 
   async testDropboxConnection(dropboxPath: string, dropboxToken: string): Promise<boolean> {
     try {
+      console.log('Testing Dropbox connection...', { dropboxPath: dropboxPath.substring(0, 10) + '...' });
+      
       // Basic validation
       if (!dropboxPath || !dropboxToken) {
+        console.log('Missing path or token');
         return false;
       }
 
-      // Validate token format (Dropbox tokens typically start with 'sl.')
+      // Validate token format (Dropbox tokens typically start with 'sl.' or 'aal')
       if (!dropboxToken.startsWith('sl.') && !dropboxToken.startsWith('aal')) {
+        console.log('Invalid token format');
         return false;
       }
 
       // Validate path format (should start with /)
       if (!dropboxPath.startsWith('/')) {
+        console.log('Invalid path format');
         return false;
       }
 
@@ -118,6 +123,7 @@ export const DropboxBackupService = {
         return false;
       }
 
+      console.log('Dropbox connection test result:', data);
       return data?.success || false;
     } catch (error) {
       console.error('Error testing Dropbox connection:', error);
