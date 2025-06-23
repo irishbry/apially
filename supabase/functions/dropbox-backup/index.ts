@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
@@ -397,11 +398,10 @@ async function testDropboxConnectionInternal(dropboxPath: string, dropboxToken: 
 
 async function uploadToDropbox(token: string, folderPath: string, fileName: string, content: string): Promise<boolean> {
   try {
-    console.log(`Uploading ${fileName} directly to Dropbox path: ${folderPath}`);
+    console.log(`Uploading ${fileName} to Dropbox path: ${folderPath}`);
     
-    // Ensure the path format is correct - remove any trailing slashes and ensure single slash separator
-    const cleanPath = folderPath.endsWith('/') ? folderPath.slice(0, -1) : folderPath;
-    const fullPath = `${cleanPath}/${fileName}`;
+    // Use the folder path directly without any manipulation
+    const fullPath = `${folderPath}/${fileName}`;
     
     console.log(`Full upload path: ${fullPath}`);
     
