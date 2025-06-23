@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +21,7 @@ const DropboxLinkForm: React.FC = () => {
   const [isValidConfig, setIsValidConfig] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [isCreatingBackup, setIsCreatingBackup] = useState(false);
-  const [isSettingUpDaily, setIsSettingUpDaily] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isDailyEnabled, setIsDailyEnabled] = useState(false);
   const [validationMessage, setValidationMessage] = useState('');
@@ -126,6 +127,8 @@ const DropboxLinkForm: React.FC = () => {
         return;
       }
 
+      setIsSaving(true);
+
       // Test connection before saving
       setValidationMessage('Testing connection before saving...');
       const isValid = await DropboxBackupService.testDropboxConnection(dropboxLink, dropboxToken);
@@ -139,14 +142,27 @@ const DropboxLinkForm: React.FC = () => {
         return;
       }
 
-      await ApiService.saveDropboxConfig(dropboxLink, dropboxToken, isDailyEnabled);
+      // Save configuration with daily backups automatically enabled
+      await ApiService.saveDropboxConfig(dropboxLink, dropboxToken, true);
       setIsValidConfig(true);
-      setValidationMessage('Configuration saved successfully!');
+      setIsDailyEnabled(true);
+      setValidationMessage('Configuration saved successfully with daily backups enabled!');
       
-      toast({
-        title: "Success",
-        description: "Dropbox configuration saved successfully!",
-      });
+      // Setup automatic backups
+      const backupSetup = await DropboxBackupService.setupAutomaticBackups();
+      
+      if (backupSetup) {
+        toast({
+          title: "Success",
+          description: "Dropbox configuration saved and daily automatic backups have been enabled!",
+        });
+      } else {
+        toast({
+          title: "Partial Success",
+          description: "Configuration saved but there was an issue setting up automatic backups",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       console.error('Error saving Dropbox config:', error);
       toast({
@@ -154,37 +170,8 @@ const DropboxLinkForm: React.FC = () => {
         description: "Failed to save Dropbox configuration",
         variant: "destructive",
       });
-    }
-  };
-
-  const setupDailyBackups = async () => {
-    try {
-      setIsSettingUpDaily(true);
-      
-      const success = await DropboxBackupService.setupAutomaticBackups();
-      
-      if (success) {
-        setIsDailyEnabled(true);
-        toast({
-          title: "Success",
-          description: "Daily automatic backups have been enabled!",
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to setup automatic backups",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error('Error setting up daily backups:', error);
-      toast({
-        title: "Error",
-        description: "Failed to setup automatic backups",
-        variant: "destructive",
-      });
     } finally {
-      setIsSettingUpDaily(false);
+      setIsSaving(false);
     }
   };
 
@@ -329,12 +316,11 @@ const DropboxLinkForm: React.FC = () => {
             </div>
           )}
           
-          {isValidConfig && (
+          {isValidConfig && isDailyEnabled && (
             <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
               <div className="flex items-center gap-2 text-green-800 text-sm">
                 <Check className="h-4 w-4" />
-                <span>Dropbox configuration is valid</span>
-                {isDailyEnabled && <span className="text-xs">(Daily backups enabled)</span>}
+                <span>Dropbox configuration is valid and daily backups are enabled</span>
               </div>
             </div>
           )}
@@ -342,32 +328,23 @@ const DropboxLinkForm: React.FC = () => {
       </CardContent>
       <CardFooter className="flex gap-2 justify-end">
         {isValidConfig && (
-          <>
-            <Button 
-              onClick={createManualBackup} 
-              variant="outline" 
-              disabled={isCreatingBackup}
-              className="hover-lift"
-            >
-              <Upload className="mr-2 h-4 w-4" />
-              {isCreatingBackup ? 'Uploading...' : 'Backup Now'}
-            </Button>
-            {!isDailyEnabled && (
-              <Button 
-                onClick={setupDailyBackups} 
-                variant="outline" 
-                disabled={isSettingUpDaily}
-                className="hover-lift"
-              >
-                <Cloud className="mr-2 h-4 w-4" />
-                {isSettingUpDaily ? 'Setting up...' : 'Enable Daily Backups'}
-              </Button>
-            )}
-          </>
+          <Button 
+            onClick={createManualBackup} 
+            variant="outline" 
+            disabled={isCreatingBackup}
+            className="hover-lift"
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            {isCreatingBackup ? 'Uploading...' : 'Backup Now'}
+          </Button>
         )}
-        <Button onClick={saveDropboxConfig} disabled={!isValidConfig} className="hover-lift">
+        <Button 
+          onClick={saveDropboxConfig} 
+          disabled={!isValidConfig || isSaving} 
+          className="hover-lift"
+        >
           <Check className="mr-2 h-4 w-4" />
-          Save Configuration
+          {isSaving ? 'Saving...' : 'Save & Enable Daily Backups'}
         </Button>
       </CardFooter>
     </Card>
