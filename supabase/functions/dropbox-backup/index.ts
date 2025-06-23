@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
@@ -301,7 +302,7 @@ async function createBackupForUser(
 
     console.log(`Generated backup content (${backupContent.length} characters) for user ${userId}, file: ${fileName}`);
 
-    // Upload to Dropbox
+    // Upload to Dropbox - save directly in the specified path
     const uploadSuccess = await uploadToDropbox(dropboxToken, dropboxPath, fileName, backupContent);
 
     if (uploadSuccess) {
@@ -397,7 +398,7 @@ async function testDropboxConnectionInternal(dropboxPath: string, dropboxToken: 
 
 async function uploadToDropbox(token: string, folderPath: string, fileName: string, content: string): Promise<boolean> {
   try {
-    console.log(`Uploading ${fileName} to Dropbox folder: ${folderPath}`);
+    console.log(`Uploading ${fileName} directly to Dropbox path: ${folderPath}`);
     
     const response = await fetch('https://content.dropboxapi.com/2/files/upload', {
       method: 'POST',
