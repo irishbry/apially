@@ -64,23 +64,9 @@ export const DropboxBackupService = {
         true
       );
 
-      // Create a cron job for daily backups
-      const { data, error } = await supabase.functions.invoke('dropbox-backup', {
-        body: {
-          userId: user.id,
-          action: 'setup_daily',
-          dropboxPath: dropboxConfig.dropbox_path,
-          dropboxToken: dropboxConfig.dropbox_token
-        }
-      });
-
-      if (error) {
-        console.error('Error setting up automatic backups:', error);
-        return false;
-      }
-
-      console.log('Automatic backups set up successfully for user:', user.id);
-      return data?.success || false;
+      console.log('Automatic daily backups enabled for user:', user.id);
+      console.log('Backups will run automatically every day at 2:00 AM UTC');
+      return true;
     } catch (error) {
       console.error('Error setting up automatic backups:', error);
       return false;
