@@ -26,7 +26,7 @@ export function convertToCSV(
       
       // Handle CSV escaping
       if (formattedValue === undefined || formattedValue === null || formattedValue === '-') {
-        return '';
+        return '""';
       }
       
       const stringValue = String(formattedValue);
@@ -34,7 +34,7 @@ export function convertToCSV(
       if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
         return `"${stringValue.replace(/"/g, '""')}"`;
       }
-      return stringValue;
+      return `"${stringValue}"`;
     }).join(',');
   });
   

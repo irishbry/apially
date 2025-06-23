@@ -12,6 +12,11 @@ interface DataEntry {
   created_at: string;
   user_id: string;
   source_id?: string;
+  timestamp?: string;
+  sensor_id?: string;
+  file_name?: string;
+  file_path?: string;
+  [key: string]: any;
 }
 
 interface Source {
@@ -94,7 +99,8 @@ const handler = async (req: Request): Promise<Response> => {
     const { data: userData, error: userError } = await supabase
       .from('data_entries')
       .select('*')
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
 
     if (userError) {
       console.error('Error fetching user data:', userError);
@@ -116,15 +122,15 @@ const handler = async (req: Request): Promise<Response> => {
 
     const sources = sourcesData || [];
 
-    // Generate backup content
+    // Generate backup content using Data Explorer format
     let backupContent = '';
     let fileName = '';
 
     if (format === 'csv') {
-      backupContent = generateCSV(userData || [], sources);
+      backupContent = generateDataExplorerCSV(userData || [], sources);
       fileName = `backup_${new Date().toISOString().split('T')[0]}.csv`;
     } else {
-      backupContent = generateJSON(userData || [], sources);
+      backupContent = generateDataExplorerJSON(userData || [], sources);
       fileName = `backup_${new Date().toISOString().split('T')[0]}.json`;
     }
 
@@ -218,7 +224,7 @@ async function processScheduledBackups(): Promise<Response> {
         const sources = sourcesData || [];
 
         // Generate backup content
-        const backupContent = generateCSV(userData || [], sources);
+        const backupContent = generateDataExplorerCSV(userData || [], sources);
         const fileName = `backup_${new Date().toISOString().split('T')[0]}.csv`;
 
         // Upload to Dropbox
@@ -366,69 +372,138 @@ async function uploadToDropbox(token: string, folderPath: string, fileName: stri
   }
 }
 
-function generateCSV(data: DataEntry[], sources: Source[]): string {
+function generateDataExplorerCSV(data: DataEntry[], sources: Source[]): string {
   if (data.length === 0) return 'No data available';
 
   const getSourceName = (sourceId: string | undefined): string => {
     if (!sourceId) return 'Unknown';
     const source = sources.find(s => s.id === sourceId);
-    return source ? source.name : sourceId;
+    return source ? source.name : `Unknown (${sourceId.substring(0, 8)}...)`;
   };
 
-  // Get all unique metadata keys
-  const metadataKeys = new Set<string>();
-  data.forEach(entry => {
-    if (entry.metadata && typeof entry.metadata === 'object') {
-      Object.keys(entry.metadata).forEach(key => {
-        if (key !== 'clientIp' && key !== 'receivedAt') {
-          metadataKeys.add(key);
+  // Get all columns that would appear in the Data Explorer
+  const getColumns = () => {
+    if (data.length === 0) return ['No Data'];
+    
+    const priorityKeys = ['timestamp', 'id', 'sourceId', 'source_id', 'sensorId', 'sensor_id', 'fileName', 'file_name'];
+    const allKeys = new Set<string>();
+    
+    priorityKeys.forEach(key => allKeys.add(key));
+    
+    data.forEach(entry => {
+      Object.keys(entry).forEach(key => {
+        if (!priorityKeys.includes(key)) {
+          allKeys.add(key);
         }
       });
-    }
-  });
+      
+      // Add metadata keys
+      if (entry.metadata && typeof entry.metadata === 'object') {
+        Object.keys(entry.metadata).forEach(key => {
+          if (key !== 'clientIp' && key !== 'receivedAt') {
+            allKeys.add(`metadata.${key}`);
+          }
+        });
+      }
+    });
+    
+    return Array.from(allKeys);
+  };
 
-  const headers = ['Source', 'Created At', ...Array.from(metadataKeys)];
+  const columns = getColumns();
+
+  // Helper function to get display name for columns
+  const getDisplayName = (column: string): string => {
+    const displayNames: Record<string, string> = {
+      'sourceId': 'Source',
+      'source_id': 'Source',
+      'sensorId': 'Sensor ID',
+      'sensor_id': 'Sensor ID',
+      'fileName': 'File Name',
+      'file_name': 'File Name'
+    };
+    return displayNames[column] || column;
+  };
+
+  // Helper function to get value from entry (matching Data Explorer logic)
+  const getValue = (entry: DataEntry, column: string): any => {
+    if (column.startsWith('metadata.')) {
+      const metadataKey = column.replace('metadata.', '');
+      return entry.metadata?.[metadataKey];
+    }
+    return entry[column];
+  };
+
+  // Helper function to format cell value (matching Data Explorer logic)
+  const formatCellValue = (key: string, value: any): string => {
+    if (value === undefined || value === null) return '-';
+    if (key === 'sourceId' || key === 'source_id') return getSourceName(value);
+    if (typeof value === 'object') return JSON.stringify(value);
+    return String(value);
+  };
+
+  // Create CSV headers with display names
+  const headers = columns.map(column => getDisplayName(column));
   const csvRows = [headers.join(',')];
 
+  // Create data rows using the same logic as the Data Explorer
   data.forEach(entry => {
-    const row = [
-      `"${getSourceName(entry.source_id)}"`,
-      `"${new Date(entry.created_at).toLocaleString()}"`,
-      ...Array.from(metadataKeys).map(key => {
-        const value = entry.metadata?.[key];
-        if (value === undefined || value === null) return '""';
-        const stringValue = String(value);
+    const row = columns.map(column => {
+      const value = getValue(entry, column);
+      const formattedValue = formatCellValue(column, value);
+      
+      // Handle CSV escaping
+      if (formattedValue === undefined || formattedValue === null || formattedValue === '-') {
+        return '""';
+      }
+      
+      const stringValue = String(formattedValue);
+      // Escape quotes and wrap in quotes if contains commas, quotes, or newlines
+      if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
         return `"${stringValue.replace(/"/g, '""')}"`;
-      })
-    ];
+      }
+      return `"${stringValue}"`;
+    });
     csvRows.push(row.join(','));
   });
 
   return csvRows.join('\n');
 }
 
-function generateJSON(data: DataEntry[], sources: Source[]): string {
+function generateDataExplorerJSON(data: DataEntry[], sources: Source[]): string {
   if (data.length === 0) return JSON.stringify([]);
 
   const getSourceName = (sourceId: string | undefined): string => {
     if (!sourceId) return 'Unknown';
     const source = sources.find(s => s.id === sourceId);
-    return source ? source.name : sourceId;
+    return source ? source.name : `Unknown (${sourceId.substring(0, 8)}...)`;
   };
 
+  // Transform data using the same logic as Data Explorer
   const transformedData = data.map(entry => {
-    const transformedEntry: any = {
-      'Source': getSourceName(entry.source_id),
-      'Created At': new Date(entry.created_at).toLocaleString()
-    };
+    const transformedEntry: any = {};
 
-    if (entry.metadata && typeof entry.metadata === 'object') {
-      Object.keys(entry.metadata).forEach(key => {
-        if (key !== 'clientIp' && key !== 'receivedAt') {
-          transformedEntry[key] = entry.metadata[key];
+    // Process all entry properties
+    Object.keys(entry).forEach(key => {
+      if (key === 'sourceId' || key === 'source_id') {
+        transformedEntry['Source'] = getSourceName(entry[key]);
+      } else if (key === 'sensorId' || key === 'sensor_id') {
+        transformedEntry['Sensor ID'] = entry[key];
+      } else if (key === 'fileName' || key === 'file_name') {
+        transformedEntry['File Name'] = entry[key];
+      } else if (key === 'metadata') {
+        // Flatten metadata properties
+        if (entry.metadata && typeof entry.metadata === 'object') {
+          Object.keys(entry.metadata).forEach(metaKey => {
+            if (metaKey !== 'clientIp' && metaKey !== 'receivedAt') {
+              transformedEntry[metaKey] = entry.metadata[metaKey];
+            }
+          });
         }
-      });
-    }
+      } else {
+        transformedEntry[key] = entry[key];
+      }
+    });
 
     return transformedEntry;
   });
