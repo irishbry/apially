@@ -215,7 +215,7 @@ const DropboxLinkForm: React.FC = () => {
 
   if (!user) {
     return (
-      <Card className="w-full max-w-2xl mx-auto shadow-lg border-0 bg-gradient-to-br from-slate-50 to-white">
+      <Card className="w-full max-w-2xl mx-auto">
         <CardContent className="flex items-center justify-center p-12">
           <div className="text-center space-y-3">
             <AlertCircle className="h-12 w-12 text-slate-400 mx-auto" />
@@ -229,7 +229,7 @@ const DropboxLinkForm: React.FC = () => {
 
   if (isLoading) {
     return (
-      <Card className="w-full max-w-2xl mx-auto shadow-lg border-0 bg-gradient-to-br from-slate-50 to-white">
+      <Card className="w-full max-w-2xl mx-auto">
         <CardContent className="flex items-center justify-center p-12">
           <div className="text-center space-y-3">
             <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
@@ -242,154 +242,140 @@ const DropboxLinkForm: React.FC = () => {
   }
 
   return (
-    <Card className="w-full max-w-2xl mx-auto shadow-lg border-0 bg-gradient-to-br from-slate-50 to-white hover:shadow-xl transition-all duration-300">
-      <CardHeader className="pb-6 border-b border-slate-100">
-        <CardTitle className="flex items-center gap-3 text-2xl font-semibold text-slate-800">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            <Cloud className="h-6 w-6 text-primary" />
-          </div>
+    <Card className="w-full max-w-2xl mx-auto">
+      <CardHeader className="pb-4">
+        <CardTitle className="flex items-center gap-3 text-xl">
+          <Cloud className="h-5 w-5 text-primary" />
           Dropbox Backup Configuration
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <HelpCircle className="h-5 w-5 text-slate-400 cursor-help ml-auto" />
+                <HelpCircle className="h-4 w-4 text-slate-400 cursor-help ml-auto" />
               </TooltipTrigger>
               <TooltipContent className="max-w-xs">
-                <p>Configure your Dropbox API token and folder path for automatic daily backups. You'll need to create a Dropbox app to get an API token.</p>
+                <p>Configure your Dropbox API token and folder path for automatic daily backups.</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </CardTitle>
-        <CardDescription className="text-slate-600 mt-2">
-          Set up automatic daily backups to your Dropbox account for secure data storage
+        <CardDescription>
+          Set up automatic daily backups to your Dropbox account
         </CardDescription>
       </CardHeader>
 
-      <CardContent className="p-6 space-y-6">
-        <div className="grid gap-6">
-          <div className="space-y-3">
-            <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-              <div className="w-2 h-2 bg-primary rounded-full" />
-              Dropbox Folder Path
-            </label>
-            <Input
-              type="text"
-              placeholder="/Backups/MyApp"
-              value={dropboxLink}
-              onChange={(e) => {
-                setDropboxLink(e.target.value);
-                setValidationMessage('');
-                setIsValidConfig(false);
-              }}
-              className="h-11 border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-            />
-            <p className="text-xs text-slate-500">
-              Specify the folder path where backups will be stored (must start with /)
-            </p>
-          </div>
-          
-          <div className="space-y-3">
-            <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-              <Key className="h-4 w-4 text-slate-500" />
-              Dropbox API Token
-            </label>
-            <Input
-              type="password"
-              placeholder="sl.xxxxxxxxxxxxxxxxx"
-              value={dropboxToken}
-              onChange={(e) => {
-                setDropboxToken(e.target.value);
-                setValidationMessage('');
-                setIsValidConfig(false);
-              }}
-              className="h-11 border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-            />
-            <p className="text-xs text-slate-500">
-              Get your API token from the{' '}
-              <a 
-                href="https://www.dropbox.com/developers/apps" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="text-primary hover:text-primary/80 underline font-medium"
-              >
-                Dropbox Developer Console
-              </a>
-            </p>
-          </div>
-          
-          {dropboxLink && dropboxToken && (
-            <Button 
-              onClick={testConnection} 
-              variant="outline" 
-              size="lg"
-              disabled={isTestingConnection}
-              className="w-full h-12 border-2 border-primary text-primary hover:bg-primary hover:text-white transition-all duration-200"
-            >
-              {isTestingConnection ? (
-                <>
-                  <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
-                  Testing Connection...
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="mr-2 h-4 w-4" />
-                  Test Connection
-                </>
-              )}
-            </Button>
-          )}
-          
-          {validationMessage && (
-            <div className={`p-4 rounded-lg border-l-4 ${
-              isValidConfig 
-                ? 'bg-green-50 border-green-400 text-green-800' 
-                : 'bg-amber-50 border-amber-400 text-amber-800'
-            }`}>
-              <div className="flex items-center gap-2">
-                {isValidConfig ? (
-                  <CheckCircle2 className="h-5 w-5 text-green-600" />
-                ) : (
-                  <AlertCircle className="h-5 w-5 text-amber-600" />
-                )}
-                <span className="font-medium">{validationMessage}</span>
-              </div>
-            </div>
-          )}
-          
-          {isValidConfig && isDailyEnabled && (
-            <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="p-1 bg-green-100 rounded-full">
-                  <Check className="h-4 w-4 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-green-800 font-medium">Configuration Active</p>
-                  <p className="text-green-700 text-sm">Daily backups are enabled and running automatically</p>
-                </div>
-              </div>
-            </div>
-          )}
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">
+            Dropbox Folder Path
+          </label>
+          <Input
+            type="text"
+            placeholder="/Backups/MyApp"
+            value={dropboxLink}
+            onChange={(e) => {
+              setDropboxLink(e.target.value);
+              setValidationMessage('');
+              setIsValidConfig(false);
+            }}
+          />
+          <p className="text-xs text-slate-500">
+            Specify the folder path where backups will be stored (must start with /)
+          </p>
         </div>
+        
+        <div className="space-y-2">
+          <label className="text-sm font-medium flex items-center gap-2">
+            <Key className="h-4 w-4" />
+            Dropbox API Token
+          </label>
+          <Input
+            type="password"
+            placeholder="sl.xxxxxxxxxxxxxxxxx"
+            value={dropboxToken}
+            onChange={(e) => {
+              setDropboxToken(e.target.value);
+              setValidationMessage('');
+              setIsValidConfig(false);
+            }}
+          />
+          <p className="text-xs text-slate-500">
+            Get your API token from the{' '}
+            <a 
+              href="https://www.dropbox.com/developers/apps" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="text-primary hover:underline"
+            >
+              Dropbox Developer Console
+            </a>
+          </p>
+        </div>
+        
+        {dropboxLink && dropboxToken && (
+          <Button 
+            onClick={testConnection} 
+            variant="outline" 
+            disabled={isTestingConnection}
+            className="w-full"
+          >
+            {isTestingConnection ? (
+              <>
+                <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
+                Testing Connection...
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                Test Connection
+              </>
+            )}
+          </Button>
+        )}
+        
+        {validationMessage && (
+          <div className={`p-3 rounded-md border-l-4 ${
+            isValidConfig 
+              ? 'bg-green-50 border-green-400 text-green-800' 
+              : 'bg-amber-50 border-amber-400 text-amber-800'
+          }`}>
+            <div className="flex items-center gap-2">
+              {isValidConfig ? (
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+              ) : (
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+              )}
+              <span className="text-sm font-medium">{validationMessage}</span>
+            </div>
+          </div>
+        )}
+        
+        {isValidConfig && isDailyEnabled && (
+          <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+            <div className="flex items-center gap-2">
+              <Check className="h-4 w-4 text-green-600" />
+              <div>
+                <p className="text-green-800 font-medium text-sm">Configuration Active</p>
+                <p className="text-green-700 text-xs">Daily backups are enabled and running automatically</p>
+              </div>
+            </div>
+          </div>
+        )}
       </CardContent>
 
-      <CardFooter className="p-6 pt-0 flex gap-3 justify-end">
+      <CardFooter className="flex gap-2 justify-end">
         {isValidConfig && (
           <Button 
             onClick={createManualBackup} 
             variant="outline" 
-            size="lg"
             disabled={isCreatingBackup}
-            className="hover:bg-slate-50 transition-colors"
           >
             <Upload className="mr-2 h-4 w-4" />
-            {isCreatingBackup ? 'Creating Backup...' : 'Backup Now'}
+            {isCreatingBackup ? 'Creating...' : 'Backup Now'}
           </Button>
         )}
         <Button 
           onClick={saveDropboxConfig} 
-          disabled={!isValidConfig || isSaving} 
-          size="lg"
-          className="bg-primary hover:bg-primary/90 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+          disabled={!isValidConfig || isSaving}
         >
           {isSaving ? (
             <>
@@ -399,7 +385,7 @@ const DropboxLinkForm: React.FC = () => {
           ) : (
             <>
               <Check className="mr-2 h-4 w-4" />
-              Save & Enable Daily Backups
+              Save & Enable
             </>
           )}
         </Button>
