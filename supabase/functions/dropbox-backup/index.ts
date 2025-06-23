@@ -400,8 +400,16 @@ async function uploadToDropbox(token: string, folderPath: string, fileName: stri
   try {
     console.log(`Uploading ${fileName} to Dropbox path: ${folderPath}`);
     
-    // Use the folder path directly without any manipulation
-    const fullPath = `${folderPath}/${fileName}`;
+    // Construct the full path - ensure no duplicate folder names
+    // Remove any leading slash from folderPath if it exists, then add one
+    let cleanFolderPath = folderPath.startsWith('/') ? folderPath : `/${folderPath}`;
+    
+    // Ensure no trailing slash
+    if (cleanFolderPath.endsWith('/')) {
+      cleanFolderPath = cleanFolderPath.slice(0, -1);
+    }
+    
+    const fullPath = `${cleanFolderPath}/${fileName}`;
     
     console.log(`Full upload path: ${fullPath}`);
     
