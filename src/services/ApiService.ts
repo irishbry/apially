@@ -1,4 +1,3 @@
-
 import { DataService } from './DataService';
 import { SourcesService } from './SourcesService';
 import { AnalyticsService } from './AnalyticsService';
@@ -42,6 +41,15 @@ export const ApiService = {
   getDropboxLink: ConfigService.getDropboxLink,
   setDropboxLink: ConfigService.setDropboxLink,
   exportToCsv: ConfigService.exportToCsv,
+  
+  // Dropbox token functions
+  getDropboxToken: (): string => {
+    return localStorage.getItem('dropbox_token') || '';
+  },
+  
+  setDropboxToken: (token: string): void => {
+    localStorage.setItem('dropbox_token', token);
+  },
   
   // Get correct Supabase endpoint
   getDefaultEndpoint: () => 'https://ybionvegojopebtkdgyt.supabase.co/functions/v1/data-receiver'

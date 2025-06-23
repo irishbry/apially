@@ -34,8 +34,18 @@ const handler = async (req: Request): Promise<Response> => {
   console.log('Starting Dropbox backup process...');
 
   try {
-    const { userId, format = 'csv' } = await req.json();
+    const { userId, format = 'csv', dropboxPath, dropboxToken, action = 'backup' } = await req.json();
 
+    // Handle different actions
+    if (action === 'test_connection') {
+      return await testDropboxConnection(dropboxPath, dropboxToken);
+    }
+
+    if (action === 'setup_daily') {
+      return await setupDailyBackup(userId, dropboxPath, dropboxToken);
+    }
+
+    // Default backup action
     if (!userId) {
       return new Response(JSON.stringify({ error: 'User ID is required' }), {
         status: 400,
@@ -43,10 +53,16 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
+    if (!dropboxPath || !dropboxToken) {
+      return new Response(JSON.stringify({ error: 'Dropbox configuration is required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     console.log(`Processing backup for user: ${userId}`);
 
-    // Get user's Dropbox link from localStorage (stored in profiles table if we had one)
-    // For now, we'll check if the user has configured a Dropbox link
+    // Get user's data
     const { data: userData, error: userError } = await supabase
       .from('data_entries')
       .select('*')
@@ -86,24 +102,38 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`Generated backup content (${backupContent.length} characters) for file: ${fileName}`);
 
-    // Here we would upload to Dropbox if we had the access token
-    // For now, we'll return the backup content and instructions
-    return new Response(
-      JSON.stringify({ 
-        message: 'Backup generated successfully',
-        fileName,
-        contentLength: backupContent.length,
-        content: backupContent.substring(0, 200) + '...' // Preview
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
+    // Upload to Dropbox
+    const uploadSuccess = await uploadToDropbox(dropboxToken, dropboxPath, fileName, backupContent);
+
+    if (uploadSuccess) {
+      return new Response(
+        JSON.stringify({ 
+          success: true,
+          message: 'Backup uploaded to Dropbox successfully',
+          fileName,
+          path: `${dropboxPath}/${fileName}`
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    } else {
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          error: 'Failed to upload backup to Dropbox'
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
 
   } catch (error) {
     console.error('Error in dropbox-backup function:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ success: false, error: error.message }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -111,6 +141,125 @@ const handler = async (req: Request): Promise<Response> => {
     );
   }
 };
+
+async function testDropboxConnection(dropboxPath: string, dropboxToken: string): Promise<Response> {
+  try {
+    console.log('Testing Dropbox connection...');
+    
+    // Test by creating a small test file
+    const testContent = 'Connection test';
+    const testFileName = 'connection_test.txt';
+    
+    const response = await fetch('https://content.dropboxapi.com/2/files/upload', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${dropboxToken}`,
+        'Content-Type': 'application/octet-stream',
+        'Dropbox-API-Arg': JSON.stringify({
+          path: `${dropboxPath}/${testFileName}`,
+          mode: 'overwrite'
+        })
+      },
+      body: testContent
+    });
+
+    if (response.ok) {
+      // Clean up test file
+      await fetch('https://api.dropboxapi.com/2/files/delete_v2', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${dropboxToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          path: `${dropboxPath}/${testFileName}`
+        })
+      });
+
+      return new Response(
+        JSON.stringify({ success: true, message: 'Dropbox connection successful' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } else {
+      const errorText = await response.text();
+      console.error('Dropbox connection test failed:', errorText);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Dropbox connection failed' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+  } catch (error) {
+    console.error('Error testing Dropbox connection:', error);
+    return new Response(
+      JSON.stringify({ success: false, error: 'Connection test failed' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+}
+
+async function setupDailyBackup(userId: string, dropboxPath: string, dropboxToken: string): Promise<Response> {
+  try {
+    console.log('Setting up daily backup for user:', userId);
+    
+    // Create a cron job that runs daily at 2 AM
+    const { data, error } = await supabase.rpc('schedule_daily_backup', {
+      user_id: userId,
+      dropbox_path: dropboxPath,
+      dropbox_token: dropboxToken
+    });
+
+    if (error) {
+      console.error('Error setting up daily backup:', error);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Failed to setup daily backup' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    return new Response(
+      JSON.stringify({ success: true, message: 'Daily backup scheduled successfully' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    console.error('Error setting up daily backup:', error);
+    return new Response(
+      JSON.stringify({ success: false, error: 'Failed to setup daily backup' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+}
+
+async function uploadToDropbox(token: string, folderPath: string, fileName: string, content: string): Promise<boolean> {
+  try {
+    console.log(`Uploading ${fileName} to Dropbox folder: ${folderPath}`);
+    
+    const response = await fetch('https://content.dropboxapi.com/2/files/upload', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/octet-stream',
+        'Dropbox-API-Arg': JSON.stringify({
+          path: `${folderPath}/${fileName}`,
+          mode: 'overwrite'
+        })
+      },
+      body: content
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      console.log('File uploaded successfully:', result);
+      return true;
+    } else {
+      const errorText = await response.text();
+      console.error('Dropbox upload failed:', errorText);
+      return false;
+    }
+  } catch (error) {
+    console.error('Error uploading to Dropbox:', error);
+    return false;
+  }
+}
 
 function generateCSV(data: DataEntry[], sources: Source[]): string {
   if (data.length === 0) return 'No data available';

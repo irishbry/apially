@@ -7,22 +7,24 @@ export const DropboxBackupService = {
     try {
       console.log('Creating daily backup for user:', userId);
       
-      // Check if user has configured Dropbox link
+      // Check if user has configured Dropbox
       const dropboxLink = ApiService.getDropboxLink();
+      const dropboxToken = ApiService.getDropboxToken();
       
-      if (!dropboxLink) {
-        console.log('No Dropbox link configured, skipping backup');
+      if (!dropboxLink || !dropboxToken) {
+        console.log('No Dropbox configuration found, skipping backup');
         return false;
       }
 
-      console.log('Dropbox link found, proceeding with backup');
+      console.log('Dropbox configuration found, proceeding with backup');
 
-      // Call our new Dropbox backup edge function
+      // Call our Dropbox backup edge function
       const { data, error } = await supabase.functions.invoke('dropbox-backup', {
         body: {
           userId,
           format,
-          dropboxLink
+          dropboxPath: dropboxLink,
+          dropboxToken
         }
       });
 
@@ -32,7 +34,7 @@ export const DropboxBackupService = {
       }
 
       console.log('Backup function response:', data);
-      return true;
+      return data?.success || false;
     } catch (error) {
       console.error('Error in createDailyBackup:', error);
       return false;
@@ -50,35 +52,68 @@ export const DropboxBackupService = {
 
       // Check if user has Dropbox configured
       const dropboxLink = ApiService.getDropboxLink();
+      const dropboxToken = ApiService.getDropboxToken();
       
-      if (!dropboxLink) {
-        console.log('No Dropbox link configured');
+      if (!dropboxLink || !dropboxToken) {
+        console.log('No Dropbox configuration found');
         return false;
       }
 
-      // Here we would set up the automatic backup schedule
-      // For now, we'll just return success
-      console.log('Automatic backups would be set up for user:', user.id);
-      return true;
+      // Create a cron job for daily backups
+      const { data, error } = await supabase.functions.invoke('dropbox-backup', {
+        body: {
+          userId: user.id,
+          action: 'setup_daily',
+          dropboxPath: dropboxLink,
+          dropboxToken
+        }
+      });
+
+      if (error) {
+        console.error('Error setting up automatic backups:', error);
+        return false;
+      }
+
+      console.log('Automatic backups set up successfully for user:', user.id);
+      return data?.success || false;
     } catch (error) {
       console.error('Error setting up automatic backups:', error);
       return false;
     }
   },
 
-  async testDropboxConnection(dropboxLink: string): Promise<boolean> {
+  async testDropboxConnection(dropboxPath: string, dropboxToken: string): Promise<boolean> {
     try {
-      // Basic validation of Dropbox link format
-      if (!dropboxLink.includes('dropbox.com')) {
+      // Basic validation
+      if (!dropboxPath || !dropboxToken) {
         return false;
       }
 
-      // For a shared folder link, it should contain certain patterns
-      if (dropboxLink.includes('/scl/fo/') || dropboxLink.includes('/sh/')) {
-        return true;
+      // Validate token format (Dropbox tokens typically start with 'sl.')
+      if (!dropboxToken.startsWith('sl.') && !dropboxToken.startsWith('aal')) {
+        return false;
       }
 
-      return false;
+      // Validate path format (should start with /)
+      if (!dropboxPath.startsWith('/')) {
+        return false;
+      }
+
+      // Test the connection via edge function
+      const { data, error } = await supabase.functions.invoke('dropbox-backup', {
+        body: {
+          action: 'test_connection',
+          dropboxPath,
+          dropboxToken
+        }
+      });
+
+      if (error) {
+        console.error('Error testing Dropbox connection:', error);
+        return false;
+      }
+
+      return data?.success || false;
     } catch (error) {
       console.error('Error testing Dropbox connection:', error);
       return false;
