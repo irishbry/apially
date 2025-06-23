@@ -81,6 +81,8 @@ export const ApiService = {
           dropbox_token: dropboxToken,
           daily_backup_enabled: dailyBackupEnabled,
           is_active: true
+        }, {
+          onConflict: 'user_id'
         })
         .select()
         .single();
