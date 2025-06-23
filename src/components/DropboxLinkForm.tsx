@@ -13,6 +13,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { ApiService } from "@/services/ApiService";
 import { DropboxBackupService } from "@/services/DropboxBackupService";
+import { useAuth } from "@/hooks/useAuth";
 
 const DropboxLinkForm: React.FC = () => {
   const [dropboxLink, setDropboxLink] = useState('');
@@ -20,17 +21,47 @@ const DropboxLinkForm: React.FC = () => {
   const [isValidConfig, setIsValidConfig] = useState(false);
   const [isCreatingBackup, setIsCreatingBackup] = useState(false);
   const [isSettingUpDaily, setIsSettingUpDaily] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDailyEnabled, setIsDailyEnabled] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
-    const savedLink = ApiService.getDropboxLink();
-    const savedToken = ApiService.getDropboxToken();
-    if (savedLink && savedToken) {
-      setDropboxLink(savedLink);
-      setDropboxToken(savedToken);
-      validateDropboxConfig(savedLink, savedToken);
+    if (user) {
+      loadDropboxConfig();
     }
-  }, []);
+  }, [user]);
+
+  const loadDropboxConfig = async () => {
+    try {
+      setIsLoading(true);
+      const config = await ApiService.getDropboxConfig();
+      
+      if (config) {
+        setDropboxLink(config.dropbox_path);
+        setDropboxToken(config.dropbox_token);
+        setIsDailyEnabled(config.daily_backup_enabled);
+        
+        // Validate the existing config
+        if (config.is_active) {
+          const isValid = await DropboxBackupService.testDropboxConnection(
+            config.dropbox_path, 
+            config.dropbox_token
+          );
+          setIsValidConfig(isValid);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading Dropbox config:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load Dropbox configuration",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const validateDropboxConfig = async (link: string, token: string) => {
     const isValid = await DropboxBackupService.testDropboxConnection(link, token);
@@ -59,8 +90,7 @@ const DropboxLinkForm: React.FC = () => {
         return;
       }
 
-      ApiService.setDropboxLink(dropboxLink);
-      ApiService.setDropboxToken(dropboxToken);
+      await ApiService.saveDropboxConfig(dropboxLink, dropboxToken, isDailyEnabled);
       setIsValidConfig(true);
       
       toast({
@@ -84,6 +114,7 @@ const DropboxLinkForm: React.FC = () => {
       const success = await DropboxBackupService.setupAutomaticBackups();
       
       if (success) {
+        setIsDailyEnabled(true);
         toast({
           title: "Success",
           description: "Daily automatic backups have been enabled!",
@@ -109,9 +140,18 @@ const DropboxLinkForm: React.FC = () => {
 
   const createManualBackup = async () => {
     try {
+      if (!user) {
+        toast({
+          title: "Error",
+          description: "Please log in to create a backup",
+          variant: "destructive",
+        });
+        return;
+      }
+
       setIsCreatingBackup(true);
       
-      const success = await DropboxBackupService.createDailyBackup('current-user', 'csv');
+      const success = await DropboxBackupService.createDailyBackup(user.id, 'csv');
       
       if (success) {
         toast({
@@ -136,6 +176,26 @@ const DropboxLinkForm: React.FC = () => {
       setIsCreatingBackup(false);
     }
   };
+
+  if (!user) {
+    return (
+      <Card className="w-full shadow-sm">
+        <CardContent className="p-6">
+          <p className="text-muted-foreground text-center">Please log in to configure Dropbox backups.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <Card className="w-full shadow-sm">
+        <CardContent className="p-6">
+          <p className="text-muted-foreground text-center">Loading Dropbox configuration...</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="w-full shadow-sm hover:shadow-md transition-all duration-300">
@@ -213,6 +273,7 @@ const DropboxLinkForm: React.FC = () => {
               <div className="flex items-center gap-2 text-green-800 text-sm">
                 <Check className="h-4 w-4" />
                 <span>Dropbox configuration is valid</span>
+                {isDailyEnabled && <span className="text-xs">(Daily backups enabled)</span>}
               </div>
             </div>
           )}
@@ -230,15 +291,17 @@ const DropboxLinkForm: React.FC = () => {
               <Upload className="mr-2 h-4 w-4" />
               {isCreatingBackup ? 'Uploading...' : 'Backup Now'}
             </Button>
-            <Button 
-              onClick={setupDailyBackups} 
-              variant="outline" 
-              disabled={isSettingUpDaily}
-              className="hover-lift"
-            >
-              <Cloud className="mr-2 h-4 w-4" />
-              {isSettingUpDaily ? 'Setting up...' : 'Enable Daily Backups'}
-            </Button>
+            {!isDailyEnabled && (
+              <Button 
+                onClick={setupDailyBackups} 
+                variant="outline" 
+                disabled={isSettingUpDaily}
+                className="hover-lift"
+              >
+                <Cloud className="mr-2 h-4 w-4" />
+                {isSettingUpDaily ? 'Setting up...' : 'Enable Daily Backups'}
+              </Button>
+            )}
           </>
         )}
         <Button onClick={saveDropboxConfig} className="hover-lift">

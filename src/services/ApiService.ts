@@ -1,8 +1,10 @@
+
 import { DataService } from './DataService';
 import { SourcesService } from './SourcesService';
 import { AnalyticsService } from './AnalyticsService';
 import { ApiRequestService } from './ApiRequestService';
 import { ConfigService } from './ConfigService';
+import { supabase } from '@/integrations/supabase/client';
 import { DataEntry, ApiResponse } from '@/types/api.types';
 
 // Re-export types from their new location
@@ -42,13 +44,53 @@ export const ApiService = {
   setDropboxLink: ConfigService.setDropboxLink,
   exportToCsv: ConfigService.exportToCsv,
   
-  // Dropbox token functions
-  getDropboxToken: (): string => {
-    return localStorage.getItem('dropbox_token') || '';
+  // Dropbox configuration functions using Supabase
+  getDropboxConfig: async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+
+      const { data, error } = await supabase
+        .from('dropbox_configs')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching dropbox config:', error);
+        return null;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error in getDropboxConfig:', error);
+      return null;
+    }
   },
   
-  setDropboxToken: (token: string): void => {
-    localStorage.setItem('dropbox_token', token);
+  saveDropboxConfig: async (dropboxPath: string, dropboxToken: string, dailyBackupEnabled: boolean = false) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      const { data, error } = await supabase
+        .from('dropbox_configs')
+        .upsert({
+          user_id: user.id,
+          dropbox_path: dropboxPath,
+          dropbox_token: dropboxToken,
+          daily_backup_enabled: dailyBackupEnabled,
+          is_active: true
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error saving dropbox config:', error);
+      throw error;
+    }
   },
   
   // Get correct Supabase endpoint

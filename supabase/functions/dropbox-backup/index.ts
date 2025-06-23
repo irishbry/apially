@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
@@ -19,6 +18,15 @@ interface Source {
   id: string;
   name: string;
   user_id: string;
+}
+
+interface DropboxConfig {
+  id: string;
+  user_id: string;
+  dropbox_path: string;
+  dropbox_token: string;
+  is_active: boolean;
+  daily_backup_enabled: boolean;
 }
 
 const supabase = createClient(
@@ -45,6 +53,10 @@ const handler = async (req: Request): Promise<Response> => {
       return await setupDailyBackup(userId, dropboxPath, dropboxToken);
     }
 
+    if (action === 'scheduled_backup') {
+      return await processScheduledBackups();
+    }
+
     // Default backup action
     if (!userId) {
       return new Response(JSON.stringify({ error: 'User ID is required' }), {
@@ -53,11 +65,27 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    if (!dropboxPath || !dropboxToken) {
-      return new Response(JSON.stringify({ error: 'Dropbox configuration is required' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    // Get user's Dropbox config from database if not provided
+    let finalDropboxPath = dropboxPath;
+    let finalDropboxToken = dropboxToken;
+
+    if (!finalDropboxPath || !finalDropboxToken) {
+      const { data: config, error: configError } = await supabase
+        .from('dropbox_configs')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .single();
+
+      if (configError || !config) {
+        return new Response(JSON.stringify({ error: 'No active Dropbox configuration found' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      finalDropboxPath = config.dropbox_path;
+      finalDropboxToken = config.dropbox_token;
     }
 
     console.log(`Processing backup for user: ${userId}`);
@@ -103,7 +131,7 @@ const handler = async (req: Request): Promise<Response> => {
     console.log(`Generated backup content (${backupContent.length} characters) for file: ${fileName}`);
 
     // Upload to Dropbox
-    const uploadSuccess = await uploadToDropbox(dropboxToken, dropboxPath, fileName, backupContent);
+    const uploadSuccess = await uploadToDropbox(finalDropboxToken, finalDropboxPath, fileName, backupContent);
 
     if (uploadSuccess) {
       return new Response(
@@ -111,7 +139,7 @@ const handler = async (req: Request): Promise<Response> => {
           success: true,
           message: 'Backup uploaded to Dropbox successfully',
           fileName,
-          path: `${dropboxPath}/${fileName}`
+          path: `${finalDropboxPath}/${fileName}`
         }),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -141,6 +169,96 @@ const handler = async (req: Request): Promise<Response> => {
     );
   }
 };
+
+async function processScheduledBackups(): Promise<Response> {
+  try {
+    console.log('Processing scheduled backups...');
+    
+    // Get all users with daily backup enabled
+    const { data: configs, error } = await supabase
+      .from('dropbox_configs')
+      .select('*')
+      .eq('is_active', true)
+      .eq('daily_backup_enabled', true);
+
+    if (error) {
+      console.error('Error fetching backup configs:', error);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Failed to fetch backup configurations' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    // Process each user's backup
+    for (const config of configs || []) {
+      try {
+        console.log(`Processing backup for user: ${config.user_id}`);
+        
+        // Get user's data
+        const { data: userData, error: userError } = await supabase
+          .from('data_entries')
+          .select('*')
+          .eq('user_id', config.user_id);
+
+        if (userError) {
+          console.error(`Error fetching data for user ${config.user_id}:`, userError);
+          errorCount++;
+          continue;
+        }
+
+        // Get user's sources
+        const { data: sourcesData } = await supabase
+          .from('sources')
+          .select('*')
+          .eq('user_id', config.user_id);
+
+        const sources = sourcesData || [];
+
+        // Generate backup content
+        const backupContent = generateCSV(userData || [], sources);
+        const fileName = `backup_${new Date().toISOString().split('T')[0]}.csv`;
+
+        // Upload to Dropbox
+        const uploadSuccess = await uploadToDropbox(
+          config.dropbox_token, 
+          config.dropbox_path, 
+          fileName, 
+          backupContent
+        );
+
+        if (uploadSuccess) {
+          successCount++;
+          console.log(`Backup successful for user: ${config.user_id}`);
+        } else {
+          errorCount++;
+          console.error(`Backup failed for user: ${config.user_id}`);
+        }
+      } catch (error) {
+        console.error(`Error processing backup for user ${config.user_id}:`, error);
+        errorCount++;
+      }
+    }
+
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        message: `Processed ${successCount + errorCount} backups. ${successCount} successful, ${errorCount} failed.`,
+        successCount,
+        errorCount
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    console.error('Error processing scheduled backups:', error);
+    return new Response(
+      JSON.stringify({ success: false, error: 'Failed to process scheduled backups' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+}
 
 async function testDropboxConnection(dropboxPath: string, dropboxToken: string): Promise<Response> {
   try {
@@ -201,21 +319,8 @@ async function setupDailyBackup(userId: string, dropboxPath: string, dropboxToke
   try {
     console.log('Setting up daily backup for user:', userId);
     
-    // Create a cron job that runs daily at 2 AM
-    const { data, error } = await supabase.rpc('schedule_daily_backup', {
-      user_id: userId,
-      dropbox_path: dropboxPath,
-      dropbox_token: dropboxToken
-    });
-
-    if (error) {
-      console.error('Error setting up daily backup:', error);
-      return new Response(
-        JSON.stringify({ success: false, error: 'Failed to setup daily backup' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
+    // The cron job is already set up in the database migration
+    // Just return success as the configuration is now stored in the database
     return new Response(
       JSON.stringify({ success: true, message: 'Daily backup scheduled successfully' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

@@ -53,6 +53,39 @@ export type Database = {
           },
         ]
       }
+      dropbox_configs: {
+        Row: {
+          created_at: string
+          daily_backup_enabled: boolean
+          dropbox_path: string
+          dropbox_token: string
+          id: string
+          is_active: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          daily_backup_enabled?: boolean
+          dropbox_path: string
+          dropbox_token: string
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          daily_backup_enabled?: boolean
+          dropbox_path?: string
+          dropbox_token?: string
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       scheduled_exports: {
         Row: {
           active: boolean | null

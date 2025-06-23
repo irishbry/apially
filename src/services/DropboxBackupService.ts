@@ -7,12 +7,11 @@ export const DropboxBackupService = {
     try {
       console.log('Creating daily backup for user:', userId);
       
-      // Check if user has configured Dropbox
-      const dropboxLink = ApiService.getDropboxLink();
-      const dropboxToken = ApiService.getDropboxToken();
+      // Get Dropbox configuration from Supabase
+      const dropboxConfig = await ApiService.getDropboxConfig();
       
-      if (!dropboxLink || !dropboxToken) {
-        console.log('No Dropbox configuration found, skipping backup');
+      if (!dropboxConfig || !dropboxConfig.is_active) {
+        console.log('No active Dropbox configuration found, skipping backup');
         return false;
       }
 
@@ -23,8 +22,8 @@ export const DropboxBackupService = {
         body: {
           userId,
           format,
-          dropboxPath: dropboxLink,
-          dropboxToken
+          dropboxPath: dropboxConfig.dropbox_path,
+          dropboxToken: dropboxConfig.dropbox_token
         }
       });
 
@@ -50,22 +49,28 @@ export const DropboxBackupService = {
         return false;
       }
 
-      // Check if user has Dropbox configured
-      const dropboxLink = ApiService.getDropboxLink();
-      const dropboxToken = ApiService.getDropboxToken();
+      // Get Dropbox configuration from Supabase
+      const dropboxConfig = await ApiService.getDropboxConfig();
       
-      if (!dropboxLink || !dropboxToken) {
-        console.log('No Dropbox configuration found');
+      if (!dropboxConfig || !dropboxConfig.is_active) {
+        console.log('No active Dropbox configuration found');
         return false;
       }
+
+      // Update the config to enable daily backups
+      await ApiService.saveDropboxConfig(
+        dropboxConfig.dropbox_path,
+        dropboxConfig.dropbox_token,
+        true
+      );
 
       // Create a cron job for daily backups
       const { data, error } = await supabase.functions.invoke('dropbox-backup', {
         body: {
           userId: user.id,
           action: 'setup_daily',
-          dropboxPath: dropboxLink,
-          dropboxToken
+          dropboxPath: dropboxConfig.dropbox_path,
+          dropboxToken: dropboxConfig.dropbox_token
         }
       });
 
