@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
@@ -17,6 +16,8 @@ interface DataEntry {
   sensor_id?: string;
   file_name?: string;
   file_path?: string;
+  backed_up_dropbox?: boolean;
+  last_dropbox_backup?: string;
   [key: string]: any;
 }
 
@@ -120,7 +121,8 @@ async function processIndividualBackup(
         success: true,
         message: 'Backup uploaded to Dropbox successfully',
         fileName: result.fileName,
-        path: result.path
+        path: result.path,
+        backedUpCount: result.backedUpCount
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -214,12 +216,13 @@ async function processScheduledBackups(): Promise<Response> {
 
         if (result.success) {
           successCount++;
-          console.log(`Backup successful for user: ${config.user_id}`);
+          console.log(`Backup successful for user: ${config.user_id}, backed up ${result.backedUpCount} entries`);
           results.push({
             userId: config.user_id,
             success: true,
             fileName: result.fileName,
-            path: result.path
+            path: result.path,
+            backedUpCount: result.backedUpCount
           });
         } else {
           errorCount++;
@@ -266,19 +269,27 @@ async function createBackupForUser(
   format: string, 
   dropboxPath: string, 
   dropboxToken: string
-): Promise<{ success: boolean; fileName?: string; path?: string; error?: string }> {
+): Promise<{ success: boolean; fileName?: string; path?: string; error?: string; backedUpCount?: number }> {
   try {
-    // Get user's data
+    // Get user's data that hasn't been backed up to Dropbox yet
     const { data: userData, error: userError } = await supabase
       .from('data_entries')
       .select('*')
       .eq('user_id', userId)
+      .or('backed_up_dropbox.is.null,backed_up_dropbox.eq.false')
       .order('created_at', { ascending: false });
 
     if (userError) {
       console.error(`Error fetching data for user ${userId}:`, userError);
       return { success: false, error: 'Failed to fetch user data' };
     }
+
+    if (!userData || userData.length === 0) {
+      console.log(`No new data to backup for user ${userId}`);
+      return { success: true, fileName: '', path: '', backedUpCount: 0 };
+    }
+
+    console.log(`Found ${userData.length} entries to backup for user ${userId}`);
 
     // Get user's sources
     const { data: sourcesData } = await supabase
@@ -306,10 +317,26 @@ async function createBackupForUser(
     const uploadSuccess = await uploadToDropbox(dropboxToken, dropboxPath, fileName, backupContent);
 
     if (uploadSuccess) {
+      // Mark entries as backed up to Dropbox
+      const entryIds = userData.map(entry => entry.id);
+      const { error: updateError } = await supabase
+        .from('data_entries')
+        .update({
+          backed_up_dropbox: true,
+          last_dropbox_backup: new Date().toISOString().split('T')[0]
+        })
+        .in('id', entryIds);
+
+      if (updateError) {
+        console.error('Error updating backup status:', updateError);
+        // Still return success since the backup was uploaded
+      }
+
       return { 
         success: true, 
         fileName, 
-        path: `${dropboxPath}/${fileName}` 
+        path: `${dropboxPath}/${fileName}`,
+        backedUpCount: userData.length
       };
     } else {
       return { 

@@ -11,10 +11,14 @@ export type Database = {
     Tables: {
       data_entries: {
         Row: {
+          backed_up_dropbox: boolean | null
+          backed_up_email: boolean | null
           created_at: string
           file_name: string
           file_path: string
           id: string
+          last_dropbox_backup: string | null
+          last_email_backup: string | null
           metadata: Json | null
           sensor_id: string | null
           source_id: string | null
@@ -22,10 +26,14 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          backed_up_dropbox?: boolean | null
+          backed_up_email?: boolean | null
           created_at?: string
           file_name: string
           file_path: string
           id?: string
+          last_dropbox_backup?: string | null
+          last_email_backup?: string | null
           metadata?: Json | null
           sensor_id?: string | null
           source_id?: string | null
@@ -33,10 +41,14 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          backed_up_dropbox?: boolean | null
+          backed_up_email?: boolean | null
           created_at?: string
           file_name?: string
           file_path?: string
           id?: string
+          last_dropbox_backup?: string | null
+          last_email_backup?: string | null
           metadata?: Json | null
           sensor_id?: string | null
           source_id?: string | null

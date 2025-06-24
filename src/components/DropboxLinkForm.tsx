@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, Cloud, HelpCircle, Download, Upload, Key, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Check, Cloud, HelpCircle, Download, Upload, Key, AlertCircle, CheckCircle2, Database } from "lucide-react";
 import { 
   Tooltip,
   TooltipContent,
@@ -24,14 +25,28 @@ const DropboxLinkForm: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isDailyEnabled, setIsDailyEnabled] = useState(false);
   const [validationMessage, setValidationMessage] = useState('');
+  const [backupStats, setBackupStats] = useState({ total: 0, backedUp: 0, pending: 0 });
   const { toast } = useToast();
   const { user } = useAuth();
 
   useEffect(() => {
     if (user) {
       loadDropboxConfig();
+      loadBackupStats();
     }
   }, [user]);
+
+  const loadBackupStats = async () => {
+    try {
+      const data = await ApiService.getData();
+      const total = data.length;
+      const backedUp = data.filter(entry => entry.backed_up_dropbox).length;
+      const pending = total - backedUp;
+      setBackupStats({ total, backedUp, pending });
+    } catch (error) {
+      console.error('Error loading backup stats:', error);
+    }
+  };
 
   const loadDropboxConfig = async () => {
     try {
@@ -190,6 +205,8 @@ const DropboxLinkForm: React.FC = () => {
       const success = await DropboxBackupService.createDailyBackup(user.id, 'csv');
       
       if (success) {
+        // Refresh backup stats after successful backup
+        await loadBackupStats();
         toast({
           title: "Success",
           description: "Manual backup uploaded to Dropbox successfully!",
@@ -264,6 +281,30 @@ const DropboxLinkForm: React.FC = () => {
       </CardHeader>
 
       <CardContent className="space-y-4">
+        {/* Backup Statistics */}
+        {backupStats.total > 0 && (
+          <div className="p-4 bg-slate-50 rounded-lg border">
+            <div className="flex items-center gap-2 mb-2">
+              <Database className="h-4 w-4 text-slate-600" />
+              <span className="text-sm font-medium text-slate-700">Backup Status</span>
+            </div>
+            <div className="grid grid-cols-3 gap-4 text-sm">
+              <div className="text-center">
+                <div className="text-lg font-semibold text-slate-900">{backupStats.total}</div>
+                <div className="text-slate-600">Total Entries</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-semibold text-green-600">{backupStats.backedUp}</div>
+                <div className="text-slate-600">Backed Up</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-semibold text-amber-600">{backupStats.pending}</div>
+                <div className="text-slate-600">Pending</div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-2">
           <label className="text-sm font-medium">
             Dropbox Folder Path
@@ -370,7 +411,7 @@ const DropboxLinkForm: React.FC = () => {
             disabled={isCreatingBackup}
           >
             <Upload className="mr-2 h-4 w-4" />
-            {isCreatingBackup ? 'Creating...' : 'Backup Now'}
+            {isCreatingBackup ? 'Creating...' : `Backup Now ${backupStats.pending > 0 ? `(${backupStats.pending} new)` : ''}`}
           </Button>
         )}
         <Button 
