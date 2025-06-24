@@ -280,20 +280,14 @@ const DropboxLinkForm: React.FC = () => {
       </CardHeader>
 
       <CardContent className="space-y-3">
-        {/* Compact Backup Statistics */}
+        {/* Very Compact Backup Statistics */}
         {backupStats.total > 0 && (
-          <div className="p-3 bg-slate-50 rounded-md border">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Database className="h-3 w-3 text-slate-600" />
-                <span className="text-xs font-medium text-slate-700">Backup Status</span>
-              </div>
-              <div className="flex items-center gap-4 text-xs">
-                <span className="text-slate-900">{backupStats.total} Total</span>
-                <span className="text-green-600">{backupStats.backedUp} Done</span>
-                <span className="text-amber-600">{backupStats.pending} Pending</span>
-              </div>
-            </div>
+          <div className="flex items-center justify-between text-xs text-slate-600 bg-slate-50 px-2 py-1 rounded border">
+            <span className="flex items-center gap-1">
+              <Database className="h-3 w-3" />
+              Backup Status
+            </span>
+            <span>{backupStats.total} Total • {backupStats.backedUp} Done • {backupStats.pending} Pending</span>
           </div>
         )}
 
@@ -384,14 +378,9 @@ const DropboxLinkForm: React.FC = () => {
         )}
         
         {isValidConfig && isDailyEnabled && (
-          <div className="p-2 bg-green-50 border border-green-200 rounded-md">
-            <div className="flex items-center gap-2">
-              <Check className="h-4 w-4 text-green-600" />
-              <div>
-                <p className="text-green-800 font-medium text-xs">Configuration Active</p>
-                <p className="text-green-700 text-xs">Daily backups are enabled and running automatically</p>
-              </div>
-            </div>
+          <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 px-2 py-1 rounded border border-green-200">
+            <Check className="h-3 w-3 text-green-600" />
+            <span>Daily backups enabled and running automatically</span>
           </div>
         )}
       </CardContent>
