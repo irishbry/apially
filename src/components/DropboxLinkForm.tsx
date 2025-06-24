@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -260,9 +259,9 @@ const DropboxLinkForm: React.FC = () => {
 
   return (
     <Card className="w-full max-w-2xl mx-auto">
-      <CardHeader className="pb-4">
-        <CardTitle className="flex items-center gap-3 text-xl">
-          <Cloud className="h-5 w-5 text-primary" />
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-3 text-lg">
+          <Cloud className="h-4 w-4 text-primary" />
           Dropbox Backup Configuration
           <TooltipProvider>
             <Tooltip>
@@ -275,31 +274,24 @@ const DropboxLinkForm: React.FC = () => {
             </Tooltip>
           </TooltipProvider>
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-sm">
           Set up automatic daily backups to your Dropbox account
         </CardDescription>
       </CardHeader>
 
-      <CardContent className="space-y-4">
-        {/* Backup Statistics */}
+      <CardContent className="space-y-3">
+        {/* Compact Backup Statistics */}
         {backupStats.total > 0 && (
-          <div className="p-4 bg-slate-50 rounded-lg border">
-            <div className="flex items-center gap-2 mb-2">
-              <Database className="h-4 w-4 text-slate-600" />
-              <span className="text-sm font-medium text-slate-700">Backup Status</span>
-            </div>
-            <div className="grid grid-cols-3 gap-4 text-sm">
-              <div className="text-center">
-                <div className="text-lg font-semibold text-slate-900">{backupStats.total}</div>
-                <div className="text-slate-600">Total Entries</div>
+          <div className="p-3 bg-slate-50 rounded-md border">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Database className="h-3 w-3 text-slate-600" />
+                <span className="text-xs font-medium text-slate-700">Backup Status</span>
               </div>
-              <div className="text-center">
-                <div className="text-lg font-semibold text-green-600">{backupStats.backedUp}</div>
-                <div className="text-slate-600">Backed Up</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-semibold text-amber-600">{backupStats.pending}</div>
-                <div className="text-slate-600">Pending</div>
+              <div className="flex items-center gap-4 text-xs">
+                <span className="text-slate-900">{backupStats.total} Total</span>
+                <span className="text-green-600">{backupStats.backedUp} Done</span>
+                <span className="text-amber-600">{backupStats.pending} Pending</span>
               </div>
             </div>
           </div>
@@ -358,6 +350,7 @@ const DropboxLinkForm: React.FC = () => {
             variant="outline" 
             disabled={isTestingConnection}
             className="w-full"
+            size="sm"
           >
             {isTestingConnection ? (
               <>
@@ -374,7 +367,7 @@ const DropboxLinkForm: React.FC = () => {
         )}
         
         {validationMessage && (
-          <div className={`p-3 rounded-md border-l-4 ${
+          <div className={`p-2 rounded-md border-l-4 ${
             isValidConfig 
               ? 'bg-green-50 border-green-400 text-green-800' 
               : 'bg-amber-50 border-amber-400 text-amber-800'
@@ -385,17 +378,17 @@ const DropboxLinkForm: React.FC = () => {
               ) : (
                 <AlertCircle className="h-4 w-4 text-amber-600" />
               )}
-              <span className="text-sm font-medium">{validationMessage}</span>
+              <span className="text-xs font-medium">{validationMessage}</span>
             </div>
           </div>
         )}
         
         {isValidConfig && isDailyEnabled && (
-          <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+          <div className="p-2 bg-green-50 border border-green-200 rounded-md">
             <div className="flex items-center gap-2">
               <Check className="h-4 w-4 text-green-600" />
               <div>
-                <p className="text-green-800 font-medium text-sm">Configuration Active</p>
+                <p className="text-green-800 font-medium text-xs">Configuration Active</p>
                 <p className="text-green-700 text-xs">Daily backups are enabled and running automatically</p>
               </div>
             </div>
@@ -403,12 +396,13 @@ const DropboxLinkForm: React.FC = () => {
         )}
       </CardContent>
 
-      <CardFooter className="flex gap-2 justify-end">
+      <CardFooter className="flex gap-2 justify-end pt-3">
         {isValidConfig && (
           <Button 
             onClick={createManualBackup} 
             variant="outline" 
             disabled={isCreatingBackup}
+            size="sm"
           >
             <Upload className="mr-2 h-4 w-4" />
             {isCreatingBackup ? 'Creating...' : `Backup Now ${backupStats.pending > 0 ? `(${backupStats.pending} new)` : ''}`}
@@ -417,6 +411,7 @@ const DropboxLinkForm: React.FC = () => {
         <Button 
           onClick={saveDropboxConfig} 
           disabled={!isValidConfig || isSaving}
+          size="sm"
         >
           {isSaving ? (
             <>
