@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
@@ -27,6 +26,8 @@ interface DataEntry {
   created_at: string;
   user_id: string;
   source_id?: string;
+  backed_up_email?: boolean;
+  last_email_backup?: string;
 }
 
 interface Source {
@@ -91,14 +92,35 @@ const handler = async (req: Request): Promise<Response> => {
       try {
         console.log(`Processing export: ${exportConfig.name} for user: ${exportConfig.user_id}`);
         
-        // Get user's data
+        // Get user's data that hasn't been backed up via email yet
         const { data: userData, error: dataError } = await supabase
           .from('data_entries')
           .select('*')
-          .eq('user_id', exportConfig.user_id);
+          .eq('user_id', exportConfig.user_id)
+          .or('backed_up_email.is.null,backed_up_email.eq.false');
 
         if (dataError) {
           console.error(`Error fetching data for user ${exportConfig.user_id}:`, dataError);
+          continue;
+        }
+
+        console.log(`Found ${userData?.length || 0} unbacked up entries for user ${exportConfig.user_id}`);
+
+        // Skip if no new data to backup
+        if (!userData || userData.length === 0) {
+          console.log(`No new data to backup for export: ${exportConfig.name}`);
+          
+          // Still update the next export time
+          const nextExport = calculateNextExport(exportConfig.frequency, now);
+          await supabase
+            .from('scheduled_exports')
+            .update({
+              last_export: now.toISOString(),
+              next_export: nextExport.toISOString(),
+            })
+            .eq('id', exportConfig.id);
+          
+          processedExports.push(`${exportConfig.name} (no new data)`);
           continue;
         }
 
@@ -152,7 +174,7 @@ const handler = async (req: Request): Promise<Response> => {
                 <ul>
                   <li>Format: ${exportConfig.format.toUpperCase()}</li>
                   <li>Frequency: ${exportConfig.frequency}</li>
-                  <li>Records: ${userData?.length || 0}</li>
+                  <li>New Records: ${userData?.length || 0}</li>
                   <li>Generated: ${new Date().toLocaleString()}</li>
                 </ul>
                 <p>Please find your data export attached to this email.</p>
@@ -169,6 +191,25 @@ const handler = async (req: Request): Promise<Response> => {
             });
 
             console.log(`Email sent successfully for export: ${exportConfig.name}`);
+
+            // Mark entries as backed up via email
+            const entryIds = userData.map(entry => entry.id);
+            const today = new Date().toISOString().split('T')[0];
+            
+            const { error: updateError } = await supabase
+              .from('data_entries')
+              .update({
+                backed_up_email: true,
+                last_email_backup: today
+              })
+              .in('id', entryIds);
+
+            if (updateError) {
+              console.error(`Error updating backup status for entries:`, updateError);
+            } else {
+              console.log(`Marked ${entryIds.length} entries as backed up via email`);
+            }
+
           } catch (emailError) {
             console.error(`Error sending email for export ${exportConfig.name}:`, emailError);
             // Continue processing even if email fails
