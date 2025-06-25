@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
@@ -32,6 +33,10 @@ interface DropboxConfig {
   user_id: string;
   dropbox_path: string;
   dropbox_token: string;
+  app_key: string;
+  app_secret: string;
+  refresh_token: string;
+  access_token_expires_at: string;
   is_active: boolean;
   daily_backup_enabled: boolean;
 }
@@ -82,6 +87,71 @@ const handler = async (req: Request): Promise<Response> => {
   }
 };
 
+async function ensureValidAccessToken(config: DropboxConfig): Promise<DropboxConfig | null> {
+  try {
+    // Check if access token is expired or will expire soon (within 1 hour)
+    const now = new Date();
+    const expiresAt = new Date(config.access_token_expires_at);
+    const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000);
+
+    if (expiresAt > oneHourFromNow) {
+      // Token is still valid
+      return config;
+    }
+
+    console.log('Access token expired or expiring soon, refreshing...');
+
+    // Refresh the access token
+    const tokenUrl = 'https://api.dropboxapi.com/oauth2/token';
+    const credentials = btoa(`${config.app_key}:${config.app_secret}`);
+    
+    const response = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${credentials}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        refresh_token: config.refresh_token,
+        grant_type: 'refresh_token',
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Token refresh failed:', errorText);
+      return null;
+    }
+
+    const tokenData = await response.json();
+
+    // Calculate new expiration time
+    const newExpiresAt = new Date(now.getTime() + (tokenData.expires_in * 1000));
+
+    // Update the config in database
+    const { data: updatedConfig, error } = await supabase
+      .from('dropbox_configs')
+      .update({
+        dropbox_token: tokenData.access_token,
+        access_token_expires_at: newExpiresAt.toISOString()
+      })
+      .eq('id', config.id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating refreshed token:', error);
+      return null;
+    }
+
+    console.log('Access token refreshed successfully');
+    return updatedConfig;
+  } catch (error) {
+    console.error('Error ensuring valid access token:', error);
+    return null;
+  }
+}
+
 async function processIndividualBackup(
   userId: string, 
   format: string, 
@@ -109,8 +179,17 @@ async function processIndividualBackup(
       });
     }
 
-    finalDropboxPath = config.dropbox_path;
-    finalDropboxToken = config.dropbox_token;
+    // Ensure we have a valid access token
+    const validConfig = await ensureValidAccessToken(config);
+    if (!validConfig) {
+      return new Response(JSON.stringify({ error: 'Failed to obtain valid access token' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    finalDropboxPath = validConfig.dropbox_path;
+    finalDropboxToken = validConfig.dropbox_token;
   }
 
   const result = await createBackupForUser(userId, format, finalDropboxPath, finalDropboxToken);
@@ -186,20 +265,21 @@ async function processScheduledBackups(): Promise<Response> {
       try {
         console.log(`Processing backup for user: ${config.user_id}`);
         
-        // Validate Dropbox configuration
-        if (!config.dropbox_path || !config.dropbox_token) {
-          console.error(`Invalid Dropbox configuration for user ${config.user_id}`);
+        // Ensure we have a valid access token
+        const validConfig = await ensureValidAccessToken(config);
+        if (!validConfig) {
+          console.error(`Failed to obtain valid access token for user ${config.user_id}`);
           errorCount++;
           results.push({
             userId: config.user_id,
             success: false,
-            error: 'Invalid Dropbox configuration'
+            error: 'Failed to obtain valid access token'
           });
           continue;
         }
 
         // Test Dropbox connection first
-        const connectionValid = await testDropboxConnectionInternal(config.dropbox_path, config.dropbox_token);
+        const connectionValid = await testDropboxConnectionInternal(validConfig.dropbox_path, validConfig.dropbox_token);
         if (!connectionValid) {
           console.error(`Dropbox connection failed for user ${config.user_id}`);
           errorCount++;
@@ -212,7 +292,7 @@ async function processScheduledBackups(): Promise<Response> {
         }
 
         // Create backup for user
-        const result = await createBackupForUser(config.user_id, 'csv', config.dropbox_path, config.dropbox_token);
+        const result = await createBackupForUser(config.user_id, 'csv', validConfig.dropbox_path, validConfig.dropbox_token);
 
         if (result.success) {
           successCount++;

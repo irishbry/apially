@@ -1,4 +1,3 @@
-
 import { DataService } from './DataService';
 import { SourcesService } from './SourcesService';
 import { AnalyticsService } from './AnalyticsService';
@@ -44,7 +43,7 @@ export const ApiService = {
   setDropboxLink: ConfigService.setDropboxLink,
   exportToCsv: ConfigService.exportToCsv,
   
-  // Dropbox configuration functions using Supabase
+  // Dropbox OAuth configuration functions using Supabase
   getDropboxConfig: async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -68,7 +67,7 @@ export const ApiService = {
     }
   },
   
-  saveDropboxConfig: async (dropboxPath: string, dropboxToken: string, dailyBackupEnabled: boolean = false) => {
+  saveDropboxConfig: async (dropboxPath: string, appKey: string, appSecret: string, refreshToken: string, accessToken: string, expiresAt: string, dailyBackupEnabled: boolean = false) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
@@ -78,7 +77,11 @@ export const ApiService = {
         .upsert({
           user_id: user.id,
           dropbox_path: dropboxPath,
-          dropbox_token: dropboxToken,
+          app_key: appKey,
+          app_secret: appSecret,
+          refresh_token: refreshToken,
+          dropbox_token: accessToken,
+          access_token_expires_at: expiresAt,
           daily_backup_enabled: dailyBackupEnabled,
           is_active: true
         }, {
@@ -91,6 +94,85 @@ export const ApiService = {
       return data;
     } catch (error) {
       console.error('Error saving dropbox config:', error);
+      throw error;
+    }
+  },
+  
+  // Exchange authorization code for tokens
+  exchangeDropboxCode: async (code: string, appKey: string, appSecret: string) => {
+    try {
+      console.log('Exchanging Dropbox authorization code for tokens...');
+      
+      const tokenUrl = 'https://api.dropboxapi.com/oauth2/token';
+      const credentials = btoa(`${appKey}:${appSecret}`);
+      
+      const response = await fetch(tokenUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${credentials}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          code: code,
+          grant_type: 'authorization_code',
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Token exchange failed:', errorText);
+        throw new Error(`Token exchange failed: ${response.status}`);
+      }
+
+      const tokenData = await response.json();
+      console.log('Token exchange successful');
+      
+      return {
+        access_token: tokenData.access_token,
+        refresh_token: tokenData.refresh_token,
+        expires_in: tokenData.expires_in,
+      };
+    } catch (error) {
+      console.error('Error exchanging Dropbox code:', error);
+      throw error;
+    }
+  },
+  
+  // Refresh access token using refresh token
+  refreshDropboxToken: async (refreshToken: string, appKey: string, appSecret: string) => {
+    try {
+      console.log('Refreshing Dropbox access token...');
+      
+      const tokenUrl = 'https://api.dropboxapi.com/oauth2/token';
+      const credentials = btoa(`${appKey}:${appSecret}`);
+      
+      const response = await fetch(tokenUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${credentials}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          refresh_token: refreshToken,
+          grant_type: 'refresh_token',
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Token refresh failed:', errorText);
+        throw new Error(`Token refresh failed: ${response.status}`);
+      }
+
+      const tokenData = await response.json();
+      console.log('Token refresh successful');
+      
+      return {
+        access_token: tokenData.access_token,
+        expires_in: tokenData.expires_in,
+      };
+    } catch (error) {
+      console.error('Error refreshing Dropbox token:', error);
       throw error;
     }
   },

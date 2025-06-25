@@ -67,32 +67,44 @@ export type Database = {
       }
       dropbox_configs: {
         Row: {
+          access_token_expires_at: string | null
+          app_key: string | null
+          app_secret: string | null
           created_at: string
           daily_backup_enabled: boolean
           dropbox_path: string
-          dropbox_token: string
+          dropbox_token: string | null
           id: string
           is_active: boolean
+          refresh_token: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          access_token_expires_at?: string | null
+          app_key?: string | null
+          app_secret?: string | null
           created_at?: string
           daily_backup_enabled?: boolean
           dropbox_path: string
-          dropbox_token: string
+          dropbox_token?: string | null
           id?: string
           is_active?: boolean
+          refresh_token?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          access_token_expires_at?: string | null
+          app_key?: string | null
+          app_secret?: string | null
           created_at?: string
           daily_backup_enabled?: boolean
           dropbox_path?: string
-          dropbox_token?: string
+          dropbox_token?: string | null
           id?: string
           is_active?: boolean
+          refresh_token?: string | null
           updated_at?: string
           user_id?: string
         }
