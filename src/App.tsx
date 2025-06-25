@@ -1,46 +1,49 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import DataEntries from '@/pages/DataEntries';
-import Sources from '@/pages/Sources';
-import Analytics from '@/pages/Analytics';
-import Settings from '@/pages/Settings';
-import { Toaster } from "@/components/ui/toaster"
-import { useToast } from "@/hooks/use-toast"
-import { AuthProvider } from './hooks/useAuth';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import RequireAuth from './components/RequireAuth';
-import DropboxOAuthCallback from '@/pages/DropboxOAuthCallback';
 
-const queryClient = new QueryClient();
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Routes, Route, Navigate } from "react-router-dom";
+import Index from "./pages/Index";
+import NotFound from "./pages/NotFound";
+import DeploymentInstructions from "./pages/DeploymentInstructions";
+import AutoInstaller from "./components/AutoInstaller";
+import Signup from "./pages/Signup";
+import AuthCallback from "./pages/AuthCallback";
+import SmtpTest from "./pages/SmtpTest";
 
-function App() {
-  return (
-    <BrowserRouter>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-        <div className="min-h-screen bg-background">
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
-              
-              <Route path="/" element={<RequireAuth><DataEntries /></RequireAuth>} />
-              <Route path="/sources" element={<RequireAuth><Sources /></RequireAuth>} />
-              <Route path="/analytics" element={<RequireAuth><Analytics /></RequireAuth>} />
-              <Route path="/settings" element={<RequireAuth><Settings /></RequireAuth>} />
-            <Route path="/dropbox-oauth-callback" element={<DropboxOAuthCallback />} />
-          </Routes>
-          <Toaster />
-        </div>
-        </AuthProvider>
-      </QueryClientProvider>
-    </BrowserRouter>
-  );
-}
+// Initialize notification listeners
+import NotificationService from "./services/NotificationService";
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
+
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
+      {/* Toasters with explicit positions */}
+      <Toaster position="bottom-right" closeButton={true} />
+      <Sonner position="top-right" />
+      <Routes>
+        <Route path="/" element={<Index />} />
+        <Route path="/deploy" element={<DeploymentInstructions />} />
+        <Route path="/installer" element={<AutoInstaller />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/smtp-test" element={<SmtpTest />} />
+        {/* Handle 404 errors */}
+        <Route path="/404" element={<NotFound />} />
+        {/* Redirect all other routes to the 404 page instead of rendering it directly */}
+        <Route path="*" element={<Navigate to="/404" replace />} />
+      </Routes>
+    </TooltipProvider>
+  </QueryClientProvider>
+);
 
 export default App;

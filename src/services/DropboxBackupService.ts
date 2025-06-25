@@ -1,7 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { ApiService } from './ApiService';
-import { DropboxOAuthService } from './DropboxOAuthService';
 
 export const DropboxBackupService = {
   async createDailyBackup(userId: string, format: 'csv' | 'json' = 'csv'): Promise<boolean> {
@@ -24,7 +23,7 @@ export const DropboxBackupService = {
           userId,
           format,
           dropboxPath: dropboxConfig.dropbox_path,
-          // Don't pass tokens here - let the edge function handle token refresh
+          dropboxToken: dropboxConfig.dropbox_token
         }
       });
 
@@ -59,10 +58,11 @@ export const DropboxBackupService = {
       }
 
       // Update the config to enable daily backups
-      await ApiService.updateDropboxConfig({
-        ...dropboxConfig,
-        daily_backup_enabled: true
-      });
+      await ApiService.saveDropboxConfig(
+        dropboxConfig.dropbox_path,
+        dropboxConfig.dropbox_token,
+        true
+      );
 
       console.log('Automatic daily backups enabled for user:', user.id);
       console.log('Backups will run automatically every day at 2:00 AM UTC');
@@ -73,13 +73,19 @@ export const DropboxBackupService = {
     }
   },
 
-  async testDropboxConnection(dropboxPath: string): Promise<boolean> {
+  async testDropboxConnection(dropboxPath: string, dropboxToken: string): Promise<boolean> {
     try {
-      console.log('Testing Dropbox connection...');
+      console.log('Testing Dropbox connection...', { dropboxPath: dropboxPath.substring(0, 10) + '...' });
       
       // Basic validation
-      if (!dropboxPath) {
-        console.log('Missing path');
+      if (!dropboxPath || !dropboxToken) {
+        console.log('Missing path or token');
+        return false;
+      }
+
+      // Validate token format (Dropbox tokens typically start with 'sl.' or 'aal')
+      if (!dropboxToken.startsWith('sl.') && !dropboxToken.startsWith('aal')) {
+        console.log('Invalid token format');
         return false;
       }
 
@@ -89,11 +95,12 @@ export const DropboxBackupService = {
         return false;
       }
 
-      // Test the connection via edge function (it will handle token refresh)
+      // Test the connection via edge function
       const { data, error } = await supabase.functions.invoke('dropbox-backup', {
         body: {
           action: 'test_connection',
-          dropboxPath
+          dropboxPath,
+          dropboxToken
         }
       });
 
@@ -106,38 +113,6 @@ export const DropboxBackupService = {
       return data?.success || false;
     } catch (error) {
       console.error('Error testing Dropbox connection:', error);
-      return false;
-    }
-  },
-
-  async initiateOAuthFlow(appKey: string): Promise<string> {
-    const redirectUri = `${window.location.origin}/dropbox-oauth-callback`;
-    return DropboxOAuthService.generateAuthUrl(appKey, redirectUri);
-  },
-
-  async handleOAuthCallback(code: string, appKey: string, appSecret: string): Promise<boolean> {
-    try {
-      const redirectUri = `${window.location.origin}/dropbox-oauth-callback`;
-      const tokens = await DropboxOAuthService.exchangeCodeForTokens(appKey, appSecret, code, redirectUri);
-      
-      if (!tokens) {
-        return false;
-      }
-
-      // Save the OAuth credentials
-      const expiresAt = new Date(Date.now() + (tokens.expires_in * 1000));
-      
-      await ApiService.saveDropboxOAuthConfig({
-        app_key: appKey,
-        app_secret: appSecret,
-        refresh_token: tokens.refresh_token || '',
-        access_token: tokens.access_token,
-        token_expires_at: expiresAt.toISOString()
-      });
-
-      return true;
-    } catch (error) {
-      console.error('Error handling OAuth callback:', error);
       return false;
     }
   }
