@@ -31,7 +31,12 @@ interface DropboxConfig {
   id: string;
   user_id: string;
   dropbox_path: string;
-  dropbox_token: string;
+  dropbox_token?: string; // Legacy field
+  app_key?: string;
+  app_secret?: string;
+  refresh_token?: string;
+  access_token?: string;
+  token_expires_at?: string;
   is_active: boolean;
   daily_backup_enabled: boolean;
 }
@@ -49,11 +54,11 @@ const handler = async (req: Request): Promise<Response> => {
   console.log('Starting Dropbox backup process...');
 
   try {
-    const { userId, format = 'csv', dropboxPath, dropboxToken, action = 'backup' } = await req.json();
+    const { userId, format = 'csv', dropboxPath, action = 'backup' } = await req.json();
 
     // Handle different actions
     if (action === 'test_connection') {
-      return await testDropboxConnection(dropboxPath, dropboxToken);
+      return await testDropboxConnection(dropboxPath, userId);
     }
 
     if (action === 'scheduled_backup') {
@@ -62,7 +67,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Individual backup - userId is optional now
     if (userId) {
-      return await processIndividualBackup(userId, format, dropboxPath, dropboxToken);
+      return await processIndividualBackup(userId, format, dropboxPath);
     } else {
       return new Response(JSON.stringify({ error: 'User ID is required for individual backups' }), {
         status: 400,
@@ -82,38 +87,103 @@ const handler = async (req: Request): Promise<Response> => {
   }
 };
 
+async function getValidAccessToken(config: DropboxConfig): Promise<string | null> {
+  try {
+    // Check if we have OAuth credentials
+    if (config.app_key && config.app_secret && config.refresh_token) {
+      // Check if current access token is still valid (with 5 minute buffer)
+      const now = new Date();
+      const expiresAt = config.token_expires_at ? new Date(config.token_expires_at) : null;
+      
+      if (config.access_token && expiresAt && expiresAt.getTime() > now.getTime() + (5 * 60 * 1000)) {
+        console.log('Using existing valid access token');
+        return config.access_token;
+      }
+
+      // Refresh the access token
+      console.log('Refreshing Dropbox access token...');
+      const tokenResponse = await fetch('https://api.dropboxapi.com/oauth2/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': `Basic ${btoa(`${config.app_key}:${config.app_secret}`)}`
+        },
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: config.refresh_token
+        })
+      });
+
+      if (!tokenResponse.ok) {
+        const errorText = await tokenResponse.text();
+        console.error('Failed to refresh token:', errorText);
+        return null;
+      }
+
+      const tokenData = await tokenResponse.json();
+      const newExpiresAt = new Date(Date.now() + (tokenData.expires_in * 1000));
+
+      // Update the config with new access token
+      await supabase
+        .from('dropbox_configs')
+        .update({
+          access_token: tokenData.access_token,
+          token_expires_at: newExpiresAt.toISOString(),
+          // Update refresh token if a new one is provided
+          ...(tokenData.refresh_token && { refresh_token: tokenData.refresh_token })
+        })
+        .eq('user_id', config.user_id);
+
+      console.log('Access token refreshed successfully');
+      return tokenData.access_token;
+    }
+
+    // Fallback to legacy token (will likely fail if expired)
+    if (config.dropbox_token) {
+      console.log('Using legacy token (may be expired)');
+      return config.dropbox_token;
+    }
+
+    console.error('No valid token configuration found');
+    return null;
+  } catch (error) {
+    console.error('Error getting valid access token:', error);
+    return null;
+  }
+}
+
 async function processIndividualBackup(
   userId: string, 
   format: string, 
-  dropboxPath?: string, 
-  dropboxToken?: string
+  dropboxPath?: string
 ): Promise<Response> {
   console.log(`Processing individual backup for user: ${userId}`);
 
-  // Get user's Dropbox config from database if not provided
-  let finalDropboxPath = dropboxPath;
-  let finalDropboxToken = dropboxToken;
+  // Get user's Dropbox config from database
+  const { data: config, error: configError } = await supabase
+    .from('dropbox_configs')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('is_active', true)
+    .single();
 
-  if (!finalDropboxPath || !finalDropboxToken) {
-    const { data: config, error: configError } = await supabase
-      .from('dropbox_configs')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('is_active', true)
-      .single();
-
-    if (configError || !config) {
-      return new Response(JSON.stringify({ error: 'No active Dropbox configuration found' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    finalDropboxPath = config.dropbox_path;
-    finalDropboxToken = config.dropbox_token;
+  if (configError || !config) {
+    return new Response(JSON.stringify({ error: 'No active Dropbox configuration found' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
-  const result = await createBackupForUser(userId, format, finalDropboxPath, finalDropboxToken);
+  const accessToken = await getValidAccessToken(config);
+  if (!accessToken) {
+    return new Response(JSON.stringify({ error: 'Failed to get valid access token. Please re-authenticate with Dropbox.' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const finalDropboxPath = dropboxPath || config.dropbox_path;
+  const result = await createBackupForUser(userId, format, finalDropboxPath, accessToken);
   
   if (result.success) {
     return new Response(
@@ -186,33 +256,20 @@ async function processScheduledBackups(): Promise<Response> {
       try {
         console.log(`Processing backup for user: ${config.user_id}`);
         
-        // Validate Dropbox configuration
-        if (!config.dropbox_path || !config.dropbox_token) {
-          console.error(`Invalid Dropbox configuration for user ${config.user_id}`);
+        const accessToken = await getValidAccessToken(config);
+        if (!accessToken) {
+          console.error(`Failed to get valid access token for user ${config.user_id}`);
           errorCount++;
           results.push({
             userId: config.user_id,
             success: false,
-            error: 'Invalid Dropbox configuration'
-          });
-          continue;
-        }
-
-        // Test Dropbox connection first
-        const connectionValid = await testDropboxConnectionInternal(config.dropbox_path, config.dropbox_token);
-        if (!connectionValid) {
-          console.error(`Dropbox connection failed for user ${config.user_id}`);
-          errorCount++;
-          results.push({
-            userId: config.user_id,
-            success: false,
-            error: 'Dropbox connection failed'
+            error: 'Failed to get valid access token'
           });
           continue;
         }
 
         // Create backup for user
-        const result = await createBackupForUser(config.user_id, 'csv', config.dropbox_path, config.dropbox_token);
+        const result = await createBackupForUser(config.user_id, 'csv', config.dropbox_path, accessToken);
 
         if (result.success) {
           successCount++;
@@ -268,7 +325,7 @@ async function createBackupForUser(
   userId: string, 
   format: string, 
   dropboxPath: string, 
-  dropboxToken: string
+  accessToken: string
 ): Promise<{ success: boolean; fileName?: string; path?: string; error?: string; backedUpCount?: number }> {
   try {
     // Get user's data that hasn't been backed up to Dropbox yet
@@ -313,8 +370,8 @@ async function createBackupForUser(
 
     console.log(`Generated backup content (${backupContent.length} characters) for user ${userId}, file: ${fileName}`);
 
-    // Upload to Dropbox - save directly in the specified path
-    const uploadSuccess = await uploadToDropbox(dropboxToken, dropboxPath, fileName, backupContent);
+    // Upload to Dropbox using the fresh access token
+    const uploadSuccess = await uploadToDropbox(accessToken, dropboxPath, fileName, backupContent);
 
     if (uploadSuccess) {
       // Mark entries as backed up to Dropbox
@@ -353,23 +410,54 @@ async function createBackupForUser(
   }
 }
 
-async function testDropboxConnection(dropboxPath: string, dropboxToken: string): Promise<Response> {
+async function testDropboxConnection(dropboxPath: string, userId?: string): Promise<Response> {
   try {
     console.log('Testing Dropbox connection...');
     
-    const isValid = await testDropboxConnectionInternal(dropboxPath, dropboxToken);
-    
-    if (isValid) {
-      return new Response(
-        JSON.stringify({ success: true, message: 'Dropbox connection successful' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    } else {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Dropbox connection failed' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (userId) {
+      // Get user's config and test with fresh token
+      const { data: config, error: configError } = await supabase
+        .from('dropbox_configs')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .single();
+
+      if (configError || !config) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'No active Dropbox configuration found' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const accessToken = await getValidAccessToken(config);
+      if (!accessToken) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Failed to get valid access token' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const isValid = await testDropboxConnectionInternal(dropboxPath, accessToken);
+      
+      if (isValid) {
+        return new Response(
+          JSON.stringify({ success: true, message: 'Dropbox connection successful' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } else {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Dropbox connection failed' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
+    
+    // Fallback for legacy usage (without userId)
+    return new Response(
+      JSON.stringify({ success: false, error: 'User ID required for connection test' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   } catch (error) {
     console.error('Error testing Dropbox connection:', error);
     return new Response(
@@ -379,7 +467,7 @@ async function testDropboxConnection(dropboxPath: string, dropboxToken: string):
   }
 }
 
-async function testDropboxConnectionInternal(dropboxPath: string, dropboxToken: string): Promise<boolean> {
+async function testDropboxConnectionInternal(dropboxPath: string, accessToken: string): Promise<boolean> {
   try {    
     // Test by creating a small test file
     const testContent = 'Connection test';
@@ -388,7 +476,7 @@ async function testDropboxConnectionInternal(dropboxPath: string, dropboxToken: 
     const response = await fetch('https://content.dropboxapi.com/2/files/upload', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${dropboxToken}`,
+        'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/octet-stream',
         'Dropbox-API-Arg': JSON.stringify({
           path: `${dropboxPath}/${testFileName}`,
@@ -403,7 +491,7 @@ async function testDropboxConnectionInternal(dropboxPath: string, dropboxToken: 
       await fetch('https://api.dropboxapi.com/2/files/delete_v2', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${dropboxToken}`,
+          'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({

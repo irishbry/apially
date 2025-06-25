@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, Cloud, HelpCircle, Download, Upload, Key, AlertCircle, CheckCircle2, Database } from "lucide-react";
+import { Check, Cloud, HelpCircle, Download, Upload, Key, AlertCircle, CheckCircle2, Database, ExternalLink } from "lucide-react";
 import { 
   Tooltip,
   TooltipContent,
@@ -15,16 +16,18 @@ import { DropboxBackupService } from "@/services/DropboxBackupService";
 import { useAuth } from "@/hooks/useAuth";
 
 const DropboxLinkForm: React.FC = () => {
-  const [dropboxLink, setDropboxLink] = useState('');
-  const [dropboxToken, setDropboxToken] = useState('');
+  const [dropboxPath, setDropboxPath] = useState('/DataBackups');
+  const [appKey, setAppKey] = useState('');
+  const [appSecret, setAppSecret] = useState('');
   const [isValidConfig, setIsValidConfig] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [isCreatingBackup, setIsCreatingBackup] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isDailyEnabled, setIsDailyEnabled] = useState(false);
   const [validationMessage, setValidationMessage] = useState('');
   const [backupStats, setBackupStats] = useState({ total: 0, backedUp: 0, pending: 0 });
+  const [hasValidTokens, setHasValidTokens] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -53,19 +56,20 @@ const DropboxLinkForm: React.FC = () => {
       const config = await ApiService.getDropboxConfig();
       
       if (config) {
-        setDropboxLink(config.dropbox_path);
-        setDropboxToken(config.dropbox_token);
+        setDropboxPath(config.dropbox_path || '/DataBackups');
+        setAppKey(config.app_key || '');
+        setAppSecret(config.app_secret || '');
         setIsDailyEnabled(config.daily_backup_enabled);
         
-        // Test the existing config
-        if (config.is_active) {
-          setValidationMessage('Testing existing configuration...');
-          const isValid = await DropboxBackupService.testDropboxConnection(
-            config.dropbox_path, 
-            config.dropbox_token
-          );
+        // Check if we have valid OAuth tokens
+        const hasTokens = !!(config.refresh_token && config.access_token);
+        setHasValidTokens(hasTokens);
+        
+        if (hasTokens && config.is_active) {
+          setValidationMessage('Testing existing connection...');
+          const isValid = await DropboxBackupService.testDropboxConnection(config.dropbox_path);
           setIsValidConfig(isValid);
-          setValidationMessage(isValid ? 'Configuration is valid' : 'Configuration test failed');
+          setValidationMessage(isValid ? 'Connection is active and working' : 'Connection test failed - may need to re-authenticate');
         }
       }
     } catch (error) {
@@ -81,21 +85,8 @@ const DropboxLinkForm: React.FC = () => {
   };
 
   const testConnection = async () => {
-    if (!dropboxLink || !dropboxToken) {
-      setValidationMessage('Please enter both folder path and API token');
-      setIsValidConfig(false);
-      return;
-    }
-
-    // Basic validation first
-    if (!dropboxLink.startsWith('/')) {
-      setValidationMessage('Folder path must start with /');
-      setIsValidConfig(false);
-      return;
-    }
-
-    if (!dropboxToken.startsWith('sl.') && !dropboxToken.startsWith('aal')) {
-      setValidationMessage('Invalid token format. Dropbox tokens should start with "sl." or "aal"');
+    if (!hasValidTokens) {
+      setValidationMessage('Please complete OAuth authentication first');
       setIsValidConfig(false);
       return;
     }
@@ -104,14 +95,14 @@ const DropboxLinkForm: React.FC = () => {
     setValidationMessage('Testing connection...');
 
     try {
-      const isValid = await DropboxBackupService.testDropboxConnection(dropboxLink, dropboxToken);
+      const isValid = await DropboxBackupService.testDropboxConnection(dropboxPath);
       setIsValidConfig(isValid);
-      setValidationMessage(isValid ? 'Connection successful!' : 'Connection failed. Please check your token and folder path.');
+      setValidationMessage(isValid ? 'Connection successful!' : 'Connection failed. You may need to re-authenticate.');
       
       if (!isValid) {
         toast({
           title: "Connection Failed",
-          description: "Please verify your Dropbox API token and folder path. Make sure the folder exists and your token has the necessary permissions.",
+          description: "Connection test failed. You may need to re-authenticate with Dropbox.",
           variant: "destructive",
         });
       }
@@ -129,62 +120,73 @@ const DropboxLinkForm: React.FC = () => {
     }
   };
 
-  const saveDropboxConfig = async () => {
-    try {
-      if (!dropboxLink || !dropboxToken) {
-        toast({
-          title: "Error",
-          description: "Please enter both Dropbox folder path and API token",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      setIsSaving(true);
-
-      // Test connection before saving
-      setValidationMessage('Testing connection before saving...');
-      const isValid = await DropboxBackupService.testDropboxConnection(dropboxLink, dropboxToken);
-      
-      if (!isValid) {
-        toast({
-          title: "Invalid Configuration",
-          description: "Connection test failed. Please check your Dropbox folder path and API token",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Save configuration with daily backups automatically enabled
-      await ApiService.saveDropboxConfig(dropboxLink, dropboxToken, true);
-      setIsValidConfig(true);
-      setIsDailyEnabled(true);
-      setValidationMessage('Configuration saved successfully with daily backups enabled!');
-      
-      // Setup automatic backups
-      const backupSetup = await DropboxBackupService.setupAutomaticBackups();
-      
-      if (backupSetup) {
-        toast({
-          title: "Success",
-          description: "Dropbox configuration saved and daily automatic backups have been enabled!",
-        });
-      } else {
-        toast({
-          title: "Partial Success",
-          description: "Configuration saved but there was an issue setting up automatic backups",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error('Error saving Dropbox config:', error);
+  const connectToDropbox = async () => {
+    if (!appKey || !appSecret) {
       toast({
         title: "Error",
-        description: "Failed to save Dropbox configuration",
+        description: "Please enter both App Key and App Secret",
         variant: "destructive",
       });
-    } finally {
-      setIsSaving(false);
+      return;
+    }
+
+    try {
+      setIsConnecting(true);
+      
+      // Store credentials temporarily for the OAuth callback
+      localStorage.setItem('dropbox_app_key', appKey);
+      localStorage.setItem('dropbox_app_secret', appSecret);
+      
+      // Start OAuth flow
+      const authUrl = await DropboxBackupService.initiateOAuthFlow(appKey);
+      
+      // Open OAuth URL in a new window
+      window.open(authUrl, 'dropbox-oauth', 'width=600,height=700,scrollbars=yes,resizable=yes');
+      
+      setValidationMessage('Please complete the authorization in the popup window...');
+      
+      // Listen for the OAuth completion (you might want to implement a more robust method)
+      const checkForCompletion = setInterval(async () => {
+        try {
+          const config = await ApiService.getDropboxConfig();
+          if (config?.refresh_token) {
+            clearInterval(checkForCompletion);
+            setHasValidTokens(true);
+            setIsDailyEnabled(true);
+            setValidationMessage('OAuth completed successfully!');
+            
+            // Test the connection
+            const isValid = await DropboxBackupService.testDropboxConnection(dropboxPath);
+            setIsValidConfig(isValid);
+            
+            if (isValid) {
+              toast({
+                title: "Success",
+                description: "Successfully connected to Dropbox! Daily backups are now enabled.",
+              });
+            }
+            
+            setIsConnecting(false);
+          }
+        } catch (error) {
+          // Still checking...
+        }
+      }, 2000);
+      
+      // Stop checking after 5 minutes
+      setTimeout(() => {
+        clearInterval(checkForCompletion);
+        setIsConnecting(false);
+      }, 300000);
+      
+    } catch (error) {
+      console.error('Error connecting to Dropbox:', error);
+      setIsConnecting(false);
+      toast({
+        title: "Error",
+        description: "Failed to start OAuth flow",
+        variant: "destructive",
+      });
     }
   };
 
@@ -213,7 +215,7 @@ const DropboxLinkForm: React.FC = () => {
       } else {
         toast({
           title: "Error",
-          description: "Failed to upload backup to Dropbox",
+          description: "Failed to upload backup to Dropbox. You may need to re-authenticate.",
           variant: "destructive",
         });
       }
@@ -269,18 +271,18 @@ const DropboxLinkForm: React.FC = () => {
                 <HelpCircle className="h-4 w-4 text-slate-400 cursor-help ml-auto" />
               </TooltipTrigger>
               <TooltipContent className="max-w-xs">
-                <p>Configure your Dropbox API token and folder path for automatic daily backups.</p>
+                <p>Configure OAuth authentication with your Dropbox app for secure, automatic daily backups with refresh tokens.</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </CardTitle>
         <CardDescription className="text-sm">
-          Set up automatic daily backups to your Dropbox account
+          Set up secure OAuth authentication for automatic daily backups using refresh tokens
         </CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-3">
-        {/* Very Compact Backup Statistics */}
+        {/* Backup Statistics - Very Compact */}
         {backupStats.total > 0 && (
           <div className="flex items-center justify-between text-xs text-slate-600 bg-slate-50 px-2 py-1 rounded border">
             <span className="flex items-center gap-1">
@@ -297,48 +299,86 @@ const DropboxLinkForm: React.FC = () => {
           </label>
           <Input
             type="text"
-            placeholder="/Backups/MyApp"
-            value={dropboxLink}
+            placeholder="/DataBackups"
+            value={dropboxPath}
             onChange={(e) => {
-              setDropboxLink(e.target.value);
+              setDropboxPath(e.target.value);
               setValidationMessage('');
-              setIsValidConfig(false);
             }}
           />
           <p className="text-xs text-slate-500">
             Specify the folder path where backups will be stored (must start with /)
           </p>
         </div>
-        
-        <div className="space-y-2">
-          <label className="text-sm font-medium flex items-center gap-2">
-            <Key className="h-4 w-4" />
-            Dropbox API Token
-          </label>
-          <Input
-            type="password"
-            placeholder="sl.xxxxxxxxxxxxxxxxx"
-            value={dropboxToken}
-            onChange={(e) => {
-              setDropboxToken(e.target.value);
-              setValidationMessage('');
-              setIsValidConfig(false);
-            }}
-          />
-          <p className="text-xs text-slate-500">
-            Get your API token from the{' '}
-            <a 
-              href="https://www.dropbox.com/developers/apps" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="text-primary hover:underline"
+
+        {!hasValidTokens && (
+          <>
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-2">
+                <Key className="h-4 w-4" />
+                Dropbox App Key
+              </label>
+              <Input
+                type="text"
+                placeholder="Your Dropbox app key"
+                value={appKey}
+                onChange={(e) => {
+                  setAppKey(e.target.value);
+                  setValidationMessage('');
+                }}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium">
+                Dropbox App Secret
+              </label>
+              <Input
+                type="password"
+                placeholder="Your Dropbox app secret"
+                value={appSecret}
+                onChange={(e) => {
+                  setAppSecret(e.target.value);
+                  setValidationMessage('');
+                }}
+              />
+              <p className="text-xs text-slate-500">
+                Create a Dropbox app at{' '}
+                <a 
+                  href="https://www.dropbox.com/developers/apps" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="text-primary hover:underline inline-flex items-center gap-1"
+                >
+                  Dropbox Developer Console
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+                {' '}and get your App Key & Secret
+              </p>
+            </div>
+
+            <Button 
+              onClick={connectToDropbox} 
+              disabled={isConnecting || !appKey || !appSecret}
+              className="w-full"
+              size="sm"
             >
-              Dropbox Developer Console
-            </a>
-          </p>
-        </div>
-        
-        {dropboxLink && dropboxToken && (
+              {isConnecting ? (
+                <>
+                  <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                  Connecting to Dropbox...
+                </>
+              ) : (
+                <>
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Connect to Dropbox
+                </>
+              )}
+            </Button>
+          </>
+        )}
+
+        {hasValidTokens && (
           <Button 
             onClick={testConnection} 
             variant="outline" 
@@ -397,23 +437,6 @@ const DropboxLinkForm: React.FC = () => {
             {isCreatingBackup ? 'Creating...' : `Backup Now ${backupStats.pending > 0 ? `(${backupStats.pending} new)` : ''}`}
           </Button>
         )}
-        <Button 
-          onClick={saveDropboxConfig} 
-          disabled={!isValidConfig || isSaving}
-          size="sm"
-        >
-          {isSaving ? (
-            <>
-              <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <Check className="mr-2 h-4 w-4" />
-              Save & Enable
-            </>
-          )}
-        </Button>
       </CardFooter>
     </Card>
   );
