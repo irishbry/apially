@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
-import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -41,19 +40,6 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 );
 
-// Initialize SMTP client
-const smtpClient = new SMTPClient({
-  connection: {
-    hostname: Deno.env.get('SMTP_HOST') ?? '',
-    port: parseInt(Deno.env.get('SMTP_PORT') ?? '587'),
-    tls: true,
-    auth: {
-      username: Deno.env.get('SMTP_USER') ?? '',
-      password: Deno.env.get('SMTP_PASSWORD') ?? '',
-    },
-  },
-});
-
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -87,6 +73,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const processedExports = [];
+    const emailTasks = [];
 
     for (const exportConfig of dueExports) {
       try {
@@ -138,82 +125,59 @@ const handler = async (req: Request): Promise<Response> => {
 
         // Generate export content
         let exportContent = '';
-        let contentType = '';
-        let fileExtension = '';
 
         if (exportConfig.format === 'csv') {
           exportContent = generateCSV(userData || [], sources);
-          contentType = 'text/csv';
-          fileExtension = 'csv';
           console.log('Generated CSV content:', exportContent.substring(0, 200) + '...');
         } else {
           exportContent = generateJSON(userData || [], sources);
-          contentType = 'application/json';
-          fileExtension = 'json';
           console.log('Generated JSON content:', exportContent.substring(0, 200) + '...');
         }
 
-        // Send email if delivery method is email
+        // Handle email delivery by calling the separate email function
         if (exportConfig.delivery === 'email' && exportConfig.email) {
-          const fileName = `${exportConfig.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.${fileExtension}`;
+          console.log(`Scheduling email for export: ${exportConfig.name}`);
           
-          try {
-            // Convert string to base64 properly
-            const base64Content = btoa(exportContent);
-            
-            await smtpClient.send({
-              from: Deno.env.get('SMTP_USER') ?? 'noreply@apially.com',
-              to: exportConfig.email,
-              subject: `Scheduled Export: ${exportConfig.name}`,
-              content: "auto",
-              html: `
-                <h2>Your Scheduled Export is Ready</h2>
-                <p>Hello,</p>
-                <p>Your scheduled export "<strong>${exportConfig.name}</strong>" has been generated successfully.</p>
-                <p><strong>Export Details:</strong></p>
-                <ul>
-                  <li>Format: ${exportConfig.format.toUpperCase()}</li>
-                  <li>Frequency: ${exportConfig.frequency}</li>
-                  <li>New Records: ${userData?.length || 0}</li>
-                  <li>Generated: ${new Date().toLocaleString()}</li>
-                </ul>
-                <p>Please find your data export attached to this email.</p>
-                <p>Best regards,<br>ApiAlly Team</p>
-              `,
-              attachments: [
-                {
-                  filename: fileName,
-                  content: base64Content,
-                  encoding: "base64",
-                  contentType: contentType,
-                },
-              ],
-            });
-
-            console.log(`Email sent successfully for export: ${exportConfig.name}`);
-
-            // Mark entries as backed up via email
-            const entryIds = userData.map(entry => entry.id);
-            const today = new Date().toISOString().split('T')[0];
-            
-            const { error: updateError } = await supabase
-              .from('data_entries')
-              .update({
-                backed_up_email: true,
-                last_email_backup: today
-              })
-              .in('id', entryIds);
-
-            if (updateError) {
-              console.error(`Error updating backup status for entries:`, updateError);
-            } else {
-              console.log(`Marked ${entryIds.length} entries as backed up via email`);
+          // Call the email service asynchronously
+          const emailPromise = supabase.functions.invoke('send-export-email', {
+            body: {
+              exportConfig: {
+                id: exportConfig.id,
+                name: exportConfig.name,
+                email: exportConfig.email,
+                format: exportConfig.format,
+                frequency: exportConfig.frequency,
+              },
+              exportContent: exportContent,
+              recordCount: userData.length,
             }
+          }).then(async (response) => {
+            if (response.error) {
+              console.error(`Error calling email service for export ${exportConfig.name}:`, response.error);
+            } else {
+              console.log(`Email service called successfully for export: ${exportConfig.name}`);
+              
+              // Mark entries as backed up via email
+              const entryIds = userData.map(entry => entry.id);
+              const today = new Date().toISOString().split('T')[0];
+              
+              const { error: updateError } = await supabase
+                .from('data_entries')
+                .update({
+                  backed_up_email: true,
+                  last_email_backup: today
+                })
+                .in('id', entryIds);
 
-          } catch (emailError) {
-            console.error(`Error sending email for export ${exportConfig.name}:`, emailError);
-            // Continue processing even if email fails
-          }
+              if (updateError) {
+                console.error(`Error updating backup status for entries:`, updateError);
+              } else {
+                console.log(`Marked ${entryIds.length} entries as backed up via email`);
+              }
+            }
+          });
+          
+          emailTasks.push(emailPromise);
         }
 
         // Calculate next export time
@@ -237,6 +201,14 @@ const handler = async (req: Request): Promise<Response> => {
       } catch (error) {
         console.error(`Error processing export ${exportConfig.name}:`, error);
       }
+    }
+
+    // Wait for all email tasks to complete in the background
+    if (emailTasks.length > 0) {
+      console.log(`Waiting for ${emailTasks.length} email tasks to complete...`);
+      Promise.all(emailTasks).catch(error => {
+        console.error('Error in email tasks:', error);
+      });
     }
 
     return new Response(
