@@ -454,8 +454,10 @@ async function createBackupForUser(
 
     // If at least one upload succeeded, mark as success
     if (storagePath || dropboxUrl) {
-      // Mark entries as backed up to Dropbox
+      // Mark entries as backed up to Dropbox - THIS IS THE CRITICAL FIX
       const entryIds = userData.map(entry => entry.id);
+      console.log(`Marking ${entryIds.length} entries as backed up to Dropbox`);
+      
       const { error: updateError } = await supabase
         .from('data_entries')
         .update({
@@ -466,7 +468,9 @@ async function createBackupForUser(
 
       if (updateError) {
         console.error('Error updating backup status:', updateError);
-        // Still return success since the backup was uploaded
+        // Still return success since the backup was uploaded, but log the error
+      } else {
+        console.log(`Successfully marked ${entryIds.length} entries as backed up to Dropbox`);
       }
 
       // Update backup log with success status and URLs
