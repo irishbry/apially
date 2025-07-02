@@ -45,6 +45,59 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 );
 
+// Helper function to chunk array into smaller arrays
+function chunkArray<T>(array: T[], chunkSize: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < array.length; i += chunkSize) {
+    chunks.push(array.slice(i, i + chunkSize));
+  }
+  return chunks;
+}
+
+// Helper function to update records in chunks
+async function updateRecordsInChunks(entryIds: string[], userId: string): Promise<{ success: boolean; updatedCount: number }> {
+  const chunks = chunkArray(entryIds, 100);
+  let totalUpdated = 0;
+  
+  console.log(`Processing ${chunks.length} chunks of records for user ${userId}`);
+  
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+    console.log(`Processing chunk ${i + 1}/${chunks.length} with ${chunk.length} records`);
+    
+    try {
+      const { error: updateError, data: updateData } = await supabase
+        .from('data_entries')
+        .update({
+          backed_up_dropbox: true,
+          last_dropbox_backup: new Date().toISOString().split('T')[0]
+        })
+        .in('id', chunk)
+        .select('id, backed_up_dropbox, last_dropbox_backup');
+
+      if (updateError) {
+        console.error(`Error updating chunk ${i + 1}:`, updateError);
+        // Continue with other chunks even if one fails
+      } else {
+        const chunkUpdated = updateData?.length || 0;
+        totalUpdated += chunkUpdated;
+        console.log(`Chunk ${i + 1} updated ${chunkUpdated} records successfully`);
+      }
+      
+      // Add a small delay between chunks to avoid overwhelming the database
+      if (i < chunks.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    } catch (error) {
+      console.error(`Error processing chunk ${i + 1}:`, error);
+      // Continue with other chunks
+    }
+  }
+  
+  console.log(`Total records updated across all chunks: ${totalUpdated} out of ${entryIds.length}`);
+  return { success: totalUpdated > 0, updatedCount: totalUpdated };
+}
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -464,27 +517,17 @@ async function createBackupForUser(
 
     // If at least one upload succeeded, mark as success
     if (storagePath || dropboxUrl) {
-      // Mark entries as backed up to Dropbox - THIS IS THE CRITICAL FIX
+      // Mark entries as backed up to Dropbox using chunked updates
       const entryIds = userData.map(entry => entry.id);
-      console.log(`Marking ${entryIds.length} entries as backed up to Dropbox for user ${userId}`);
-      console.log(`Sample of entry IDs being marked:`, entryIds.slice(0, 5));
+      console.log(`Marking ${entryIds.length} entries as backed up to Dropbox for user ${userId} using chunked updates`);
       
-      const { error: updateError, data: updateData } = await supabase
-        .from('data_entries')
-        .update({
-          backed_up_dropbox: true,
-          last_dropbox_backup: new Date().toISOString().split('T')[0]
-        })
-        .in('id', entryIds)
-        .select('id, backed_up_dropbox, last_dropbox_backup');
-
-      if (updateError) {
-        console.error('Error updating backup status:', updateError);
+      const updateResult = await updateRecordsInChunks(entryIds, userId);
+      
+      if (!updateResult.success) {
+        console.error('Failed to update any records in chunks');
         // Still return success since the backup was uploaded, but log the error
       } else {
-        console.log(`Successfully marked ${entryIds.length} entries as backed up to Dropbox`);
-        console.log(`Updated ${updateData?.length || 0} records`);
-        console.log(`Sample of updated records:`, updateData?.slice(0, 3));
+        console.log(`Successfully updated ${updateResult.updatedCount} out of ${entryIds.length} entries`);
       }
 
       // Update backup log with success status and URLs
