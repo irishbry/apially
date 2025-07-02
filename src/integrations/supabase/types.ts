@@ -21,6 +21,7 @@ export type Database = {
           id: string
           record_count: number
           status: string
+          storage_path: string | null
           updated_at: string
           user_id: string
         }
@@ -35,6 +36,7 @@ export type Database = {
           id?: string
           record_count?: number
           status?: string
+          storage_path?: string | null
           updated_at?: string
           user_id: string
         }
@@ -49,6 +51,7 @@ export type Database = {
           id?: string
           record_count?: number
           status?: string
+          storage_path?: string | null
           updated_at?: string
           user_id?: string
         }
