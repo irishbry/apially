@@ -7,7 +7,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { AlertTriangle, Download, Filter, Search, SortAsc, SortDesc, Trash2, FileDown, ListFilter, RefreshCw } from "lucide-react";
+import { 
+  Pagination, 
+  PaginationContent, 
+  PaginationItem, 
+  PaginationLink, 
+  PaginationNext, 
+  PaginationPrevious,
+  PaginationEllipsis
+} from "@/components/ui/pagination";
+import { AlertTriangle, Download, Filter, Search, SortAsc, SortDesc, Trash2, FileDown, ListFilter, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ApiService, DataEntry, Source } from "@/services/ApiService";
 import { downloadCSV } from "@/utils/csvUtils";
@@ -53,6 +62,10 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
   const [allColumns, setAllColumns] = useState<string[]>([]);
   const [activeFilterColumn, setActiveFilterColumn] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
 
   // Use prop data if provided, otherwise use internal data from subscriptions
   const data = propData || internalData;
@@ -154,7 +167,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
     }
   }, [data]);
   
-  const visibleData = useMemo(() => {
+  const filteredData = useMemo(() => {
     // Early return if no data to prevent crashes
     if (!data || data.length === 0) {
       return [];
@@ -251,10 +264,25 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
       
       return filtered;
     } catch (error) {
-      console.error('Error in visibleData calculation:', error);
+      console.error('Error in filteredData calculation:', error);
       return [];
     }
   }, [data, searchTerm, selectedSource, sortConfig, activeFilters, visibleColumns, sources]);
+
+  // Paginated data
+  const paginatedData = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredData.slice(startIndex, endIndex);
+  }, [filteredData, currentPage, itemsPerPage]);
+
+  // Calculate total pages
+  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedSource, activeFilters]);
 
   const getColumns = (): string[] => {
     if (!data || data.length === 0) return [];
@@ -306,9 +334,9 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
     try {
       setIsDownloading(true);
       setTimeout(() => {
-        // Use the new CSV export format that matches the Data Explorer
+        // Export all filtered data, not just current page
         downloadCSV(
-          visibleData, 
+          filteredData, 
           visibleColumns, 
           sources, 
           getDisplayName, 
@@ -318,7 +346,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
         setIsDownloading(false);
         NotificationService.addNotification(
           'CSV Export Complete', 
-          `Successfully exported ${visibleData.length} records to CSV with ${visibleColumns.length} columns.`,
+          `Successfully exported ${filteredData.length} records to CSV with ${visibleColumns.length} columns.`,
           'success'
         );
       }, 500);
@@ -456,6 +484,37 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
 
   const activeFilterCount = activeFilters.filter(f => f.enabled).length;
 
+  // Pagination handlers
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handleItemsPerPageChange = (value: string) => {
+    setItemsPerPage(parseInt(value));
+    setCurrentPage(1);
+  };
+
+  // Generate page numbers for pagination
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisiblePages = 5;
+    
+    if (totalPages <= maxVisiblePages) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      const startPage = Math.max(1, currentPage - 2);
+      const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+      
+      for (let i = startPage; i <= endPage; i++) {
+        pages.push(i);
+      }
+    }
+    
+    return pages;
+  };
+
   return (
     <Card className="w-full shadow-sm hover:shadow-md transition-all duration-300">
       <CardHeader>
@@ -503,7 +562,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
             <Button 
               size="sm"
               onClick={handleExportCSV}
-              disabled={isDownloading || visibleData.length === 0}
+              disabled={isDownloading || filteredData.length === 0}
               className="hover-lift"
             >
               {isDownloading ? (
@@ -511,7 +570,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
               ) : (
                 <>
                   <Download className="h-4 w-4 mr-1" />
-                  Export CSV
+                  Export CSV ({filteredData.length})
                 </>
               )}
             </Button>
@@ -709,8 +768,8 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {visibleData.length > 0 ? (
-                    visibleData.map((entry, index) => (
+                  {paginatedData.length > 0 ? (
+                    paginatedData.map((entry, index) => (
                       <TableRow key={entry.id || index} className="animate-fade-in">
                         {visibleColumns.map(column => (
                           <TableCell key={`${entry.id || index}-${column}`} className="whitespace-nowrap">
@@ -741,14 +800,102 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
           </div>
         </div>
       </CardContent>
-      <CardFooter className="py-3 text-sm text-muted-foreground justify-between">
-        <div>
-          Showing {visibleData.length} of {data.length} entries
-          {selectedSource !== 'all' && ` for ${getSourceName(selectedSource)}`}
+      <CardFooter className="py-3 flex items-center justify-between space-x-4">
+        <div className="flex items-center space-x-2">
+          <span className="text-sm text-muted-foreground">
+            Showing {Math.min((currentPage - 1) * itemsPerPage + 1, filteredData.length)} to {Math.min(currentPage * itemsPerPage, filteredData.length)} of {filteredData.length} entries
+            {selectedSource !== 'all' && ` for ${getSourceName(selectedSource)}`}
+          </span>
         </div>
-        <div className="flex items-center gap-2">
-          <FileDown className="h-4 w-4 text-muted-foreground" />
-          <span>Drag column headers to reorder</span>
+        
+        <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2">
+            <Label htmlFor="items-per-page" className="text-sm">Rows per page:</Label>
+            <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
+              <SelectTrigger id="items-per-page" className="w-20">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="25">25</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+                <SelectItem value="200">200</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          {totalPages > 1 && (
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className="gap-1 pl-2.5"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Previous
+                  </Button>
+                </PaginationItem>
+                
+                {currentPage > 3 && (
+                  <>
+                    <PaginationItem>
+                      <PaginationLink onClick={() => handlePageChange(1)}>
+                        1
+                      </PaginationLink>
+                    </PaginationItem>
+                    {currentPage > 4 && (
+                      <PaginationItem>
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                    )}
+                  </>
+                )}
+                
+                {getPageNumbers().map((page) => (
+                  <PaginationItem key={page}>
+                    <PaginationLink
+                      onClick={() => handlePageChange(page)}
+                      isActive={currentPage === page}
+                    >
+                      {page}
+                    </PaginationLink>
+                  </PaginationItem>
+                ))}
+                
+                {currentPage < totalPages - 2 && (
+                  <>
+                    {currentPage < totalPages - 3 && (
+                      <PaginationItem>
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                    )}
+                    <PaginationItem>
+                      <PaginationLink onClick={() => handlePageChange(totalPages)}>
+                        {totalPages}
+                      </PaginationLink>
+                    </PaginationItem>
+                  </>
+                )}
+                
+                <PaginationItem>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    className="gap-1 pr-2.5"
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          )}
         </div>
       </CardFooter>
     </Card>

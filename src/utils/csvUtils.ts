@@ -1,7 +1,7 @@
 
 import { DataEntry, Source } from "@/services/ApiService";
 
-// Convert an array of objects to CSV string with Data Explorer format
+// Convert an array of objects to CSV string with exact Data Explorer format
 export function convertToCSV(
   data: DataEntry[], 
   visibleColumns: string[], 
@@ -24,17 +24,17 @@ export function convertToCSV(
       const value = getValue(entry, column);
       const formattedValue = formatCellValue(column, value);
       
-      // Handle CSV escaping
+      // Handle CSV escaping - ensure exact match with table display
       if (formattedValue === undefined || formattedValue === null || formattedValue === '-') {
-        return '""';
+        return '';
       }
       
       const stringValue = String(formattedValue);
       // Escape quotes and wrap in quotes if contains commas, quotes, or newlines
-      if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+      if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n') || stringValue.includes('\r')) {
         return `"${stringValue.replace(/"/g, '""')}"`;
       }
-      return `"${stringValue}"`;
+      return stringValue;
     }).join(',');
   });
   
@@ -48,7 +48,7 @@ export function formatDateForFilename(): string {
   return `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}`;
 }
 
-// Download CSV as a file with Data Explorer format
+// Download CSV as a file with exact Data Explorer format
 export function downloadCSV(
   data: DataEntry[], 
   visibleColumns: string[], 
@@ -70,9 +70,12 @@ export function downloadCSV(
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  
+  // Clean up the URL
+  URL.revokeObjectURL(url);
 }
 
-// Format time for display
+// Format time for display - matches table format
 export function formatTimeForDisplay(dateString: string): string {
   try {
     const date = new Date(dateString);
