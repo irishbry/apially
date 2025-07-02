@@ -29,7 +29,13 @@ export const BackupLogsService = {
         throw error;
       }
 
-      return data || [];
+      // Cast the data to match our interface types
+      return (data || []).map(log => ({
+        ...log,
+        backup_type: log.backup_type as 'manual' | 'scheduled',
+        format: log.format as 'csv' | 'json',
+        status: log.status as 'completed' | 'failed' | 'processing'
+      }));
     } catch (error) {
       console.error('Error in getBackupLogs:', error);
       throw error;
