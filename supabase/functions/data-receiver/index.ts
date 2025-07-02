@@ -176,18 +176,7 @@ serve(async (req) => {
       );
     }
 
-    // Basic validation - accept either sensorId or sensor_id
-    if (!body.sensorId && !body.sensor_id) {
-      return new Response(
-        JSON.stringify({ 
-          success: false,
-          message: 'Data validation failed',
-          code: 'VALIDATION_ERROR',
-          errors: ['Missing required field: sensorId or sensor_id']
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-      );
-    }
+    // No validation required for sensorId or sensor_id - they are optional
 
     // Generate a unique ID if not provided
     const entryId = body.id || crypto.randomUUID();
@@ -256,7 +245,7 @@ serve(async (req) => {
         file_name: filename,
         file_path: filePath,
         timestamp: enhancedData.timestamp,
-        sensor_id: enhancedData.sensorId || enhancedData.sensor_id,
+        sensor_id: enhancedData.sensorId || enhancedData.sensor_id || null,
         metadata: metadata
       })
       .select()
@@ -296,7 +285,7 @@ serve(async (req) => {
           id: entryId,
           timestamp: now,
           sourceId: source.id,
-          sensorId: enhancedData.sensorId || enhancedData.sensor_id,
+          sensorId: enhancedData.sensorId || enhancedData.sensor_id || null,
           ...body
         }
       }),
