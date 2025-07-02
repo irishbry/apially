@@ -40,6 +40,46 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 );
 
+// Helper function to update backup status in chunks
+async function updateBackupStatusInChunks(entryIds: string[], chunkSize: number = 100) {
+  const today = new Date().toISOString().split('T')[0];
+  let totalUpdated = 0;
+  
+  for (let i = 0; i < entryIds.length; i += chunkSize) {
+    const chunk = entryIds.slice(i, i + chunkSize);
+    console.log(`Updating backup status for chunk ${Math.floor(i / chunkSize) + 1}/${Math.ceil(entryIds.length / chunkSize)}, size: ${chunk.length}`);
+    
+    try {
+      const { error: updateError, count } = await supabase
+        .from('data_entries')
+        .update({
+          backed_up_email: true,
+          last_email_backup: today
+        })
+        .in('id', chunk);
+
+      if (updateError) {
+        console.error(`Error updating backup status for chunk:`, updateError);
+        // Continue with next chunk even if one fails
+      } else {
+        totalUpdated += count || chunk.length;
+        console.log(`Successfully updated ${count || chunk.length} entries in this chunk`);
+      }
+    } catch (error) {
+      console.error(`Exception updating backup status for chunk:`, error);
+      // Continue with next chunk even if one fails
+    }
+    
+    // Small delay between chunks to avoid overwhelming the database
+    if (i + chunkSize < entryIds.length) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+  
+  console.log(`Total entries updated: ${totalUpdated} out of ${entryIds.length}`);
+  return totalUpdated;
+}
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -157,24 +197,15 @@ const handler = async (req: Request): Promise<Response> => {
             } else {
               console.log(`Email service called successfully for export: ${exportConfig.name}`);
               
-              // Mark entries as backed up via email
+              // Mark entries as backed up via email in chunks
               const entryIds = userData.map(entry => entry.id);
-              const today = new Date().toISOString().split('T')[0];
+              console.log(`Starting to update backup status for ${entryIds.length} entries in chunks`);
               
-              const { error: updateError } = await supabase
-                .from('data_entries')
-                .update({
-                  backed_up_email: true,
-                  last_email_backup: today
-                })
-                .in('id', entryIds);
-
-              if (updateError) {
-                console.error(`Error updating backup status for entries:`, updateError);
-              } else {
-                console.log(`Marked ${entryIds.length} entries as backed up via email`);
-              }
+              const updatedCount = await updateBackupStatusInChunks(entryIds, 100);
+              console.log(`Finished updating backup status: ${updatedCount} entries marked as backed up via email`);
             }
+          }).catch(error => {
+            console.error(`Exception in email service for export ${exportConfig.name}:`, error);
           });
           
           emailTasks.push(emailPromise);
