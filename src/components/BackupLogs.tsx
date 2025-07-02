@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -124,6 +123,61 @@ const BackupLogs: React.FC = () => {
         description: "Failed to download file",
         variant: "destructive",
       });
+    } finally {
+      setIsDownloadingId(null);
+    }
+  };
+
+  const handleDropboxDownload = async (log: BackupLog) => {
+    if (!log.dropbox_url) {
+      toast({
+        title: "Error",
+        description: "No Dropbox URL available for this backup",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsDownloadingId(log.id);
+      
+      // Convert Dropbox share URL to direct download URL
+      const directUrl = log.dropbox_url.replace('?dl=0', '?dl=1');
+      
+      // Fetch the file and create a blob for download
+      const response = await fetch(directUrl);
+      if (!response.ok) {
+        throw new Error('Failed to fetch file from Dropbox');
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      
+      // Create a temporary link element to trigger download
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = log.file_name;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up the object URL
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Success",
+        description: "Download started from Dropbox",
+      });
+    } catch (error) {
+      console.error('Error downloading from Dropbox:', error);
+      toast({
+        title: "Error",
+        description: "Failed to download from Dropbox. Opening in browser instead.",
+        variant: "destructive",
+      });
+      // Fallback to opening in new tab
+      window.open(log.dropbox_url, '_blank');
     } finally {
       setIsDownloadingId(null);
     }
@@ -293,14 +347,30 @@ const BackupLogs: React.FC = () => {
                               </Button>
                             )}
                             {log.dropbox_url && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleDropboxOpen(log.dropbox_url!)}
-                              >
-                                <ExternalLink className="h-4 w-4 mr-1" />
-                                Dropbox
-                              </Button>
+                              <>
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => handleDropboxDownload(log)}
+                                  disabled={isDownloadingId === log.id}
+                                  className="bg-blue-600 hover:bg-blue-700"
+                                >
+                                  {isDownloadingId === log.id ? (
+                                    <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                                  ) : (
+                                    <Download className="h-4 w-4 mr-1" />
+                                  )}
+                                  Dropbox
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleDropboxOpen(log.dropbox_url!)}
+                                >
+                                  <ExternalLink className="h-4 w-4 mr-1" />
+                                  View
+                                </Button>
+                              </>
                             )}
                           </>
                         )}
