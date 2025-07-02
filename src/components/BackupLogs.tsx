@@ -360,13 +360,13 @@ const BackupLogs: React.FC = () => {
                                 onClick={() => handleDirectDownload(log)}
                                 disabled={isDownloadingId === log.id}
                                 className="bg-green-600 hover:bg-green-700"
+                                title="Download directly"
                               >
                                 {isDownloadingId === log.id ? (
-                                  <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                                  <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                                 ) : (
-                                  <Download className="h-4 w-4 mr-1" />
+                                  <Download className="h-4 w-4" />
                                 )}
-                                Download
                               </Button>
                             )}
                             {log.dropbox_url && (
@@ -377,21 +377,21 @@ const BackupLogs: React.FC = () => {
                                   onClick={() => handleDropboxDownload(log)}
                                   disabled={isDownloadingId === log.id}
                                   className="bg-blue-600 hover:bg-blue-700"
+                                  title="Download from Dropbox"
                                 >
                                   {isDownloadingId === log.id ? (
-                                    <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                                    <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                                   ) : (
-                                    <Download className="h-4 w-4 mr-1" />
+                                    <Download className="h-4 w-4" />
                                   )}
-                                  Dropbox
                                 </Button>
                                 <Button
                                   variant="outline"
                                   size="sm"
                                   onClick={() => handleDropboxOpen(log.dropbox_url!)}
+                                  title="View on Dropbox"
                                 >
-                                  <ExternalLink className="h-4 w-4 mr-1" />
-                                  View
+                                  <ExternalLink className="h-4 w-4" />
                                 </Button>
                               </>
                             )}
@@ -402,6 +402,7 @@ const BackupLogs: React.FC = () => {
                           size="sm"
                           onClick={() => handleDelete(log.id)}
                           disabled={isDeletingId === log.id}
+                          title="Delete log"
                         >
                           {isDeletingId === log.id ? (
                             <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
