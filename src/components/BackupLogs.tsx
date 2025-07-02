@@ -100,11 +100,14 @@ const BackupLogs: React.FC = () => {
       
       const downloadUrl = await BackupLogsService.getDownloadUrl(log.storage_path);
       if (downloadUrl) {
-        // Create a temporary link element to trigger download
+        // Force download by creating a temporary link
         const link = document.createElement('a');
         link.href = downloadUrl;
         link.download = log.file_name;
-        link.style.display = 'none';
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        
+        // Add to DOM temporarily to ensure it works across browsers
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -141,40 +144,35 @@ const BackupLogs: React.FC = () => {
     try {
       setIsDownloadingId(log.id);
       
-      // Convert Dropbox share URL to direct download URL
-      const directUrl = log.dropbox_url.replace('?dl=0', '?dl=1');
-      
-      // Fetch the file and create a blob for download
-      const response = await fetch(directUrl);
-      if (!response.ok) {
-        throw new Error('Failed to fetch file from Dropbox');
+      // Try to convert Dropbox share URL to direct download URL
+      let directUrl = log.dropbox_url;
+      if (directUrl.includes('dropbox.com') && directUrl.includes('?dl=0')) {
+        directUrl = directUrl.replace('?dl=0', '?dl=1');
       }
       
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      
-      // Create a temporary link element to trigger download
+      // Use a more reliable download approach
       const link = document.createElement('a');
-      link.href = url;
+      link.href = directUrl;
       link.download = log.file_name;
-      link.style.display = 'none';
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      
+      // Set additional attributes to force download
+      link.setAttribute('download', log.file_name);
+      
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
-      // Clean up the object URL
-      window.URL.revokeObjectURL(url);
-      
+
       toast({
         title: "Success",
-        description: "Download started from Dropbox",
+        description: "Download initiated from Dropbox",
       });
     } catch (error) {
       console.error('Error downloading from Dropbox:', error);
       toast({
-        title: "Error",
-        description: "Failed to download from Dropbox. Opening in browser instead.",
-        variant: "destructive",
+        title: "Info",
+        description: "Opening Dropbox file in new tab",
       });
       // Fallback to opening in new tab
       window.open(log.dropbox_url, '_blank');
