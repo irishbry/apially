@@ -197,7 +197,7 @@ async function processIndividualBackup(
     return new Response(
       JSON.stringify({ 
         success: true,
-        message: 'Backup uploaded to Dropbox successfully',
+        message: 'Backup uploaded to Dropbox and Supabase Storage successfully',
         fileName: result.fileName,
         path: result.path,
         backedUpCount: result.backedUpCount,
@@ -211,7 +211,7 @@ async function processIndividualBackup(
     return new Response(
       JSON.stringify({ 
         success: false,
-        error: result.error || 'Failed to upload backup to Dropbox'
+        error: result.error || 'Failed to upload backup'
       }),
       {
         status: 500,
@@ -397,6 +397,8 @@ async function createBackupForUser(
 
     console.log(`Generated backup content (${backupContent.length} characters) for user ${userId}, file: ${fileName}`);
 
+    const fileSize = new Blob([backupContent]).size;
+
     // Create backup log entry first
     const { data: backupLog, error: logError } = await supabase
       .from('backup_logs')
@@ -408,7 +410,7 @@ async function createBackupForUser(
         backup_type: backupType,
         format: format,
         status: 'processing',
-        file_size: new Blob([backupContent]).size
+        file_size: fileSize
       })
       .select()
       .single();
@@ -419,10 +421,39 @@ async function createBackupForUser(
       backupLogId = backupLog.id;
     }
 
-    // Upload to Dropbox - save directly in the specified path
-    const uploadResult = await uploadToDropbox(dropboxToken, dropboxPath, fileName, backupContent);
+    // Upload to both Supabase Storage and Dropbox in parallel
+    const [storageResult, dropboxResult] = await Promise.allSettled([
+      uploadToSupabaseStorage(fileName, backupContent, userId),
+      uploadToDropbox(dropboxToken, dropboxPath, fileName, backupContent)
+    ]);
 
-    if (uploadResult.success) {
+    let storagePath: string | null = null;
+    let dropboxUrl: string | null = null;
+    let hasError = false;
+    let errorMessage = '';
+
+    // Check storage upload result
+    if (storageResult.status === 'fulfilled' && storageResult.value.success) {
+      storagePath = storageResult.value.path;
+      console.log(`Supabase Storage upload successful: ${storagePath}`);
+    } else {
+      console.error('Supabase Storage upload failed:', storageResult.status === 'rejected' ? storageResult.reason : 'Unknown error');
+      hasError = true;
+      errorMessage += 'Storage upload failed. ';
+    }
+
+    // Check Dropbox upload result
+    if (dropboxResult.status === 'fulfilled' && dropboxResult.value.success) {
+      dropboxUrl = dropboxResult.value.dropboxUrl;
+      console.log('Dropbox upload successful');
+    } else {
+      console.error('Dropbox upload failed:', dropboxResult.status === 'rejected' ? dropboxResult.reason : 'Unknown error');
+      hasError = true;
+      errorMessage += 'Dropbox upload failed. ';
+    }
+
+    // If at least one upload succeeded, mark as success
+    if (storagePath || dropboxUrl) {
       // Mark entries as backed up to Dropbox
       const entryIds = userData.map(entry => entry.id);
       const { error: updateError } = await supabase
@@ -438,13 +469,14 @@ async function createBackupForUser(
         // Still return success since the backup was uploaded
       }
 
-      // Update backup log with success status and Dropbox URL
+      // Update backup log with success status and URLs
       if (backupLogId) {
         await supabase
           .from('backup_logs')
           .update({
             status: 'completed',
-            dropbox_url: uploadResult.dropboxUrl
+            dropbox_url: dropboxUrl,
+            storage_path: storagePath
           })
           .eq('id', backupLogId);
       }
@@ -457,7 +489,7 @@ async function createBackupForUser(
         backupLogId
       };
     } else {
-      // Update backup log with failure status
+      // Both uploads failed
       if (backupLogId) {
         await supabase
           .from('backup_logs')
@@ -469,7 +501,7 @@ async function createBackupForUser(
 
       return { 
         success: false, 
-        error: 'Failed to upload to Dropbox' 
+        error: errorMessage.trim() || 'Both storage and Dropbox uploads failed'
       };
     }
   } catch (error) {
@@ -489,6 +521,37 @@ async function createBackupForUser(
       success: false, 
       error: error.message 
     };
+  }
+}
+
+async function uploadToSupabaseStorage(fileName: string, content: string, userId: string): Promise<{ success: boolean; path?: string }> {
+  try {
+    console.log(`Uploading ${fileName} to Supabase Storage...`);
+    
+    // Create a unique path for the file
+    const filePath = `${userId}/${fileName}`;
+    
+    // Convert string content to Uint8Array
+    const fileData = new TextEncoder().encode(content);
+    
+    // Upload to Supabase Storage
+    const { data, error } = await supabase.storage
+      .from('backup-files')
+      .upload(filePath, fileData, {
+        contentType: fileName.endsWith('.csv') ? 'text/csv' : 'application/json',
+        upsert: true
+      });
+
+    if (error) {
+      console.error('Supabase Storage upload error:', error);
+      return { success: false };
+    }
+
+    console.log('Supabase Storage upload successful:', data);
+    return { success: true, path: filePath };
+  } catch (error) {
+    console.error('Error uploading to Supabase Storage:', error);
+    return { success: false };
   }
 }
 
