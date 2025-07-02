@@ -31,6 +31,7 @@ const BackupLogs: React.FC = () => {
   const [logs, setLogs] = useState<BackupLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
+  const [isDownloadingId, setIsDownloadingId] = useState<string | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -85,6 +86,46 @@ const BackupLogs: React.FC = () => {
     }
   };
 
+  const handleDownload = async (log: BackupLog) => {
+    try {
+      setIsDownloadingId(log.id);
+      
+      if (log.storage_path) {
+        // Download from Supabase Storage
+        const downloadUrl = await BackupLogsService.getDownloadUrl(log.storage_path);
+        if (downloadUrl) {
+          const link = document.createElement('a');
+          link.href = downloadUrl;
+          link.download = log.file_name;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          
+          toast({
+            title: "Success",
+            description: "Download started",
+          });
+        } else {
+          throw new Error('Failed to generate download URL');
+        }
+      } else if (log.dropbox_url) {
+        // Open Dropbox URL in new tab
+        window.open(log.dropbox_url, '_blank');
+      } else {
+        throw new Error('No download source available');
+      }
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      toast({
+        title: "Error",
+        description: "Failed to download file",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDownloadingId(null);
+    }
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
@@ -130,6 +171,10 @@ const BackupLogs: React.FC = () => {
     return new Date(dateString).toLocaleString();
   };
 
+  const hasDownloadSource = (log: BackupLog) => {
+    return log.storage_path || log.dropbox_url;
+  };
+
   if (!user) {
     return (
       <Card className="w-full max-w-4xl mx-auto">
@@ -152,7 +197,7 @@ const BackupLogs: React.FC = () => {
           Backup Logs
         </CardTitle>
         <CardDescription>
-          View and manage your Dropbox backup history
+          View and manage your backup history
         </CardDescription>
       </CardHeader>
 
@@ -226,6 +271,21 @@ const BackupLogs: React.FC = () => {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center gap-2 justify-end">
+                        {hasDownloadSource(log) && log.status === 'completed' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDownload(log)}
+                            disabled={isDownloadingId === log.id}
+                          >
+                            {isDownloadingId === log.id ? (
+                              <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                            ) : (
+                              <Download className="h-4 w-4 mr-1" />
+                            )}
+                            Download
+                          </Button>
+                        )}
                         {log.dropbox_url && log.status === 'completed' && (
                           <Button
                             variant="outline"
@@ -233,7 +293,7 @@ const BackupLogs: React.FC = () => {
                             onClick={() => window.open(log.dropbox_url, '_blank')}
                           >
                             <ExternalLink className="h-4 w-4 mr-1" />
-                            View
+                            Dropbox
                           </Button>
                         )}
                         <Button

@@ -7,6 +7,7 @@ export interface BackupLog {
   file_name: string;
   file_path: string;
   dropbox_url?: string;
+  storage_path?: string;
   file_size?: number;
   record_count: number;
   backup_type: 'manual' | 'scheduled';
@@ -44,6 +45,31 @@ export const BackupLogsService = {
 
   async deleteBackupLog(id: string): Promise<void> {
     try {
+      // First get the log to find the storage path
+      const { data: log, error: fetchError } = await supabase
+        .from('backup_logs')
+        .select('storage_path')
+        .eq('id', id)
+        .single();
+
+      if (fetchError) {
+        console.error('Error fetching backup log for deletion:', fetchError);
+        throw fetchError;
+      }
+
+      // Delete the file from storage if it exists
+      if (log?.storage_path) {
+        const { error: storageError } = await supabase.storage
+          .from('backup-files')
+          .remove([log.storage_path]);
+
+        if (storageError) {
+          console.error('Error deleting file from storage:', storageError);
+          // Continue with log deletion even if storage deletion fails
+        }
+      }
+
+      // Delete the log record
       const { error } = await supabase
         .from('backup_logs')
         .delete()
@@ -56,6 +82,24 @@ export const BackupLogsService = {
     } catch (error) {
       console.error('Error in deleteBackupLog:', error);
       throw error;
+    }
+  },
+
+  async getDownloadUrl(storagePath: string): Promise<string | null> {
+    try {
+      const { data, error } = await supabase.storage
+        .from('backup-files')
+        .createSignedUrl(storagePath, 3600); // 1 hour expiry
+
+      if (error) {
+        console.error('Error creating signed URL:', error);
+        return null;
+      }
+
+      return data.signedUrl;
+    } catch (error) {
+      console.error('Error in getDownloadUrl:', error);
+      return null;
     }
   },
 
