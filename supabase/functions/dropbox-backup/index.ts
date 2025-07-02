@@ -355,7 +355,10 @@ async function createBackupForUser(
   let backupLogId: string | null = null;
   
   try {
+    console.log(`Starting backup for user: ${userId}, type: ${backupType}`);
+    
     // Get user's data that hasn't been backed up to Dropbox yet
+    // Using more explicit filtering to ensure we get the right data
     const { data: userData, error: userError } = await supabase
       .from('data_entries')
       .select('*')
@@ -367,6 +370,13 @@ async function createBackupForUser(
       console.error(`Error fetching data for user ${userId}:`, userError);
       return { success: false, error: 'Failed to fetch user data' };
     }
+
+    console.log(`Query returned ${userData?.length || 0} entries for user ${userId}`);
+    console.log(`First few entries backup status:`, userData?.slice(0, 3).map(entry => ({
+      id: entry.id,
+      backed_up_dropbox: entry.backed_up_dropbox,
+      last_dropbox_backup: entry.last_dropbox_backup
+    })));
 
     if (!userData || userData.length === 0) {
       console.log(`No new data to backup for user ${userId}`);
@@ -456,21 +466,25 @@ async function createBackupForUser(
     if (storagePath || dropboxUrl) {
       // Mark entries as backed up to Dropbox - THIS IS THE CRITICAL FIX
       const entryIds = userData.map(entry => entry.id);
-      console.log(`Marking ${entryIds.length} entries as backed up to Dropbox`);
+      console.log(`Marking ${entryIds.length} entries as backed up to Dropbox for user ${userId}`);
+      console.log(`Sample of entry IDs being marked:`, entryIds.slice(0, 5));
       
-      const { error: updateError } = await supabase
+      const { error: updateError, data: updateData } = await supabase
         .from('data_entries')
         .update({
           backed_up_dropbox: true,
           last_dropbox_backup: new Date().toISOString().split('T')[0]
         })
-        .in('id', entryIds);
+        .in('id', entryIds)
+        .select('id, backed_up_dropbox, last_dropbox_backup');
 
       if (updateError) {
         console.error('Error updating backup status:', updateError);
         // Still return success since the backup was uploaded, but log the error
       } else {
         console.log(`Successfully marked ${entryIds.length} entries as backed up to Dropbox`);
+        console.log(`Updated ${updateData?.length || 0} records`);
+        console.log(`Sample of updated records:`, updateData?.slice(0, 3));
       }
 
       // Update backup log with success status and URLs
