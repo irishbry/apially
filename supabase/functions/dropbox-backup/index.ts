@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
@@ -806,63 +805,68 @@ function generateDataExplorerCSV(data: DataEntry[], sources: Source[]): string {
     return source ? source.name : `Unknown (${sourceId.substring(0, 8)}...)`;
   };
 
-  // Get all columns that would appear in the Data Explorer
+  // Get columns that match exactly what's shown in the Data Explorer table
   const getColumns = () => {
     if (data.length === 0) return ['No Data'];
     
-    const priorityKeys = ['timestamp', 'id', 'sourceId', 'source_id', 'sensorId', 'sensor_id', 'fileName', 'file_name'];
-    const allKeys = new Set<string>();
+    const columns = new Set<string>();
     
-    priorityKeys.forEach(key => allKeys.add(key));
+    // Always include source and created_at columns first (matches Data Explorer)
+    columns.add('source');
+    columns.add('created_at');
     
+    // Extract metadata fields from all entries, excluding clientIp and receivedAt
     data.forEach(entry => {
-      Object.keys(entry).forEach(key => {
-        if (!priorityKeys.includes(key)) {
-          allKeys.add(key);
-        }
-      });
-      
-      // Add metadata keys
-      if (entry.metadata && typeof entry.metadata === 'object') {
+      if (entry && entry.metadata && typeof entry.metadata === 'object') {
         Object.keys(entry.metadata).forEach(key => {
+          // Exclude clientIp and receivedAt from columns (matches Data Explorer)
           if (key !== 'clientIp' && key !== 'receivedAt') {
-            allKeys.add(`metadata.${key}`);
+            columns.add(key);
           }
         });
       }
     });
     
-    return Array.from(allKeys);
+    return Array.from(columns);
   };
 
   const columns = getColumns();
 
-  // Helper function to get display name for columns
+  // Helper function to get display name for columns (matches Data Explorer)
   const getDisplayName = (column: string): string => {
     const displayNames: Record<string, string> = {
-      'sourceId': 'Source',
-      'source_id': 'Source',
-      'sensorId': 'Sensor ID',
-      'sensor_id': 'Sensor ID',
-      'fileName': 'File Name',
-      'file_name': 'File Name'
+      'source': 'Source',
+      'created_at': 'Date/Time'
     };
     return displayNames[column] || column;
   };
 
-  // Helper function to get value from entry (matching Data Explorer logic)
+  // Helper function to get value from entry (matches Data Explorer logic)
   const getValue = (entry: DataEntry, column: string): any => {
-    if (column.startsWith('metadata.')) {
-      const metadataKey = column.replace('metadata.', '');
-      return entry.metadata?.[metadataKey];
+    if (column === 'source') {
+      return entry.source_id || entry.sourceId;
+    }
+    if (column === 'created_at') {
+      return entry.created_at || entry.timestamp;
+    }
+    // Check if the column is a metadata field
+    if (entry.metadata && typeof entry.metadata === 'object') {
+      return entry.metadata[column];
     }
     return entry[column];
   };
 
-  // Helper function to format cell value (matching Data Explorer logic)
+  // Helper function to format cell value (matches Data Explorer logic)
   const formatCellValue = (key: string, value: any): string => {
     if (value === undefined || value === null) return '-';
-    if (key === 'sourceId' || key === 'source_id') return getSourceName(value);
+    if (key === 'source') return getSourceName(value);
+    if (key === 'created_at') {
+      try {
+        return new Date(value).toLocaleString();
+      } catch (e) {
+        return value;
+      }
+    }
     if (typeof value === 'object') return JSON.stringify(value);
     return String(value);
   };
@@ -877,17 +881,17 @@ function generateDataExplorerCSV(data: DataEntry[], sources: Source[]): string {
       const value = getValue(entry, column);
       const formattedValue = formatCellValue(column, value);
       
-      // Handle CSV escaping
+      // Handle CSV escaping - ensure exact match with table display
       if (formattedValue === undefined || formattedValue === null || formattedValue === '-') {
-        return '""';
+        return '';
       }
       
       const stringValue = String(formattedValue);
       // Escape quotes and wrap in quotes if contains commas, quotes, or newlines
-      if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+      if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n') || stringValue.includes('\r')) {
         return `"${stringValue.replace(/"/g, '""')}"`;
       }
-      return `"${stringValue}"`;
+      return stringValue;
     });
     csvRows.push(row.join(','));
   });
@@ -908,27 +912,19 @@ function generateDataExplorerJSON(data: DataEntry[], sources: Source[]): string 
   const transformedData = data.map(entry => {
     const transformedEntry: any = {};
 
-    // Process all entry properties
-    Object.keys(entry).forEach(key => {
-      if (key === 'sourceId' || key === 'source_id') {
-        transformedEntry['Source'] = getSourceName(entry[key]);
-      } else if (key === 'sensorId' || key === 'sensor_id') {
-        transformedEntry['Sensor ID'] = entry[key];
-      } else if (key === 'fileName' || key === 'file_name') {
-        transformedEntry['File Name'] = entry[key];
-      } else if (key === 'metadata') {
-        // Flatten metadata properties
-        if (entry.metadata && typeof entry.metadata === 'object') {
-          Object.keys(entry.metadata).forEach(metaKey => {
-            if (metaKey !== 'clientIp' && metaKey !== 'receivedAt') {
-              transformedEntry[metaKey] = entry.metadata[metaKey];
-            }
-          });
+    // Always include source and created_at first (matches Data Explorer)
+    const sourceId = entry.source_id || entry.sourceId;
+    transformedEntry['Source'] = getSourceName(sourceId);
+    transformedEntry['Date/Time'] = entry.created_at || entry.timestamp;
+
+    // Flatten metadata properties, excluding clientIp and receivedAt
+    if (entry.metadata && typeof entry.metadata === 'object') {
+      Object.keys(entry.metadata).forEach(metaKey => {
+        if (metaKey !== 'clientIp' && metaKey !== 'receivedAt') {
+          transformedEntry[metaKey] = entry.metadata[metaKey];
         }
-      } else {
-        transformedEntry[key] = entry[key];
-      }
-    });
+      });
+    }
 
     return transformedEntry;
   });
