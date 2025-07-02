@@ -86,33 +86,36 @@ const BackupLogs: React.FC = () => {
     }
   };
 
-  const handleDownload = async (log: BackupLog) => {
+  const handleDirectDownload = async (log: BackupLog) => {
+    if (!log.storage_path) {
+      toast({
+        title: "Error",
+        description: "No direct download available for this backup",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setIsDownloadingId(log.id);
       
-      if (log.storage_path) {
-        // Download from Supabase Storage
-        const downloadUrl = await BackupLogsService.getDownloadUrl(log.storage_path);
-        if (downloadUrl) {
-          const link = document.createElement('a');
-          link.href = downloadUrl;
-          link.download = log.file_name;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          
-          toast({
-            title: "Success",
-            description: "Download started",
-          });
-        } else {
-          throw new Error('Failed to generate download URL');
-        }
-      } else if (log.dropbox_url) {
-        // Open Dropbox URL in new tab
-        window.open(log.dropbox_url, '_blank');
+      const downloadUrl = await BackupLogsService.getDownloadUrl(log.storage_path);
+      if (downloadUrl) {
+        // Create a temporary link element to trigger download
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = log.file_name;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        toast({
+          title: "Success",
+          description: "Download started",
+        });
       } else {
-        throw new Error('No download source available');
+        throw new Error('Failed to generate download URL');
       }
     } catch (error) {
       console.error('Error downloading file:', error);
@@ -124,6 +127,10 @@ const BackupLogs: React.FC = () => {
     } finally {
       setIsDownloadingId(null);
     }
+  };
+
+  const handleDropboxOpen = (dropboxUrl: string) => {
+    window.open(dropboxUrl, '_blank');
   };
 
   const getStatusIcon = (status: string) => {
@@ -171,10 +178,6 @@ const BackupLogs: React.FC = () => {
     return new Date(dateString).toLocaleString();
   };
 
-  const hasDownloadSource = (log: BackupLog) => {
-    return log.storage_path || log.dropbox_url;
-  };
-
   if (!user) {
     return (
       <Card className="w-full max-w-4xl mx-auto">
@@ -197,7 +200,7 @@ const BackupLogs: React.FC = () => {
           Backup Logs
         </CardTitle>
         <CardDescription>
-          View and manage your backup history
+          View and manage your backup history. Files are stored both locally and on Dropbox for redundancy.
         </CardDescription>
       </CardHeader>
 
@@ -271,30 +274,35 @@ const BackupLogs: React.FC = () => {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center gap-2 justify-end">
-                        {hasDownloadSource(log) && log.status === 'completed' && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDownload(log)}
-                            disabled={isDownloadingId === log.id}
-                          >
-                            {isDownloadingId === log.id ? (
-                              <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
-                            ) : (
-                              <Download className="h-4 w-4 mr-1" />
+                        {log.status === 'completed' && (
+                          <>
+                            {log.storage_path && (
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => handleDirectDownload(log)}
+                                disabled={isDownloadingId === log.id}
+                                className="bg-green-600 hover:bg-green-700"
+                              >
+                                {isDownloadingId === log.id ? (
+                                  <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-1" />
+                                ) : (
+                                  <Download className="h-4 w-4 mr-1" />
+                                )}
+                                Download
+                              </Button>
                             )}
-                            Download
-                          </Button>
-                        )}
-                        {log.dropbox_url && log.status === 'completed' && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => window.open(log.dropbox_url, '_blank')}
-                          >
-                            <ExternalLink className="h-4 w-4 mr-1" />
-                            Dropbox
-                          </Button>
+                            {log.dropbox_url && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDropboxOpen(log.dropbox_url!)}
+                              >
+                                <ExternalLink className="h-4 w-4 mr-1" />
+                                Dropbox
+                              </Button>
+                            )}
+                          </>
                         )}
                         <Button
                           variant="outline"
