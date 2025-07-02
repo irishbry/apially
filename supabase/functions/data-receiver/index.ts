@@ -276,7 +276,7 @@ serve(async (req) => {
       console.error('Update error:', updateError);
     }
 
-    // Return success response matching the format in the documentation
+    // Return success response with only essential fields
     return new Response(
       JSON.stringify({
         success: true,
@@ -285,7 +285,6 @@ serve(async (req) => {
           id: entryId,
           timestamp: now,
           sourceId: source.id,
-          sensorId: enhancedData.sensorId || enhancedData.sensor_id || null,
           ...body
         }
       }),
