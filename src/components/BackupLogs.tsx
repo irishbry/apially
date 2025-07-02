@@ -85,6 +85,40 @@ const BackupLogs: React.FC = () => {
     }
   };
 
+  const downloadFile = async (url: string, filename: string) => {
+    try {
+      // Fetch the file as a blob
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const blob = await response.blob();
+      
+      // Create object URL from blob
+      const objectUrl = URL.createObjectURL(blob);
+      
+      // Create download link
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = filename;
+      link.style.display = 'none';
+      
+      // Trigger download
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up object URL
+      URL.revokeObjectURL(objectUrl);
+      
+      return true;
+    } catch (error) {
+      console.error('Download failed:', error);
+      return false;
+    }
+  };
+
   const handleDirectDownload = async (log: BackupLog) => {
     if (!log.storage_path) {
       toast({
@@ -100,22 +134,16 @@ const BackupLogs: React.FC = () => {
       
       const downloadUrl = await BackupLogsService.getDownloadUrl(log.storage_path);
       if (downloadUrl) {
-        // Force download by creating a temporary link
-        const link = document.createElement('a');
-        link.href = downloadUrl;
-        link.download = log.file_name;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
+        const success = await downloadFile(downloadUrl, log.file_name);
         
-        // Add to DOM temporarily to ensure it works across browsers
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        toast({
-          title: "Success",
-          description: "Download started",
-        });
+        if (success) {
+          toast({
+            title: "Success",
+            description: "File downloaded successfully",
+          });
+        } else {
+          throw new Error('Download failed');
+        }
       } else {
         throw new Error('Failed to generate download URL');
       }
@@ -144,38 +172,35 @@ const BackupLogs: React.FC = () => {
     try {
       setIsDownloadingId(log.id);
       
-      // Try to convert Dropbox share URL to direct download URL
+      // Convert Dropbox share URL to direct download URL
       let directUrl = log.dropbox_url;
       if (directUrl.includes('dropbox.com') && directUrl.includes('?dl=0')) {
         directUrl = directUrl.replace('?dl=0', '?dl=1');
       }
       
-      // Use a more reliable download approach
-      const link = document.createElement('a');
-      link.href = directUrl;
-      link.download = log.file_name;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
+      const success = await downloadFile(directUrl, log.file_name);
       
-      // Set additional attributes to force download
-      link.setAttribute('download', log.file_name);
-      
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      toast({
-        title: "Success",
-        description: "Download initiated from Dropbox",
-      });
+      if (success) {
+        toast({
+          title: "Success",
+          description: "File downloaded from Dropbox successfully",
+        });
+      } else {
+        // Fallback to opening in new tab
+        window.open(log.dropbox_url, '_blank');
+        toast({
+          title: "Info",
+          description: "Opened Dropbox file in new tab",
+        });
+      }
     } catch (error) {
       console.error('Error downloading from Dropbox:', error);
-      toast({
-        title: "Info",
-        description: "Opening Dropbox file in new tab",
-      });
       // Fallback to opening in new tab
       window.open(log.dropbox_url, '_blank');
+      toast({
+        title: "Info",
+        description: "Opened Dropbox file in new tab",
+      });
     } finally {
       setIsDownloadingId(null);
     }
