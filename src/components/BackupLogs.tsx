@@ -252,8 +252,8 @@ const BackupLogs: React.FC = () => {
                     </TableCell>
                   </TableRow>
                 ))}
-              </Table>
-            </div>
+              </TableBody>
+            </Table>
           </div>
         )}
       </CardContent>
