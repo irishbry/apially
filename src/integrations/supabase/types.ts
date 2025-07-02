@@ -9,6 +9,51 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      backup_logs: {
+        Row: {
+          backup_type: string
+          created_at: string
+          dropbox_url: string | null
+          file_name: string
+          file_path: string
+          file_size: number | null
+          format: string
+          id: string
+          record_count: number
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          backup_type?: string
+          created_at?: string
+          dropbox_url?: string | null
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          format?: string
+          id?: string
+          record_count?: number
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          backup_type?: string
+          created_at?: string
+          dropbox_url?: string | null
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          format?: string
+          id?: string
+          record_count?: number
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       data_entries: {
         Row: {
           backed_up_dropbox: boolean | null

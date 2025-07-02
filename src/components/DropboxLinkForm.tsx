@@ -1,8 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Check, Cloud, HelpCircle, Download, Upload, Key, AlertCircle, CheckCircle2, Database, ExternalLink, Copy } from "lucide-react";
 import { 
   Tooltip,
@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ApiService } from "@/services/ApiService";
 import { DropboxBackupService } from "@/services/DropboxBackupService";
 import { useAuth } from "@/hooks/useAuth";
+import BackupLogs from "./BackupLogs";
 
 const DropboxLinkForm: React.FC = () => {
   const [dropboxPath, setDropboxPath] = useState('');
@@ -248,229 +249,244 @@ const DropboxLinkForm: React.FC = () => {
   }
 
   return (
-    <Card className="w-full max-w-2xl mx-auto">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-3 text-lg">
-          <Cloud className="h-4 w-4 text-primary" />
-          Dropbox OAuth Backup Setup
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <HelpCircle className="h-4 w-4 text-slate-400 cursor-help ml-auto" />
-              </TooltipTrigger>
-              <TooltipContent className="max-w-xs">
-                <p>Set up permanent Dropbox integration using OAuth for automatic daily backups without token expiration issues.</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </CardTitle>
-        <CardDescription className="text-sm">
-          One-time OAuth setup for permanent automatic daily backups
-        </CardDescription>
-      </CardHeader>
+    <div className="w-full max-w-6xl mx-auto space-y-6">
+      <Tabs defaultValue="setup" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="setup">Dropbox Setup</TabsTrigger>
+          <TabsTrigger value="logs">Backup Logs</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="setup">
+          <Card className="w-full max-w-2xl mx-auto">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-3 text-lg">
+                <Cloud className="h-4 w-4 text-primary" />
+                Dropbox OAuth Backup Setup
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle className="h-4 w-4 text-slate-400 cursor-help ml-auto" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p>Set up permanent Dropbox integration using OAuth for automatic daily backups without token expiration issues.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </CardTitle>
+              <CardDescription className="text-sm">
+                One-time OAuth setup for permanent automatic daily backups
+              </CardDescription>
+            </CardHeader>
 
-      <CardContent className="space-y-4">
-        {/* Backup Statistics */}
-        {backupStats.total > 0 && (
-          <div className="flex items-center justify-between text-xs text-slate-600 bg-slate-50 px-2 py-1 rounded border">
-            <span className="flex items-center gap-1">
-              <Database className="h-3 w-3" />
-              Backup Status
-            </span>
-            <span>{backupStats.total} Total • {backupStats.backedUp} Done • {backupStats.pending} Pending</span>
-          </div>
-        )}
-
-        {step === 'setup' && (
-          <div className="space-y-4">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <h4 className="text-sm font-medium text-blue-900 mb-2">Setup Instructions</h4>
-              <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
-                <li>Create a Dropbox App at <a href="https://www.dropbox.com/developers/apps" target="_blank" rel="noopener noreferrer" className="underline">developers.dropbox.com</a></li>
-                <li>Choose "Scoped access" and "Full Dropbox" access</li>
-                <li><strong>Important:</strong> In the "Permissions" tab, enable the <code>files.content.write</code> scope to allow file uploads</li>
-                <li>Copy your App Key and App Secret from the app settings</li>
-                <li>Fill in the form below and generate authorization URL</li>
-              </ol>
-            </div>
-
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-              <h4 className="text-sm font-medium text-amber-900 mb-2">⚠️ Permission Required</h4>
-              <p className="text-sm text-amber-800">
-                Make sure to enable the <strong>files.content.write</strong> permission in your Dropbox app's Permissions tab. 
-                Without this permission, backup uploads will fail with "scope not permitted" errors.
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              <div>
-                <label className="text-sm font-medium">Dropbox Folder Path</label>
-                <Input
-                  type="text"
-                  placeholder="/Backups/MyApp"
-                  value={dropboxPath}
-                  onChange={(e) => setDropboxPath(e.target.value)}
-                />
-                <p className="text-xs text-slate-500 mt-1">
-                  Folder path where backups will be stored (must start with /)
-                </p>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium">App Key</label>
-                <Input
-                  type="text"
-                  placeholder="Your Dropbox App Key"
-                  value={appKey}
-                  onChange={(e) => setAppKey(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium">App Secret</label>
-                <Input
-                  type="password"
-                  placeholder="Your Dropbox App Secret"
-                  value={appSecret}
-                  onChange={(e) => setAppSecret(e.target.value)}
-                />
-              </div>
-
-              <Button 
-                onClick={generateAuthUrl} 
-                className="w-full"
-                disabled={!dropboxPath || !appKey || !appSecret}
-              >
-                <ExternalLink className="mr-2 h-4 w-4" />
-                Generate Authorization URL
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {step === 'authorize' && (
-          <div className="space-y-4">
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-              <h4 className="text-sm font-medium text-yellow-900 mb-2">Authorization Step</h4>
-              <p className="text-sm text-yellow-800 mb-3">
-                Click the link below to authorize your app. After authorization, copy the code from the URL and paste it here.
-              </p>
-              
-              <div className="flex items-center gap-2 mb-3">
-                <Input
-                  value={authUrl}
-                  readOnly
-                  className="text-xs"
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => copyToClipboard(authUrl)}
-                >
-                  <Copy className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => window.open(authUrl, '_blank')}
-                >
-                  <ExternalLink className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium">Authorization Code</label>
-              <Input
-                type="text"
-                placeholder="Paste the authorization code here"
-                value={authCode}
-                onChange={(e) => setAuthCode(e.target.value)}
-              />
-              <p className="text-xs text-slate-500 mt-1">
-                Copy the code parameter from the URL after authorization
-              </p>
-            </div>
-
-            <div className="flex gap-2">
-              <Button 
-                onClick={resetSetup} 
-                variant="outline" 
-                className="flex-1"
-              >
-                Back to Setup
-              </Button>
-              <Button 
-                onClick={exchangeAuthCode} 
-                disabled={!authCode || isExchangingCode}
-                className="flex-1"
-              >
-                {isExchangingCode ? (
-                  <>
-                    <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                    Completing Setup...
-                  </>
-                ) : (
-                  'Complete Setup'
-                )}
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {step === 'complete' && (
-          <div className="space-y-4">
-            {validationMessage && (
-              <div className="p-3 rounded-md border-l-4 bg-green-50 border-green-400">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
-                  <span className="text-sm font-medium text-green-800">{validationMessage}</span>
+            <CardContent className="space-y-4">
+              {/* Backup Statistics */}
+              {backupStats.total > 0 && (
+                <div className="flex items-center justify-between text-xs text-slate-600 bg-slate-50 px-2 py-1 rounded border">
+                  <span className="flex items-center gap-1">
+                    <Database className="h-3 w-3" />
+                    Backup Status
+                  </span>
+                  <span>{backupStats.total} Total • {backupStats.backedUp} Done • {backupStats.pending} Pending</span>
                 </div>
-              </div>
+              )}
+
+              {step === 'setup' && (
+                <div className="space-y-4">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <h4 className="text-sm font-medium text-blue-900 mb-2">Setup Instructions</h4>
+                    <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
+                      <li>Create a Dropbox App at <a href="https://www.dropbox.com/developers/apps" target="_blank" rel="noopener noreferrer" className="underline">developers.dropbox.com</a></li>
+                      <li>Choose "Scoped access" and "Full Dropbox" access</li>
+                      <li><strong>Important:</strong> In the "Permissions" tab, enable the <code>files.content.write</code> scope to allow file uploads</li>
+                      <li>Copy your App Key and App Secret from the app settings</li>
+                      <li>Fill in the form below and generate authorization URL</li>
+                    </ol>
+                  </div>
+
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <h4 className="text-sm font-medium text-amber-900 mb-2">⚠️ Permission Required</h4>
+                    <p className="text-sm text-amber-800">
+                      Make sure to enable the <strong>files.content.write</strong> permission in your Dropbox app's Permissions tab. 
+                      Without this permission, backup uploads will fail with "scope not permitted" errors.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-sm font-medium">Dropbox Folder Path</label>
+                      <Input
+                        type="text"
+                        placeholder="/Backups/MyApp"
+                        value={dropboxPath}
+                        onChange={(e) => setDropboxPath(e.target.value)}
+                      />
+                      <p className="text-xs text-slate-500 mt-1">
+                        Folder path where backups will be stored (must start with /)
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium">App Key</label>
+                      <Input
+                        type="text"
+                        placeholder="Your Dropbox App Key"
+                        value={appKey}
+                        onChange={(e) => setAppKey(e.target.value)}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium">App Secret</label>
+                      <Input
+                        type="password"
+                        placeholder="Your Dropbox App Secret"
+                        value={appSecret}
+                        onChange={(e) => setAppSecret(e.target.value)}
+                      />
+                    </div>
+
+                    <Button 
+                      onClick={generateAuthUrl} 
+                      className="w-full"
+                      disabled={!dropboxPath || !appKey || !appSecret}
+                    >
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      Generate Authorization URL
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {step === 'authorize' && (
+                <div className="space-y-4">
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                    <h4 className="text-sm font-medium text-yellow-900 mb-2">Authorization Step</h4>
+                    <p className="text-sm text-yellow-800 mb-3">
+                      Click the link below to authorize your app. After authorization, copy the code from the URL and paste it here.
+                    </p>
+                    
+                    <div className="flex items-center gap-2 mb-3">
+                      <Input
+                        value={authUrl}
+                        readOnly
+                        className="text-xs"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => copyToClipboard(authUrl)}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open(authUrl, '_blank')}
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium">Authorization Code</label>
+                    <Input
+                      type="text"
+                      placeholder="Paste the authorization code here"
+                      value={authCode}
+                      onChange={(e) => setAuthCode(e.target.value)}
+                    />
+                    <p className="text-xs text-slate-500 mt-1">
+                      Copy the code parameter from the URL after authorization
+                    </p>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={resetSetup} 
+                      variant="outline" 
+                      className="flex-1"
+                    >
+                      Back to Setup
+                    </Button>
+                    <Button 
+                      onClick={exchangeAuthCode} 
+                      disabled={!authCode || isExchangingCode}
+                      className="flex-1"
+                    >
+                      {isExchangingCode ? (
+                        <>
+                          <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                          Completing Setup...
+                        </>
+                      ) : (
+                        'Complete Setup'
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {step === 'complete' && (
+                <div className="space-y-4">
+                  {validationMessage && (
+                    <div className="p-3 rounded-md border-l-4 bg-green-50 border-green-400">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        <span className="text-sm font-medium text-green-800">{validationMessage}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {isDailyEnabled && (
+                    <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded border border-green-200">
+                      <Check className="h-4 w-4 text-green-600" />
+                      <span>Daily automatic backups are enabled and running</span>
+                    </div>
+                  )}
+
+                  <div className="bg-slate-50 rounded-lg p-3">
+                    <h4 className="text-sm font-medium mb-2">Configuration Summary</h4>
+                    <div className="text-sm text-slate-600 space-y-1">
+                      <p><strong>Folder:</strong> {dropboxPath}</p>
+                      <p><strong>App Key:</strong> {appKey?.substring(0, 8)}...</p>
+                      <p><strong>Status:</strong> OAuth Active with Refresh Token</p>
+                    </div>
+                  </div>
+
+                  <Button 
+                    onClick={resetSetup} 
+                    variant="outline" 
+                    size="sm"
+                    className="w-full"
+                  >
+                    Reconfigure OAuth Setup
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+
+            {step === 'complete' && (
+              <CardFooter className="flex gap-2 justify-end pt-3">
+                <Button 
+                  onClick={createManualBackup} 
+                  variant="outline" 
+                  disabled={isCreatingBackup}
+                  size="sm"
+                >
+                  <Upload className="mr-2 h-4 w-4" />
+                  {isCreatingBackup ? 'Creating...' : `Backup Now ${backupStats.pending > 0 ? `(${backupStats.pending} new)` : ''}`}
+                </Button>
+              </CardFooter>
             )}
-
-            {isDailyEnabled && (
-              <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded border border-green-200">
-                <Check className="h-4 w-4 text-green-600" />
-                <span>Daily automatic backups are enabled and running</span>
-              </div>
-            )}
-
-            <div className="bg-slate-50 rounded-lg p-3">
-              <h4 className="text-sm font-medium mb-2">Configuration Summary</h4>
-              <div className="text-sm text-slate-600 space-y-1">
-                <p><strong>Folder:</strong> {dropboxPath}</p>
-                <p><strong>App Key:</strong> {appKey?.substring(0, 8)}...</p>
-                <p><strong>Status:</strong> OAuth Active with Refresh Token</p>
-              </div>
-            </div>
-
-            <Button 
-              onClick={resetSetup} 
-              variant="outline" 
-              size="sm"
-              className="w-full"
-            >
-              Reconfigure OAuth Setup
-            </Button>
-          </div>
-        )}
-      </CardContent>
-
-      {step === 'complete' && (
-        <CardFooter className="flex gap-2 justify-end pt-3">
-          <Button 
-            onClick={createManualBackup} 
-            variant="outline" 
-            disabled={isCreatingBackup}
-            size="sm"
-          >
-            <Upload className="mr-2 h-4 w-4" />
-            {isCreatingBackup ? 'Creating...' : `Backup Now ${backupStats.pending > 0 ? `(${backupStats.pending} new)` : ''}`}
-          </Button>
-        </CardFooter>
-      )}
-    </Card>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="logs">
+          <BackupLogs />
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 };
 

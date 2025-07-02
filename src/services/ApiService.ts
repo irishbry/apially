@@ -3,6 +3,7 @@ import { SourcesService } from './SourcesService';
 import { AnalyticsService } from './AnalyticsService';
 import { ApiRequestService } from './ApiRequestService';
 import { ConfigService } from './ConfigService';
+import { BackupLogsService } from './BackupLogsService';
 import { supabase } from '@/integrations/supabase/client';
 import { DataEntry, ApiResponse } from '@/types/api.types';
 
@@ -42,6 +43,11 @@ export const ApiService = {
   getDropboxLink: ConfigService.getDropboxLink,
   setDropboxLink: ConfigService.setDropboxLink,
   exportToCsv: ConfigService.exportToCsv,
+  
+  // Backup Logs Service functions
+  getBackupLogs: BackupLogsService.getBackupLogs,
+  deleteBackupLog: BackupLogsService.deleteBackupLog,
+  subscribeToBackupLogs: BackupLogsService.subscribeToBackupLogs,
   
   // Dropbox OAuth configuration functions using Supabase
   getDropboxConfig: async () => {

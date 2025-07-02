@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
@@ -192,7 +191,7 @@ async function processIndividualBackup(
     finalDropboxToken = validConfig.dropbox_token;
   }
 
-  const result = await createBackupForUser(userId, format, finalDropboxPath, finalDropboxToken);
+  const result = await createBackupForUser(userId, format, finalDropboxPath, finalDropboxToken, 'manual');
   
   if (result.success) {
     return new Response(
@@ -201,7 +200,8 @@ async function processIndividualBackup(
         message: 'Backup uploaded to Dropbox successfully',
         fileName: result.fileName,
         path: result.path,
-        backedUpCount: result.backedUpCount
+        backedUpCount: result.backedUpCount,
+        backupLogId: result.backupLogId
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -292,7 +292,7 @@ async function processScheduledBackups(): Promise<Response> {
         }
 
         // Create backup for user
-        const result = await createBackupForUser(config.user_id, 'csv', validConfig.dropbox_path, validConfig.dropbox_token);
+        const result = await createBackupForUser(config.user_id, 'csv', validConfig.dropbox_path, validConfig.dropbox_token, 'scheduled');
 
         if (result.success) {
           successCount++;
@@ -302,7 +302,8 @@ async function processScheduledBackups(): Promise<Response> {
             success: true,
             fileName: result.fileName,
             path: result.path,
-            backedUpCount: result.backedUpCount
+            backedUpCount: result.backedUpCount,
+            backupLogId: result.backupLogId
           });
         } else {
           errorCount++;
@@ -348,8 +349,11 @@ async function createBackupForUser(
   userId: string, 
   format: string, 
   dropboxPath: string, 
-  dropboxToken: string
-): Promise<{ success: boolean; fileName?: string; path?: string; error?: string; backedUpCount?: number }> {
+  dropboxToken: string,
+  backupType: string = 'manual'
+): Promise<{ success: boolean; fileName?: string; path?: string; error?: string; backedUpCount?: number; backupLogId?: string }> {
+  let backupLogId: string | null = null;
+  
   try {
     // Get user's data that hasn't been backed up to Dropbox yet
     const { data: userData, error: userError } = await supabase
@@ -393,10 +397,32 @@ async function createBackupForUser(
 
     console.log(`Generated backup content (${backupContent.length} characters) for user ${userId}, file: ${fileName}`);
 
-    // Upload to Dropbox - save directly in the specified path
-    const uploadSuccess = await uploadToDropbox(dropboxToken, dropboxPath, fileName, backupContent);
+    // Create backup log entry first
+    const { data: backupLog, error: logError } = await supabase
+      .from('backup_logs')
+      .insert({
+        user_id: userId,
+        file_name: fileName,
+        file_path: `${dropboxPath}/${fileName}`,
+        record_count: userData.length,
+        backup_type: backupType,
+        format: format,
+        status: 'processing',
+        file_size: new Blob([backupContent]).size
+      })
+      .select()
+      .single();
 
-    if (uploadSuccess) {
+    if (logError) {
+      console.error('Error creating backup log:', logError);
+    } else {
+      backupLogId = backupLog.id;
+    }
+
+    // Upload to Dropbox - save directly in the specified path
+    const uploadResult = await uploadToDropbox(dropboxToken, dropboxPath, fileName, backupContent);
+
+    if (uploadResult.success) {
       // Mark entries as backed up to Dropbox
       const entryIds = userData.map(entry => entry.id);
       const { error: updateError } = await supabase
@@ -412,13 +438,35 @@ async function createBackupForUser(
         // Still return success since the backup was uploaded
       }
 
+      // Update backup log with success status and Dropbox URL
+      if (backupLogId) {
+        await supabase
+          .from('backup_logs')
+          .update({
+            status: 'completed',
+            dropbox_url: uploadResult.dropboxUrl
+          })
+          .eq('id', backupLogId);
+      }
+
       return { 
         success: true, 
         fileName, 
         path: `${dropboxPath}/${fileName}`,
-        backedUpCount: userData.length
+        backedUpCount: userData.length,
+        backupLogId
       };
     } else {
+      // Update backup log with failure status
+      if (backupLogId) {
+        await supabase
+          .from('backup_logs')
+          .update({
+            status: 'failed'
+          })
+          .eq('id', backupLogId);
+      }
+
       return { 
         success: false, 
         error: 'Failed to upload to Dropbox' 
@@ -426,6 +474,17 @@ async function createBackupForUser(
     }
   } catch (error) {
     console.error(`Error creating backup for user ${userId}:`, error);
+    
+    // Update backup log with failure status
+    if (backupLogId) {
+      await supabase
+        .from('backup_logs')
+        .update({
+          status: 'failed'
+        })
+        .eq('id', backupLogId);
+    }
+
     return { 
       success: false, 
       error: error.message 
@@ -503,7 +562,7 @@ async function testDropboxConnectionInternal(dropboxPath: string, dropboxToken: 
   }
 }
 
-async function uploadToDropbox(token: string, folderPath: string, fileName: string, content: string): Promise<boolean> {
+async function uploadToDropbox(token: string, folderPath: string, fileName: string, content: string): Promise<{ success: boolean; dropboxUrl?: string }> {
   try {
     console.log(`Uploading ${fileName} to Dropbox path: ${folderPath}`);
     
@@ -536,15 +595,43 @@ async function uploadToDropbox(token: string, folderPath: string, fileName: stri
     if (response.ok) {
       const result = await response.json();
       console.log('File uploaded successfully:', result);
-      return true;
+      
+      // Get shareable link for the file
+      try {
+        const linkResponse = await fetch('https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            path: fullPath,
+            settings: {
+              requested_visibility: 'public'
+            }
+          })
+        });
+
+        if (linkResponse.ok) {
+          const linkResult = await linkResponse.json();
+          return { success: true, dropboxUrl: linkResult.url };
+        } else {
+          // Even if link creation fails, the upload was successful
+          console.warn('Failed to create shareable link, but upload was successful');
+          return { success: true };
+        }
+      } catch (linkError) {
+        console.warn('Error creating shareable link:', linkError);
+        return { success: true };
+      }
     } else {
       const errorText = await response.text();
       console.error('Dropbox upload failed:', errorText);
-      return false;
+      return { success: false };
     }
   } catch (error) {
     console.error('Error uploading to Dropbox:', error);
-    return false;
+    return { success: false };
   }
 }
 
