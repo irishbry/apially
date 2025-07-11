@@ -447,23 +447,12 @@ async function createBackupForUser(
     let backupContent = '';
     let fileName = '';
 
-    // Generate filename with source names and actual data date range
+    // Generate filename with source names and previous day's date
     const generateFileName = (data: DataEntry[], sources: Source[], backupType: string, format: string): string => {
-      // Get date range from actual data
-      let dateRange = '';
-      if (data.length > 0) {
-        const dates = data.map(entry => new Date(entry.created_at)).sort((a, b) => a.getTime() - b.getTime());
-        const startDate = dates[0].toISOString().split('T')[0];
-        const endDate = dates[dates.length - 1].toISOString().split('T')[0];
-        
-        if (startDate === endDate) {
-          dateRange = startDate;
-        } else {
-          dateRange = `${startDate}_to_${endDate}`;
-        }
-      } else {
-        dateRange = new Date().toISOString().split('T')[0];
-      }
+      // Use previous day's date since that's when the data was collected
+      const previousDay = new Date();
+      previousDay.setDate(previousDay.getDate() - 1);
+      const dateString = previousDay.toISOString().split('T')[0];
       
       // Get unique source names from the data
       const sourceIds = [...new Set(data.map(entry => entry.source_id).filter(Boolean))];
@@ -475,11 +464,11 @@ async function createBackupForUser(
       const typePrefix = backupType === 'scheduled' ? 'backup' : 'manual_backup';
       
       if (sourceNames.length === 0) {
-        return `${typePrefix}_${dateRange}_no_sources.${format}`;
+        return `${typePrefix}_${dateString}_no_sources.${format}`;
       } else if (sourceNames.length === 1) {
-        return `${typePrefix}_${dateRange}_${sourceNames[0]}.${format}`;
+        return `${typePrefix}_${dateString}_${sourceNames[0]}.${format}`;
       } else {
-        return `${typePrefix}_${dateRange}_${sourceNames.length}_sources.${format}`;
+        return `${typePrefix}_${dateString}_${sourceNames.length}_sources.${format}`;
       }
     };
 
