@@ -413,43 +413,13 @@ async function createBackupForUser(
     console.log(`Starting backup for user: ${userId}, type: ${backupType}`);
     console.log(`Dropbox config - Path: ${dropboxPath}, Token present: ${!!dropboxToken}`);
     
-    // For scheduled backups, get previous day's data
-    // For manual backups, get data that hasn't been backed up yet
-    let userData, userError;
-    
-    if (backupType === 'scheduled') {
-      // Get previous day's data (entire 24-hour period)
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      yesterday.setUTCHours(0, 0, 0, 0); // Start of day in UTC
-      
-      const endOfYesterday = new Date(yesterday);
-      endOfYesterday.setUTCHours(23, 59, 59, 999); // End of day in UTC
-      
-      console.log(`Fetching scheduled backup data from ${yesterday.toISOString()} to ${endOfYesterday.toISOString()}`);
-      
-      const result = await supabase
-        .from('data_entries')
-        .select('*')
-        .eq('user_id', userId)
-        .gte('created_at', yesterday.toISOString())
-        .lte('created_at', endOfYesterday.toISOString())
-        .order('created_at', { ascending: false });
-      
-      userData = result.data;
-      userError = result.error;
-    } else {
-      // Manual backup: get data that hasn't been backed up to Dropbox yet
-      const result = await supabase
-        .from('data_entries')
-        .select('*')
-        .eq('user_id', userId)
-        .or('backed_up_dropbox.is.null,backed_up_dropbox.eq.false')
-        .order('created_at', { ascending: false });
-      
-      userData = result.data;
-      userError = result.error;
-    }
+    // Get data that hasn't been backed up to Dropbox yet
+    const { data: userData, error: userError } = await supabase
+      .from('data_entries')
+      .select('*')
+      .eq('user_id', userId)
+      .or('backed_up_dropbox.is.null,backed_up_dropbox.eq.false')
+      .order('created_at', { ascending: false });
 
     if (userError) {
       console.error(`Error fetching data for user ${userId}:`, userError);
@@ -477,9 +447,23 @@ async function createBackupForUser(
     let backupContent = '';
     let fileName = '';
 
-    // Generate filename with source names and current date
+    // Generate filename with source names and actual data date range
     const generateFileName = (data: DataEntry[], sources: Source[], backupType: string, format: string): string => {
-      const currentDate = new Date().toISOString().split('T')[0];
+      // Get date range from actual data
+      let dateRange = '';
+      if (data.length > 0) {
+        const dates = data.map(entry => new Date(entry.created_at)).sort((a, b) => a.getTime() - b.getTime());
+        const startDate = dates[0].toISOString().split('T')[0];
+        const endDate = dates[dates.length - 1].toISOString().split('T')[0];
+        
+        if (startDate === endDate) {
+          dateRange = startDate;
+        } else {
+          dateRange = `${startDate}_to_${endDate}`;
+        }
+      } else {
+        dateRange = new Date().toISOString().split('T')[0];
+      }
       
       // Get unique source names from the data
       const sourceIds = [...new Set(data.map(entry => entry.source_id).filter(Boolean))];
@@ -491,11 +475,11 @@ async function createBackupForUser(
       const typePrefix = backupType === 'scheduled' ? 'backup' : 'manual_backup';
       
       if (sourceNames.length === 0) {
-        return `${typePrefix}_${currentDate}_no_sources.${format}`;
+        return `${typePrefix}_${dateRange}_no_sources.${format}`;
       } else if (sourceNames.length === 1) {
-        return `${typePrefix}_${currentDate}_${sourceNames[0]}.${format}`;
+        return `${typePrefix}_${dateRange}_${sourceNames[0]}.${format}`;
       } else {
-        return `${typePrefix}_${currentDate}_${sourceNames.length}_sources.${format}`;
+        return `${typePrefix}_${dateRange}_${sourceNames.length}_sources.${format}`;
       }
     };
 
