@@ -413,41 +413,13 @@ async function createBackupForUser(
     console.log(`Starting backup for user: ${userId}, type: ${backupType}`);
     console.log(`Dropbox config - Path: ${dropboxPath}, Token present: ${!!dropboxToken}`);
     
-    // For scheduled backups, get previous day's data
-    // For manual backups, get data that hasn't been backed up yet
-    let userData, userError;
-    
-    if (backupType === 'scheduled') {
-      // Get previous day's data (from 00:00:00 to 23:59:59 of previous day)
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const startOfYesterday = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 0, 0, 0);
-      const endOfYesterday = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59);
-      
-      console.log(`Fetching scheduled backup data from ${startOfYesterday.toISOString()} to ${endOfYesterday.toISOString()}`);
-      
-      const result = await supabase
-        .from('data_entries')
-        .select('*')
-        .eq('user_id', userId)
-        .gte('created_at', startOfYesterday.toISOString())
-        .lte('created_at', endOfYesterday.toISOString())
-        .order('created_at', { ascending: false });
-      
-      userData = result.data;
-      userError = result.error;
-    } else {
-      // Manual backup: get data that hasn't been backed up to Dropbox yet
-      const result = await supabase
-        .from('data_entries')
-        .select('*')
-        .eq('user_id', userId)
-        .or('backed_up_dropbox.is.null,backed_up_dropbox.eq.false')
-        .order('created_at', { ascending: false });
-      
-      userData = result.data;
-      userError = result.error;
-    }
+    // Get data that hasn't been backed up to Dropbox yet
+    const { data: userData, error: userError } = await supabase
+      .from('data_entries')
+      .select('*')
+      .eq('user_id', userId)
+      .or('backed_up_dropbox.is.null,backed_up_dropbox.eq.false')
+      .order('created_at', { ascending: false });
 
     if (userError) {
       console.error(`Error fetching data for user ${userId}:`, userError);
@@ -475,32 +447,25 @@ async function createBackupForUser(
     let backupContent = '';
     let fileName = '';
 
-    // Generate filename with source names and date range
+    // Generate filename with source names and current date
     const generateFileName = (data: DataEntry[], sources: Source[], backupType: string, format: string): string => {
-      if (backupType === 'scheduled') {
-        // For scheduled backups, use previous day's date
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        const dateStr = yesterday.toISOString().split('T')[0];
-        
-        // Get unique source names from the data
-        const sourceIds = [...new Set(data.map(entry => entry.source_id).filter(Boolean))];
-        const sourceNames = sourceIds.map(id => {
-          const source = sources.find(s => s.id === id);
-          return source ? source.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Unknown';
-        });
-        
-        if (sourceNames.length === 0) {
-          return `backup_${dateStr}_no_sources.${format}`;
-        } else if (sourceNames.length === 1) {
-          return `backup_${dateStr}_${sourceNames[0]}.${format}`;
-        } else {
-          return `backup_${dateStr}_${sourceNames.length}_sources.${format}`;
-        }
+      const currentDate = new Date().toISOString().split('T')[0];
+      
+      // Get unique source names from the data
+      const sourceIds = [...new Set(data.map(entry => entry.source_id).filter(Boolean))];
+      const sourceNames = sourceIds.map(id => {
+        const source = sources.find(s => s.id === id);
+        return source ? source.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Unknown';
+      });
+      
+      const typePrefix = backupType === 'scheduled' ? 'backup' : 'manual_backup';
+      
+      if (sourceNames.length === 0) {
+        return `${typePrefix}_${currentDate}_no_sources.${format}`;
+      } else if (sourceNames.length === 1) {
+        return `${typePrefix}_${currentDate}_${sourceNames[0]}.${format}`;
       } else {
-        // For manual backups, use current date
-        const currentDate = new Date().toISOString().split('T')[0];
-        return `manual_backup_${currentDate}.${format}`;
+        return `${typePrefix}_${currentDate}_${sourceNames.length}_sources.${format}`;
       }
     };
 
