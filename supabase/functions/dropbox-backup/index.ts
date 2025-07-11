@@ -413,13 +413,43 @@ async function createBackupForUser(
     console.log(`Starting backup for user: ${userId}, type: ${backupType}`);
     console.log(`Dropbox config - Path: ${dropboxPath}, Token present: ${!!dropboxToken}`);
     
-    // Get data that hasn't been backed up to Dropbox yet
-    const { data: userData, error: userError } = await supabase
-      .from('data_entries')
-      .select('*')
-      .eq('user_id', userId)
-      .or('backed_up_dropbox.is.null,backed_up_dropbox.eq.false')
-      .order('created_at', { ascending: false });
+    // For scheduled backups, get previous day's data
+    // For manual backups, get data that hasn't been backed up yet
+    let userData, userError;
+    
+    if (backupType === 'scheduled') {
+      // Get previous day's data (entire 24-hour period)
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      yesterday.setUTCHours(0, 0, 0, 0); // Start of day in UTC
+      
+      const endOfYesterday = new Date(yesterday);
+      endOfYesterday.setUTCHours(23, 59, 59, 999); // End of day in UTC
+      
+      console.log(`Fetching scheduled backup data from ${yesterday.toISOString()} to ${endOfYesterday.toISOString()}`);
+      
+      const result = await supabase
+        .from('data_entries')
+        .select('*')
+        .eq('user_id', userId)
+        .gte('created_at', yesterday.toISOString())
+        .lte('created_at', endOfYesterday.toISOString())
+        .order('created_at', { ascending: false });
+      
+      userData = result.data;
+      userError = result.error;
+    } else {
+      // Manual backup: get data that hasn't been backed up to Dropbox yet
+      const result = await supabase
+        .from('data_entries')
+        .select('*')
+        .eq('user_id', userId)
+        .or('backed_up_dropbox.is.null,backed_up_dropbox.eq.false')
+        .order('created_at', { ascending: false });
+      
+      userData = result.data;
+      userError = result.error;
+    }
 
     if (userError) {
       console.error(`Error fetching data for user ${userId}:`, userError);
