@@ -695,7 +695,10 @@ async function testDropboxConnectionInternal(dropboxPath: string, dropboxToken: 
     // Test by creating a small test file
     const testContent = 'Connection test';
     const testFileName = 'connection_test.txt';
-    const fullTestPath = `${dropboxPath}/${testFileName}`;
+    
+    // Fix path construction to avoid double slashes
+    const normalizedPath = dropboxPath.endsWith('/') ? dropboxPath.slice(0, -1) : dropboxPath;
+    const fullTestPath = normalizedPath === '' ? `/${testFileName}` : `${normalizedPath}/${testFileName}`;
     
     console.log(`Attempting to upload test file to: ${fullTestPath}`);
     
