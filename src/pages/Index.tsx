@@ -277,8 +277,6 @@ const Index = () => {
               
               <TabsContent value="data" className="space-y-6">
                 <EnhancedDataTable 
-                  data={data} 
-                  sources={sources} 
                   onDataChange={handleDataChange}
                   isChanged={isChanged}
                   setIsChanged={handleSetIsChanged}
