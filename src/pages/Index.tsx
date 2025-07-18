@@ -249,7 +249,7 @@ const Index = () => {
           {isMobile && <MobileDataSummary />}
           
           <section>
-            <ApiUsageStats data={data} sources={sources} />
+            <ApiUsageStats />
           </section>
           
           <section>
