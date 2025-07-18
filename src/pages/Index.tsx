@@ -65,7 +65,34 @@ const Index = () => {
     };
     
     checkAuth();
-    
+  }, []);
+
+  // Load stats immediately when app loads
+  useEffect(() => {
+    const loadStats = async () => {
+      if (!isAuthenticated) return;
+      
+      try {
+        const [statsData, sourcesData] = await Promise.all([
+          ApiService.getDataStats(),
+          ApiService.getSources()
+        ]);
+        
+        setTableStats({
+          totalCount: statsData.totalCount,
+          sources: sourcesData,
+          lastReceived: statsData.lastReceived,
+          uniqueSources: statsData.uniqueSources
+        });
+      } catch (error) {
+        console.error('Error loading stats:', error);
+      }
+    };
+
+    loadStats();
+  }, [isAuthenticated]);
+
+  useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         console.log("Auth state changed:", event, !!session);
