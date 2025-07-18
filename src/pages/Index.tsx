@@ -38,6 +38,12 @@ const Index = () => {
   const [selectedApiKey, setSelectedApiKey] = useState<string>('');
   const [data, setData] = useState<DataEntry[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
+  const [tableStats, setTableStats] = useState<{
+    totalCount: number;
+    sources: Source[];
+    lastReceived: string;
+    uniqueSources: number;
+  } | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -249,7 +255,11 @@ const Index = () => {
           {isMobile && <MobileDataSummary />}
           
           <section>
-            <ApiUsageStats />
+            <ApiUsageStats 
+              data={tableStats ? [] : undefined}
+              sources={tableStats?.sources}
+              tableStats={tableStats}
+            />
           </section>
           
           <section>
@@ -280,6 +290,7 @@ const Index = () => {
                   onDataChange={handleDataChange}
                   isChanged={isChanged}
                   setIsChanged={handleSetIsChanged}
+                  onStatsChange={setTableStats}
                 />
               </TabsContent>
               

@@ -9,9 +9,15 @@ import { useIsMobile } from "@/hooks/use-mobile";
 interface ApiUsageStatsProps {
   data?: DataEntry[];
   sources?: Source[];
+  tableStats?: {
+    totalCount: number;
+    sources: Source[];
+    lastReceived: string;
+    uniqueSources: number;
+  } | null;
 }
 
-const ApiUsageStats: React.FC<ApiUsageStatsProps> = ({ data: propData, sources: propSources }) => {
+const ApiUsageStats: React.FC<ApiUsageStatsProps> = ({ data: propData, sources: propSources, tableStats }) => {
   const [stats, setStats] = useState({
     totalRequests: 0,
     uniqueSources: 0,
@@ -37,7 +43,21 @@ const ApiUsageStats: React.FC<ApiUsageStatsProps> = ({ data: propData, sources: 
     const fetchStats = async () => {
       setIsLoading(true);
       try {
-        if (propData) {
+        if (tableStats) {
+          // Use stats provided by the table component (no API calls needed!)
+          setStats({
+            totalRequests: tableStats.totalCount,
+            uniqueSources: tableStats.uniqueSources,
+            lastReceived: tableStats.lastReceived
+          });
+          
+          setSourceStats({
+            totalSources: tableStats.sources.length,
+            activeSources: tableStats.sources.filter(s => s.active).length,
+            totalDataPoints: tableStats.totalCount
+          });
+          setIsLoading(false);
+        } else if (propData) {
           // If prop data is provided, calculate from it (for components that pass filtered data)
           const statsData = {
             totalRequests: data.length,
@@ -52,8 +72,9 @@ const ApiUsageStats: React.FC<ApiUsageStatsProps> = ({ data: propData, sources: 
             totalDataPoints: data.length
           };
           setSourceStats(srcStats);
+          setIsLoading(false);
         } else {
-          // If no prop data, get real statistics from server
+          // If no prop data or table stats, get real statistics from server
           const realStats = await ApiService.getDataStats();
           const sourcesData = await ApiService.getSources();
           
@@ -68,16 +89,16 @@ const ApiUsageStats: React.FC<ApiUsageStatsProps> = ({ data: propData, sources: 
             activeSources: sourcesData.filter(s => s.active).length,
             totalDataPoints: realStats.totalCount
           });
+          setIsLoading(false);
         }
       } catch (error) {
         console.error('Error fetching stats:', error);
-      } finally {
         setIsLoading(false);
       }
     };
 
     fetchStats();
-  }, [data, sources, propData, propSources]);
+  }, [data, sources, propData, propSources, tableStats]);
 
   useEffect(() => {
     // Get schema field count

@@ -39,6 +39,12 @@ interface EnhancedDataTableProps {
   onDataChange?: (data: DataEntry[]) => void;
   setIsChanged?: (changed: boolean) => void;
   isChanged?: boolean;
+  onStatsChange?: (stats: {
+    totalCount: number;
+    sources: Source[];
+    lastReceived: string;
+    uniqueSources: number;
+  }) => void;
 }
 
 const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({ 
@@ -46,7 +52,8 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
   sources: propSources,
   onDataChange,
   setIsChanged,
-  isChanged
+  isChanged,
+  onStatsChange
 }) => {
   const [internalData, setInternalData] = useState<DataEntry[]>([]);
   const [internalSources, setInternalSources] = useState<Source[]>([]);
@@ -181,6 +188,21 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
       loadSources();
     }
   }, [propData, propSources, currentPage, itemsPerPage]);
+
+  // Pass stats data to parent component
+  useEffect(() => {
+    if (onStatsChange && sources.length > 0) {
+      const uniqueSources = new Set(data.map(item => item.sourceId || item.source_id)).size;
+      const lastReceived = data.length > 0 ? (data[0]?.created_at || data[0]?.timestamp || 'No data') : 'No data';
+      
+      onStatsChange({
+        totalCount: propData ? data.length : totalCount,
+        sources: sources,
+        lastReceived: lastReceived,
+        uniqueSources: uniqueSources
+      });
+    }
+  }, [data, sources, totalCount, propData, onStatsChange]);
 
   useEffect(() => {
     if (data && data.length >= 0) {
