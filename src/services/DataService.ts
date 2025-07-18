@@ -3,12 +3,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { DataEntry } from '@/types/api.types';
 
 export const DataService = {
-  getData: async (): Promise<DataEntry[]> => {
+  getData: async (limit: number = 1000): Promise<DataEntry[]> => {
     try {
       const { data, error } = await supabase
         .from('data_entries')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(limit);
       
       if (error) {
         console.error('Error fetching data:', error);
