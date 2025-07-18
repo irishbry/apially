@@ -15,6 +15,7 @@ export const ApiService = {
   // Data Service functions
   getData: DataService.getData,
   getDataCount: DataService.getDataCount,
+  getDataStats: DataService.getDataStats,
   refreshData: DataService.refreshData,
   deleteDataEntry: DataService.deleteDataEntry,
   clearData: DataService.clearData,

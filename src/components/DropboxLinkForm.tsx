@@ -44,11 +44,12 @@ const DropboxLinkForm: React.FC = () => {
 
   const loadBackupStats = async () => {
     try {
-      const data = await ApiService.getData();
-      const total = data.length;
-      const backedUp = data.filter(entry => entry.backed_up_dropbox).length;
-      const pending = total - backedUp;
-      setBackupStats({ total, backedUp, pending });
+      const stats = await ApiService.getDataStats();
+      setBackupStats({ 
+        total: stats.totalCount, 
+        backedUp: stats.backedUpDropbox, 
+        pending: stats.totalCount - stats.backedUpDropbox 
+      });
     } catch (error) {
       console.error('Error loading backup stats:', error);
     }

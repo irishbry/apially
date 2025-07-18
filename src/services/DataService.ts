@@ -91,6 +91,58 @@ export const DataService = {
     }
   },
   
+  getDataStats: async (): Promise<{
+    totalCount: number;
+    uniqueSources: number;
+    lastReceived: string;
+    backedUpDropbox: number;
+  }> => {
+    try {
+      // Get total count
+      const { count: totalCount, error: countError } = await supabase
+        .from('data_entries')
+        .select('*', { count: 'exact', head: true });
+
+      if (countError) {
+        console.error('Error fetching total count:', countError);
+        return { totalCount: 0, uniqueSources: 0, lastReceived: 'No data', backedUpDropbox: 0 };
+      }
+
+      // Get latest entry for last received timestamp
+      const { data: latestData, error: latestError } = await supabase
+        .from('data_entries')
+        .select('timestamp')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      // Get unique sources count
+      const { data: sourcesData, error: sourcesError } = await supabase
+        .from('data_entries')
+        .select('source_id')
+        .not('source_id', 'is', null);
+
+      // Get backed up dropbox count
+      const { count: backedUpCount, error: backedUpError } = await supabase
+        .from('data_entries')
+        .select('*', { count: 'exact', head: true })
+        .eq('backed_up_dropbox', true);
+
+      const uniqueSources = sourcesData ? new Set(sourcesData.map(item => item.source_id)).size : 0;
+      const lastReceived = latestData && latestData.length > 0 ? latestData[0].timestamp : 'No data';
+      const backedUpDropbox = backedUpError ? 0 : (backedUpCount || 0);
+
+      return {
+        totalCount: totalCount || 0,
+        uniqueSources,
+        lastReceived,
+        backedUpDropbox
+      };
+    } catch (error) {
+      console.error('Error in getDataStats:', error);
+      return { totalCount: 0, uniqueSources: 0, lastReceived: 'No data', backedUpDropbox: 0 };
+    }
+  },
+
   refreshData: async () => {
     return await DataService.getData();
   },

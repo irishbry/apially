@@ -26,29 +26,52 @@ const ApiUsageStats: React.FC<ApiUsageStatsProps> = ({ data: propData, sources: 
   const [schemaFieldCount, setSchemaFieldCount] = useState(0);
   const isMobile = useIsMobile();
 
-  // Use prop data if provided, otherwise fetch from API
+  // Use prop data if provided, otherwise fetch real stats from API
   const data = propData || [];
   const sources = propSources || [];
 
   useEffect(() => {
-    // Calculate stats from data
-    const statsData = {
-      totalRequests: data.length,
-      uniqueSources: new Set(data.map(item => item.sourceId || item.source_id)).size,
-      lastReceived: data.length > 0 ? data[0].timestamp : 'No data'
+    const fetchStats = async () => {
+      try {
+        if (propData) {
+          // If prop data is provided, calculate from it (for components that pass filtered data)
+          const statsData = {
+            totalRequests: data.length,
+            uniqueSources: new Set(data.map(item => item.sourceId || item.source_id)).size,
+            lastReceived: data.length > 0 ? data[0].timestamp : 'No data'
+          };
+          setStats(statsData);
+          
+          const srcStats = {
+            totalSources: sources.length,
+            activeSources: sources.filter(s => s.active).length,
+            totalDataPoints: data.length
+          };
+          setSourceStats(srcStats);
+        } else {
+          // If no prop data, get real statistics from server
+          const realStats = await ApiService.getDataStats();
+          const sourcesData = await ApiService.getSources();
+          
+          setStats({
+            totalRequests: realStats.totalCount,
+            uniqueSources: realStats.uniqueSources,
+            lastReceived: realStats.lastReceived
+          });
+          
+          setSourceStats({
+            totalSources: sourcesData.length,
+            activeSources: sourcesData.filter(s => s.active).length,
+            totalDataPoints: realStats.totalCount
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching stats:', error);
+      }
     };
-    
-    setStats(statsData);
-    
-    // Calculate source stats
-    const srcStats = {
-      totalSources: sources.length,
-      activeSources: sources.filter(s => s.active).length,
-      totalDataPoints: data.length
-    };
-    
-    setSourceStats(srcStats);
-  }, [data, sources]);
+
+    fetchStats();
+  }, [data, sources, propData, propSources]);
 
   useEffect(() => {
     // Get schema field count
