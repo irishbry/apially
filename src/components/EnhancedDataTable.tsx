@@ -841,7 +841,13 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
       <CardFooter className="py-3 flex items-center justify-between space-x-4">
         <div className="flex items-center space-x-2">
           <span className="text-sm text-muted-foreground">
-            Showing {Math.min((currentPage - 1) * itemsPerPage + 1, filteredData.length)} to {Math.min(currentPage * itemsPerPage, filteredData.length)} of {filteredData.length} entries
+            {propData ? (
+              // Client-side pagination - show filtered results
+              <>Showing {Math.min((currentPage - 1) * itemsPerPage + 1, filteredData.length)} to {Math.min(currentPage * itemsPerPage, filteredData.length)} of {filteredData.length} entries</>
+            ) : (
+              // Server-side pagination - show real total
+              <>Showing {Math.min((currentPage - 1) * itemsPerPage + 1, totalCount)} to {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} entries</>
+            )}
             {selectedSource !== 'all' && ` for ${getSourceName(selectedSource)}`}
           </span>
         </div>
