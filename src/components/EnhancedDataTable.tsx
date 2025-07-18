@@ -66,6 +66,8 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
 
   // Use prop data if provided, otherwise use internal data from subscriptions
   const data = propData || internalData;
@@ -129,35 +131,56 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
     }
   };
 
-  useEffect(() => {
-    // Only set up subscriptions if no prop data is provided
-    if (!propData || !propSources) {
-      try {
-        setIsLoading(true);
-        
-        const unsubscribeData = ApiService.subscribe(newData => {
-          console.log('Data is fetched from the api')
-          console.log(newData)
-          setInternalData([...newData]);
-          setIsLoading(false);
-        });
-        
-        const unsubscribeSources = ApiService.subscribeToSources(newSources => {
-          console.log(newSources)
-          setInternalSources([...newSources]);
-        });
-        
-        return () => {
-          unsubscribeData();
-          unsubscribeSources();
-        };
-      } catch (err) {
-        console.error('Error loading data:', err);
-        setError('Error loading data. Please ensure you are logged in.');
-        setIsLoading(false);
+  // Fetch paginated data
+  const fetchPaginatedData = async (page: number, itemsPerPage: number) => {
+    if (propData) return; // Skip if prop data is provided
+    
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const offset = (page - 1) * itemsPerPage;
+      const data = await ApiService.getData({ 
+        limit: itemsPerPage, 
+        offset: offset,
+        includeCount: page === 1 // Only get count on first page load
+      });
+      
+      setInternalData(data);
+      
+      // Get total count for pagination
+      if (page === 1) {
+        const count = await ApiService.getDataCount();
+        setTotalCount(count);
+        setTotalPages(Math.ceil(count / itemsPerPage));
       }
+      
+    } catch (err) {
+      console.error('Error loading paginated data:', err);
+      setError('Error loading data. Please ensure you are logged in.');
+    } finally {
+      setIsLoading(false);
     }
-  }, [propData, propSources]);
+  };
+
+  useEffect(() => {
+    // Only fetch data if no prop data is provided
+    if (!propData && !propSources) {
+      fetchPaginatedData(currentPage, itemsPerPage);
+      
+      // Load sources
+      const loadSources = async () => {
+        try {
+          const sourcesData = await ApiService.getSources();
+          setInternalSources(sourcesData);
+        } catch (err) {
+          console.error('Error loading sources:', err);
+        }
+      };
+      
+      loadSources();
+    }
+  }, [propData, propSources, currentPage, itemsPerPage]);
 
   useEffect(() => {
     if (data && data.length >= 0) {
@@ -269,15 +292,30 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
     }
   }, [data, searchTerm, selectedSource, sortConfig, activeFilters, visibleColumns, sources]);
 
-  // Paginated data
+  // For server-side pagination, don't slice the data - it's already paginated
   const paginatedData = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    return filteredData.slice(startIndex, endIndex);
-  }, [filteredData, currentPage, itemsPerPage]);
+    if (propData) {
+      // If using prop data, apply client-side pagination
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const endIndex = startIndex + itemsPerPage;
+      return filteredData.slice(startIndex, endIndex);
+    } else {
+      // If using server-side data, return filtered data as-is (already paginated)
+      return filteredData;
+    }
+  }, [filteredData, currentPage, itemsPerPage, propData]);
 
-  // Calculate total pages
-  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+  // Update total pages based on data source
+  useEffect(() => {
+    if (propData) {
+      // Client-side pagination
+      const calculatedTotalPages = Math.ceil(filteredData.length / itemsPerPage);
+      setTotalPages(calculatedTotalPages);
+    } else {
+      // Server-side pagination - use totalCount from server
+      setTotalPages(Math.ceil(totalCount / itemsPerPage));
+    }
+  }, [filteredData.length, itemsPerPage, propData, totalCount]);
 
   // Reset to page 1 when filters change
   useEffect(() => {

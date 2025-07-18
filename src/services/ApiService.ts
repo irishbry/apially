@@ -14,6 +14,7 @@ export * from '@/types/api.types';
 export const ApiService = {
   // Data Service functions
   getData: DataService.getData,
+  getDataCount: DataService.getDataCount,
   refreshData: DataService.refreshData,
   deleteDataEntry: DataService.deleteDataEntry,
   clearData: DataService.clearData,
