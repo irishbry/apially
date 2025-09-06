@@ -141,18 +141,18 @@ const handler = async (req: Request): Promise<Response> => {
 
 async function ensureValidAccessToken(config: DropboxConfig): Promise<DropboxConfig | null> {
   try {
-    // Check if access token is expired or will expire soon (within 1 hour)
+    // Check if access token is expired or will expire soon (within 2 hours for safety)
     const now = new Date();
     const expiresAt = new Date(config.access_token_expires_at);
-    const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000);
+    const twoHoursFromNow = new Date(now.getTime() + 2 * 60 * 60 * 1000);
 
-    if (expiresAt > oneHourFromNow) {
+    if (expiresAt > twoHoursFromNow) {
       // Token is still valid
-      console.log('Access token is still valid');
+      console.log(`Access token is still valid until ${expiresAt.toISOString()}`);
       return config;
     }
 
-    console.log('Access token expired or expiring soon, refreshing...');
+    console.log(`Access token expired or expiring soon (expires: ${expiresAt.toISOString()}), refreshing...`);
 
     // Refresh the access token
     const tokenUrl = 'https://api.dropboxapi.com/oauth2/token';
@@ -202,6 +202,21 @@ async function ensureValidAccessToken(config: DropboxConfig): Promise<DropboxCon
     return updatedConfig;
   } catch (error) {
     console.error('Error ensuring valid access token:', error);
+    
+    // Log token refresh failure
+    try {
+      await supabase
+        .from('backup_attempts')
+        .insert({
+          user_id: config.user_id,
+          attempt_date: new Date().toISOString().split('T')[0],
+          status: 'token_expired',
+          error_message: `Token refresh failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+        });
+    } catch (logError) {
+      console.error('Failed to log token refresh failure:', logError);
+    }
+    
     return null;
   }
 }
@@ -413,6 +428,19 @@ async function createBackupForUser(
     console.log(`Starting backup for user: ${userId}, type: ${backupType}`);
     console.log(`Dropbox config - Path: ${dropboxPath}, Token present: ${!!dropboxToken}`);
     
+    // Log backup attempt first
+    try {
+      await supabase
+        .from('backup_attempts')
+        .insert({
+          user_id: userId,
+          attempt_date: new Date().toISOString().split('T')[0],
+          status: 'attempting'
+        });
+    } catch (logError) {
+      console.warn('Failed to log backup attempt:', logError);
+    }
+    
     // Get data that hasn't been backed up to Dropbox yet
     const { data: userData, error: userError } = await supabase
       .from('data_entries')
@@ -588,7 +616,20 @@ async function createBackupForUser(
           .update(logUpdateData)
           .eq('id', backupLogId);
         
-        console.log(`Updated backup log ${backupLogId} with completion status`);
+      console.log(`Updated backup log ${backupLogId} with completion status`);
+      }
+
+      // Log successful attempt
+      try {
+        await supabase
+          .from('backup_attempts')
+          .insert({
+            user_id: userId,
+            attempt_date: new Date().toISOString().split('T')[0],
+            status: 'success'
+          });
+      } catch (logError) {
+        console.warn('Failed to log successful backup:', logError);
       }
 
       return { 
@@ -618,15 +659,33 @@ async function createBackupForUser(
     
     // Update backup log with failure status
     if (backupLogId) {
+      try {
+        await supabase
+          .from('backup_logs')
+          .update({ status: 'failed' })
+          .eq('id', backupLogId);
+      } catch (logError) {
+        console.error('Failed to update backup log with failure:', logError);
+      }
+    }
+
+    // Log failed attempt
+    try {
       await supabase
-        .from('backup_logs')
-        .update({ status: 'failed' })
-        .eq('id', backupLogId);
+        .from('backup_attempts')
+        .insert({
+          user_id: userId,
+          attempt_date: new Date().toISOString().split('T')[0],
+          status: 'failed',
+          error_message: error instanceof Error ? error.message : 'Unknown error occurred'
+        });
+    } catch (logError) {
+      console.warn('Failed to log backup failure:', logError);
     }
 
     return { 
       success: false, 
-      error: error.message 
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
     };
   }
 }

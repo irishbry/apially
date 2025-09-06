@@ -16,6 +16,7 @@ import HistoricalAnalysis from "@/components/HistoricalAnalysis";
 import ApiLogViewer from "@/components/ApiLogViewer";
 import ApiAnalytics from "@/components/ApiAnalytics";
 import BackupLogs from "@/components/BackupLogs";
+import BackupAttempts from "@/components/BackupAttempts";
 import NotificationsCenter, { Notification } from "@/components/NotificationsCenter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -322,6 +323,7 @@ const Index = () => {
               </TabsContent>
               
               <TabsContent value="backups" className="space-y-6">
+                <BackupAttempts />
                 <BackupLogs />
               </TabsContent>
               
