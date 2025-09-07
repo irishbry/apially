@@ -75,3 +75,6 @@ url = ""
 [functions]
 # Port to use for Functions.
 port = 54328
+
+[functions.data-receiver]
+verify_jwt = false
