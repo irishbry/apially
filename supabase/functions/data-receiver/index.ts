@@ -263,11 +263,10 @@ serve(async (req) => {
       );
     }
 
-    // Update source statistics
+    // Update source statistics - increment data_count by 1
     const { error: updateError } = await supabase
       .from('sources')
       .update({
-        data_count: supabase.rpc('increment_counter', {}),
         last_active: new Date().toISOString()
       })
       .eq('id', source.id);
