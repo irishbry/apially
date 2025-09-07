@@ -451,15 +451,33 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
       setIsLoading(true);
       setIsRefreshing(true);
       setError(null);
-      const apiData = await ApiService.refreshData();
       
-      // Update both internal state and notify parent
-      if (!propData) {
-        setInternalData([...apiData]);
+      if (propData) {
+        // For prop data, just call the refresh function
+        const apiData = await ApiService.refreshData();
+        if (onDataChange) {
+          onDataChange([...apiData]);
+        }
+      } else {
+        // For paginated data, reset to page 1 and fetch fresh data
+        setCurrentPage(1);
+        
+        // Fetch fresh data for page 1
+        const offset = 0;
+        const freshData = await ApiService.getData({ 
+          limit: itemsPerPage, 
+          offset: offset,
+          includeCount: true 
+        });
+        
+        setInternalData(freshData);
+        
+        // Update total count
+        const count = await ApiService.getDataCount();
+        setTotalCount(count);
+        setTotalPages(Math.ceil(count / itemsPerPage));
       }
-      if (onDataChange) {
-        onDataChange([...apiData]);
-      }
+      
       if (setIsChanged) {
         setIsChanged(true);
       }
