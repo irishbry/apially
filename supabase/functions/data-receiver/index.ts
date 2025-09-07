@@ -176,7 +176,39 @@ serve(async (req) => {
       );
     }
 
-    // No validation required for sensorId or sensor_id - they are optional
+    // Check for duplicate email within the last 24 hours
+    if (body.email) {
+      const twentyFourHoursAgo = new Date();
+      twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
+      
+      const { data: existingEntries, error: duplicateCheckError } = await supabase
+        .from('data_entries')
+        .select('id, timestamp, metadata')
+        .eq('user_id', source.user_id)
+        .gte('timestamp', twentyFourHoursAgo.toISOString());
+      
+      if (duplicateCheckError) {
+        console.error('Duplicate check error:', duplicateCheckError);
+      } else if (existingEntries && existingEntries.length > 0) {
+        // Check if any existing entry has the same email in metadata
+        for (const entry of existingEntries) {
+          if (entry.metadata && entry.metadata.email === body.email) {
+            return new Response(
+              JSON.stringify({ 
+                success: false,
+                message: 'Duplicate email detected. This email was already submitted within the last 24 hours.',
+                code: 'DUPLICATE_EMAIL',
+                details: {
+                  email: body.email,
+                  previousSubmission: entry.timestamp
+                }
+              }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 409 }
+            );
+          }
+        }
+      }
+    }
 
     // Generate a unique ID if not provided
     const entryId = body.id || crypto.randomUUID();
