@@ -186,5 +186,5 @@ export const ApiService = {
   },
   
   // Get correct Supabase endpoint
-  getDefaultEndpoint: () => 'https://ybionvegojopebtkdgyt.supabase.co/functions/v1/data-receiver'
+  getDefaultEndpoint: () => 'https://api.apially.com/functions/v1/data-receiver'
 };
