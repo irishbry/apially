@@ -87,16 +87,12 @@ export const BackupLogsService = {
 
   async getDownloadUrl(storagePath: string): Promise<string | null> {
     try {
-      const { data, error } = await supabase.storage
+      // Since backup-files bucket is public, use public URL instead of signed URL
+      const { data } = supabase.storage
         .from('backup-files')
-        .createSignedUrl(storagePath, 3600); // 1 hour expiry
+        .getPublicUrl(storagePath);
 
-      if (error) {
-        console.error('Error creating signed URL:', error);
-        return null;
-      }
-
-      return data.signedUrl;
+      return data.publicUrl;
     } catch (error) {
       console.error('Error in getDownloadUrl:', error);
       return null;
