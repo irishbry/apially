@@ -422,8 +422,6 @@ async function createBackupForUser(
   dropboxToken: string,
   backupType: string = 'manual'
 ): Promise<{ success: boolean; fileName?: string; path?: string; error?: string; backedUpCount?: number; backupLogId?: string }> {
-  let backupLogId: string | null = null;
-  
   try {
     console.log(`Starting backup for user: ${userId}, type: ${backupType}`);
     console.log(`Dropbox config - Path: ${dropboxPath}, Token present: ${!!dropboxToken}`);
@@ -471,204 +469,223 @@ async function createBackupForUser(
 
     const sources = sourcesData || [];
 
-    // Generate backup content using Data Explorer format
-    let backupContent = '';
-    let fileName = '';
-
-    // Generate filename with source names and previous day's date
-    const generateFileName = (data: DataEntry[], sources: Source[], backupType: string, format: string): string => {
-      // Use previous day's date since that's when the data was collected
-      const previousDay = new Date();
-      previousDay.setDate(previousDay.getDate() - 1);
-      const dateString = previousDay.toISOString().split('T')[0];
-      
-      // Get unique source names from the data
-      const sourceIds = [...new Set(data.map(entry => entry.source_id).filter(Boolean))];
-      const sourceNames = sourceIds.map(id => {
-        const source = sources.find(s => s.id === id);
-        return source ? source.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Unknown';
-      });
-      
-      const typePrefix = backupType === 'scheduled' ? 'backup' : 'manual_backup';
-      
-      if (sourceNames.length === 0) {
-        return `${typePrefix}_${dateString}_no_sources.${format}`;
-      } else if (sourceNames.length === 1) {
-        return `${typePrefix}_${dateString}_${sourceNames[0]}.${format}`;
-      } else {
-        return `${typePrefix}_${dateString}_${sourceNames.length}_sources.${format}`;
-      }
-    };
-
-    fileName = generateFileName(userData || [], sources, backupType, format);
-
-    if (format === 'csv') {
-      backupContent = generateDataExplorerCSV(userData || [], sources);
-    } else {
-      backupContent = generateDataExplorerJSON(userData || [], sources);
-    }
-
-    console.log(`Generated backup content (${backupContent.length} characters) for user ${userId}, file: ${fileName}`);
-
-    const fileSize = new Blob([backupContent]).size;
-
-    // Create backup log entry first
-    const { data: backupLog, error: logError } = await supabase
-      .from('backup_logs')
-      .insert({
-        user_id: userId,
-        file_name: fileName,
-        file_path: `${dropboxPath}/${fileName}`,
-        record_count: userData.length,
-        backup_type: backupType,
-        format: format,
-        status: 'processing',
-        file_size: fileSize
-      })
-      .select()
-      .single();
-
-    if (logError) {
-      console.error('Error creating backup log:', logError);
-    } else {
-      backupLogId = backupLog.id;
-      console.log(`Created backup log with ID: ${backupLogId}`);
-    }
-
     // Test Dropbox connection first
     console.log('Testing Dropbox connection before upload...');
     const connectionValid = await testDropboxConnectionInternal(dropboxPath, dropboxToken);
     if (!connectionValid) {
       console.error('Dropbox connection test failed before upload');
-      if (backupLogId) {
-        await supabase
-          .from('backup_logs')
-          .update({ status: 'failed' })
-          .eq('id', backupLogId);
-      }
       return { success: false, error: 'Dropbox connection failed' };
     }
     console.log('Dropbox connection test passed');
 
-    // Upload to both Supabase Storage and Dropbox in parallel
-    console.log('Starting parallel uploads to Storage and Dropbox...');
-    const [storageResult, dropboxResult] = await Promise.allSettled([
-      uploadToSupabaseStorage(fileName, backupContent, userId),
-      uploadToDropbox(dropboxToken, dropboxPath, fileName, backupContent)
-    ]);
-
-    let storagePath: string | null = null;
-    let dropboxUrl: string | null = null;
-    let hasError = false;
-    let errorMessage = '';
-
-    // Check storage upload result
-    if (storageResult.status === 'fulfilled' && storageResult.value.success) {
-      storagePath = storageResult.value.path;
-      console.log(`Supabase Storage upload successful: ${storagePath}`);
-    } else {
-      const error = storageResult.status === 'rejected' ? storageResult.reason : 'Unknown storage error';
-      console.error('Supabase Storage upload failed:', error);
-      hasError = true;
-      errorMessage += 'Storage upload failed. ';
-    }
-
-    // Check Dropbox upload result
-    if (dropboxResult.status === 'fulfilled' && dropboxResult.value.success) {
-      dropboxUrl = dropboxResult.value.dropboxUrl;
-      console.log(`Dropbox upload successful, URL: ${dropboxUrl}`);
-    } else {
-      const error = dropboxResult.status === 'rejected' ? dropboxResult.reason : 'Unknown Dropbox error';
-      console.error('Dropbox upload failed:', error);
-      hasError = true;
-      errorMessage += 'Dropbox upload failed. ';
-    }
-
-    // If at least one upload succeeded, mark as success
-    if (storagePath || dropboxUrl) {
-      console.log(`At least one upload succeeded. Storage: ${!!storagePath}, Dropbox: ${!!dropboxUrl}`);
-      
-      // Mark entries as backed up to Dropbox using chunked updates
-      const entryIds = userData.map(entry => entry.id);
-      console.log(`Marking ${entryIds.length} entries as backed up to Dropbox for user ${userId} using chunked updates`);
-      
-      const updateResult = await updateRecordsInChunks(entryIds, userId);
-      
-      if (!updateResult.success) {
-        console.error('Failed to update any records in chunks');
-        // Still return success since the backup was uploaded, but log the error
-      } else {
-        console.log(`Successfully updated ${updateResult.updatedCount} out of ${entryIds.length} entries`);
+    // Group data by source_id
+    const dataBySource = new Map<string, DataEntry[]>();
+    userData.forEach(entry => {
+      const sourceId = entry.source_id || 'unknown';
+      if (!dataBySource.has(sourceId)) {
+        dataBySource.set(sourceId, []);
       }
+      dataBySource.get(sourceId)!.push(entry);
+    });
 
-      // Update backup log with success status and URLs
-      if (backupLogId) {
-        const logUpdateData: any = {
-          status: 'completed',
-          storage_path: storagePath
-        };
-        if (dropboxUrl) {
-          logUpdateData.dropbox_url = dropboxUrl;
-        }
-        
-        await supabase
-          .from('backup_logs')
-          .update(logUpdateData)
-          .eq('id', backupLogId);
-        
-      console.log(`Updated backup log ${backupLogId} with completion status`);
-      }
+    console.log(`Data grouped into ${dataBySource.size} sources for separate backup files`);
 
-      // Log successful attempt
+    let totalBackedUpCount = 0;
+    const backupResults: Array<{
+      sourceId: string;
+      success: boolean;
+      fileName?: string;
+      backupLogId?: string;
+      error?: string;
+    }> = [];
+
+    // Create backup for each source
+    for (const [sourceId, sourceData] of dataBySource) {
+      console.log(`Processing backup for source ${sourceId} with ${sourceData.length} entries`);
+      
       try {
-        await supabase
-          .from('backup_attempts')
+        // Generate filename for this source
+        const sourceName = sources.find(s => s.id === sourceId)?.name || 'Unknown';
+        const safeName = sourceName.replace(/[^a-zA-Z0-9]/g, '_');
+        const previousDay = new Date();
+        previousDay.setDate(previousDay.getDate() - 1);
+        const dateString = previousDay.toISOString().split('T')[0];
+        const typePrefix = backupType === 'scheduled' ? 'backup' : 'manual_backup';
+        const fileName = `${typePrefix}_${dateString}_${safeName}.${format}`;
+
+        // Generate backup content for this source
+        let backupContent = '';
+        if (format === 'csv') {
+          backupContent = generateDataExplorerCSV(sourceData, sources);
+        } else {
+          backupContent = generateDataExplorerJSON(sourceData, sources);
+        }
+
+        const fileSize = new Blob([backupContent]).size;
+        console.log(`Generated backup content for source ${sourceId}: ${fileName} (${backupContent.length} characters)`);
+
+        // Create backup log entry for this source
+        const { data: backupLog, error: logError } = await supabase
+          .from('backup_logs')
           .insert({
             user_id: userId,
-            attempt_date: new Date().toISOString().split('T')[0],
-            status: 'success'
-          });
-      } catch (logError) {
-        console.warn('Failed to log successful backup:', logError);
-      }
+            file_name: fileName,
+            file_path: `${dropboxPath}/${fileName}`,
+            record_count: sourceData.length,
+            backup_type: backupType,
+            format: format,
+            status: 'processing',
+            file_size: fileSize
+          })
+          .select()
+          .single();
 
+        let backupLogId: string | null = null;
+        if (logError) {
+          console.error(`Error creating backup log for source ${sourceId}:`, logError);
+        } else {
+          backupLogId = backupLog.id;
+          console.log(`Created backup log with ID: ${backupLogId} for source ${sourceId}`);
+        }
+
+        // Upload to both Supabase Storage and Dropbox in parallel
+        console.log(`Starting parallel uploads for source ${sourceId}...`);
+        const [storageResult, dropboxResult] = await Promise.allSettled([
+          uploadToSupabaseStorage(fileName, backupContent, userId),
+          uploadToDropbox(dropboxToken, dropboxPath, fileName, backupContent)
+        ]);
+
+        let storagePath: string | null = null;
+        let dropboxUrl: string | null = null;
+        let hasError = false;
+        let errorMessage = '';
+
+        // Check storage upload result
+        if (storageResult.status === 'fulfilled' && storageResult.value.success) {
+          storagePath = storageResult.value.path;
+          console.log(`Supabase Storage upload successful for source ${sourceId}: ${storagePath}`);
+        } else {
+          const error = storageResult.status === 'rejected' ? storageResult.reason : 'Unknown storage error';
+          console.error(`Supabase Storage upload failed for source ${sourceId}:`, error);
+          hasError = true;
+          errorMessage += 'Storage upload failed. ';
+        }
+
+        // Check Dropbox upload result
+        if (dropboxResult.status === 'fulfilled' && dropboxResult.value.success) {
+          dropboxUrl = dropboxResult.value.dropboxUrl;
+          console.log(`Dropbox upload successful for source ${sourceId}, URL: ${dropboxUrl}`);
+        } else {
+          const error = dropboxResult.status === 'rejected' ? dropboxResult.reason : 'Unknown Dropbox error';
+          console.error(`Dropbox upload failed for source ${sourceId}:`, error);
+          hasError = true;
+          errorMessage += 'Dropbox upload failed. ';
+        }
+
+        // If at least one upload succeeded for this source
+        if (storagePath || dropboxUrl) {
+          console.log(`At least one upload succeeded for source ${sourceId}. Storage: ${!!storagePath}, Dropbox: ${!!dropboxUrl}`);
+          
+          // Mark entries as backed up to Dropbox using chunked updates
+          const entryIds = sourceData.map(entry => entry.id);
+          console.log(`Marking ${entryIds.length} entries as backed up to Dropbox for source ${sourceId}`);
+          
+          const updateResult = await updateRecordsInChunks(entryIds, userId);
+          
+          if (updateResult.success) {
+            totalBackedUpCount += updateResult.updatedCount;
+            console.log(`Successfully updated ${updateResult.updatedCount} entries for source ${sourceId}`);
+          } else {
+            console.error(`Failed to update records for source ${sourceId}`);
+          }
+
+          // Update backup log with success status and URLs
+          if (backupLogId) {
+            const logUpdateData: any = {
+              status: 'completed',
+              storage_path: storagePath
+            };
+            if (dropboxUrl) {
+              logUpdateData.dropbox_url = dropboxUrl;
+            }
+            
+            await supabase
+              .from('backup_logs')
+              .update(logUpdateData)
+              .eq('id', backupLogId);
+            
+            console.log(`Updated backup log ${backupLogId} with completion status for source ${sourceId}`);
+          }
+
+          backupResults.push({
+            sourceId,
+            success: true,
+            fileName,
+            backupLogId: backupLogId || undefined
+          });
+        } else {
+          // Both uploads failed for this source
+          console.error(`Both Storage and Dropbox uploads failed for source ${sourceId}`);
+          if (backupLogId) {
+            await supabase
+              .from('backup_logs')
+              .update({ status: 'failed' })
+              .eq('id', backupLogId);
+          }
+
+          backupResults.push({
+            sourceId,
+            success: false,
+            error: errorMessage.trim() || 'Both storage and Dropbox uploads failed'
+          });
+        }
+      } catch (sourceError) {
+        console.error(`Error processing backup for source ${sourceId}:`, sourceError);
+        backupResults.push({
+          sourceId,
+          success: false,
+          error: sourceError instanceof Error ? sourceError.message : 'Unknown error occurred'
+        });
+      }
+    }
+
+    // Log overall attempt result
+    const successfulBackups = backupResults.filter(r => r.success).length;
+    const failedBackups = backupResults.filter(r => !r.success).length;
+
+    try {
+      await supabase
+        .from('backup_attempts')
+        .insert({
+          user_id: userId,
+          attempt_date: new Date().toISOString().split('T')[0],
+          status: successfulBackups > 0 ? 'success' : 'failed',
+          error_message: failedBackups > 0 ? `${failedBackups} source backups failed` : undefined
+        });
+    } catch (logError) {
+      console.warn('Failed to log backup attempt result:', logError);
+    }
+
+    // Return consolidated results
+    if (successfulBackups > 0) {
+      console.log(`Backup completed: ${successfulBackups} sources successful, ${failedBackups} failed, ${totalBackedUpCount} total entries backed up`);
       return { 
         success: true, 
-        fileName, 
-        path: `${dropboxPath}/${fileName}`,
-        backedUpCount: userData.length,
-        backupLogId
+        fileName: `${successfulBackups} source backup files created`,
+        path: dropboxPath,
+        backedUpCount: totalBackedUpCount,
+        backupLogId: backupResults.find(r => r.success)?.backupLogId
       };
     } else {
-      // Both uploads failed
-      console.error('Both Storage and Dropbox uploads failed');
-      if (backupLogId) {
-        await supabase
-          .from('backup_logs')
-          .update({ status: 'failed' })
-          .eq('id', backupLogId);
-      }
-
+      console.error('All source backups failed');
       return { 
         success: false, 
-        error: errorMessage.trim() || 'Both storage and Dropbox uploads failed'
+        error: `All ${failedBackups} source backups failed`
       };
     }
   } catch (error) {
     console.error(`Error creating backup for user ${userId}:`, error);
     
-    // Update backup log with failure status
-    if (backupLogId) {
-      try {
-        await supabase
-          .from('backup_logs')
-          .update({ status: 'failed' })
-          .eq('id', backupLogId);
-      } catch (logError) {
-        console.error('Failed to update backup log with failure:', logError);
-      }
-    }
-
     // Log failed attempt
     try {
       await supabase
