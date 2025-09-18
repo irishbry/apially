@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { toZonedTime, fromZonedTime, format } from "https://esm.sh/date-fns-tz@3.0.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -61,6 +62,11 @@ async function updateRecordsInChunks(entryIds: string[], userId: string): Promis
   
   console.log(`Processing ${chunks.length} chunks of records for user ${userId}`);
   
+  // Calculate PST date for last_dropbox_backup
+  const PST_TIMEZONE = 'America/Los_Angeles';
+  const nowPST = toZonedTime(new Date(), PST_TIMEZONE);
+  const pstDateString = format(nowPST, 'yyyy-MM-dd');
+  
   for (let i = 0; i < chunks.length; i++) {
     const chunk = chunks[i];
     console.log(`Processing chunk ${i + 1}/${chunks.length} with ${chunk.length} records`);
@@ -70,7 +76,7 @@ async function updateRecordsInChunks(entryIds: string[], userId: string): Promis
         .from('data_entries')
         .update({
           backed_up_dropbox: true,
-          last_dropbox_backup: new Date().toISOString().split('T')[0]
+          last_dropbox_backup: pstDateString
         })
         .in('id', chunk)
         .select('id, backed_up_dropbox, last_dropbox_backup');
@@ -203,13 +209,17 @@ async function ensureValidAccessToken(config: DropboxConfig): Promise<DropboxCon
   } catch (error) {
     console.error('Error ensuring valid access token:', error);
     
-    // Log token refresh failure
+    // Log token refresh failure using PST date
     try {
+      const PST_TIMEZONE = 'America/Los_Angeles';
+      const nowPST = toZonedTime(new Date(), PST_TIMEZONE);
+      const pstDateString = format(nowPST, 'yyyy-MM-dd');
+      
       await supabase
         .from('backup_attempts')
         .insert({
           user_id: config.user_id,
-          attempt_date: new Date().toISOString().split('T')[0],
+          attempt_date: pstDateString,
           status: 'token_expired',
           error_message: `Token refresh failed: ${error instanceof Error ? error.message : 'Unknown error'}`
         });
@@ -426,25 +436,53 @@ async function createBackupForUser(
     console.log(`Starting backup for user: ${userId}, type: ${backupType}`);
     console.log(`Dropbox config - Path: ${dropboxPath}, Token present: ${!!dropboxToken}`);
     
-    // Log backup attempt first
+    // Log backup attempt first using PST date
     try {
+      const PST_TIMEZONE = 'America/Los_Angeles';
+      const nowPST = toZonedTime(new Date(), PST_TIMEZONE);
+      const pstDateString = format(nowPST, 'yyyy-MM-dd');
+      
       await supabase
         .from('backup_attempts')
         .insert({
           user_id: userId,
-          attempt_date: new Date().toISOString().split('T')[0],
+          attempt_date: pstDateString,
           status: 'attempting'
         });
     } catch (logError) {
       console.warn('Failed to log backup attempt:', logError);
     }
     
-    // Get data that hasn't been backed up to Dropbox yet
+    // Calculate PST date range for data filtering
+    const PST_TIMEZONE = 'America/Los_Angeles';
+    const now = new Date();
+    const nowPST = toZonedTime(now, PST_TIMEZONE);
+    
+    // Get the previous day in PST
+    const previousDayPST = new Date(nowPST);
+    previousDayPST.setDate(previousDayPST.getDate() - 1);
+    
+    // Create start and end of the previous day in PST
+    const startOfDayPST = new Date(previousDayPST);
+    startOfDayPST.setHours(0, 0, 0, 0);
+    
+    const endOfDayPST = new Date(previousDayPST);
+    endOfDayPST.setHours(23, 59, 59, 999);
+    
+    // Convert PST times back to UTC for database query
+    const startOfDayUTC = fromZonedTime(startOfDayPST, PST_TIMEZONE);
+    const endOfDayUTC = fromZonedTime(endOfDayPST, PST_TIMEZONE);
+    
+    console.log(`Filtering data for PST date range: ${format(previousDayPST, 'yyyy-MM-dd')} PST`);
+    console.log(`UTC range: ${startOfDayUTC.toISOString()} to ${endOfDayUTC.toISOString()}`);
+    
+    // Get data from the previous day in PST timezone
     const { data: userData, error: userError } = await supabase
       .from('data_entries')
       .select('*')
       .eq('user_id', userId)
-      .or('backed_up_dropbox.is.null,backed_up_dropbox.eq.false')
+      .gte('created_at', startOfDayUTC.toISOString())
+      .lte('created_at', endOfDayUTC.toISOString())
       .order('created_at', { ascending: false });
 
     if (userError) {
@@ -452,14 +490,14 @@ async function createBackupForUser(
       return { success: false, error: 'Failed to fetch user data' };
     }
 
-    console.log(`Query returned ${userData?.length || 0} entries for user ${userId}`);
+    console.log(`Query returned ${userData?.length || 0} entries for user ${userId} in PST date range`);
 
     if (!userData || userData.length === 0) {
-      console.log(`No new data to backup for user ${userId}`);
+      console.log(`No data found for user ${userId} in the previous PST day`);
       return { success: true, fileName: '', path: '', backedUpCount: 0 };
     }
 
-    console.log(`Found ${userData.length} entries to backup for user ${userId}`);
+    console.log(`Found ${userData.length} entries to backup for user ${userId} from previous PST day`);
 
     // Get user's sources
     const { data: sourcesData } = await supabase
@@ -504,14 +542,21 @@ async function createBackupForUser(
       console.log(`Processing backup for source ${sourceId} with ${sourceData.length} entries`);
       
       try {
-        // Generate filename for this source
+        // Generate filename for this source using PST date
         const sourceName = sources.find(s => s.id === sourceId)?.name || 'Unknown';
         const safeName = sourceName.replace(/[^a-zA-Z0-9]/g, '_');
-        const previousDay = new Date();
-        previousDay.setDate(previousDay.getDate() - 1);
-        const dateString = previousDay.toISOString().split('T')[0];
+        
+        // Use PST date for filename (the previous day in PST that we're backing up)
+        const PST_TIMEZONE = 'America/Los_Angeles';
+        const nowPST = toZonedTime(new Date(), PST_TIMEZONE);
+        const previousDayPST = new Date(nowPST);
+        previousDayPST.setDate(previousDayPST.getDate() - 1);
+        const dateString = format(previousDayPST, 'yyyy-MM-dd');
+        
         const typePrefix = backupType === 'scheduled' ? 'backup' : 'manual_backup';
         const fileName = `${typePrefix}_${dateString}_${safeName}.${format}`;
+
+        console.log(`Generating backup for source ${sourceId} (${sourceName}) with PST date: ${dateString}`);
 
         // Generate backup content for this source
         let backupContent = '';
@@ -654,11 +699,15 @@ async function createBackupForUser(
     const failedBackups = backupResults.filter(r => !r.success).length;
 
     try {
+      const PST_TIMEZONE = 'America/Los_Angeles';
+      const nowPST = toZonedTime(new Date(), PST_TIMEZONE);
+      const pstDateString = format(nowPST, 'yyyy-MM-dd');
+      
       await supabase
         .from('backup_attempts')
         .insert({
           user_id: userId,
-          attempt_date: new Date().toISOString().split('T')[0],
+          attempt_date: pstDateString,
           status: successfulBackups > 0 ? 'success' : 'failed',
           error_message: failedBackups > 0 ? `${failedBackups} source backups failed` : undefined
         });
@@ -686,13 +735,17 @@ async function createBackupForUser(
   } catch (error) {
     console.error(`Error creating backup for user ${userId}:`, error);
     
-    // Log failed attempt
+    // Log failed attempt using PST date
     try {
+      const PST_TIMEZONE = 'America/Los_Angeles';
+      const nowPST = toZonedTime(new Date(), PST_TIMEZONE);
+      const pstDateString = format(nowPST, 'yyyy-MM-dd');
+      
       await supabase
         .from('backup_attempts')
         .insert({
           user_id: userId,
-          attempt_date: new Date().toISOString().split('T')[0],
+          attempt_date: pstDateString,
           status: 'failed',
           error_message: error instanceof Error ? error.message : 'Unknown error occurred'
         });
