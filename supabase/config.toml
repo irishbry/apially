@@ -78,3 +78,6 @@ port = 54328
 
 [functions.data-receiver]
 verify_jwt = false
+
+[functions.dropbox-backup]
+verify_jwt = false
