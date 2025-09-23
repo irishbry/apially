@@ -112,7 +112,7 @@ const handler = async (req: Request): Promise<Response> => {
   console.log('Starting Dropbox backup process...');
 
   try {
-    const { userId, format = 'csv', dropboxPath, dropboxToken, action = 'backup' } = await req.json();
+    const { userId, format: exportFormat = 'csv', dropboxPath, dropboxToken, action = 'backup' } = await req.json();
 
     // Handle different actions
     if (action === 'test_connection') {
@@ -125,7 +125,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Individual backup - userId is optional now
     if (userId) {
-      return await processIndividualBackup(userId, format, dropboxPath, dropboxToken);
+      return await processIndividualBackup(userId, exportFormat, dropboxPath, dropboxToken);
     } else {
       return new Response(JSON.stringify({ error: 'User ID is required for individual backups' }), {
         status: 400,
@@ -233,7 +233,7 @@ async function ensureValidAccessToken(config: DropboxConfig): Promise<DropboxCon
 
 async function processIndividualBackup(
   userId: string, 
-  format: string, 
+  exportFormat: string, 
   dropboxPath?: string, 
   dropboxToken?: string
 ): Promise<Response> {
@@ -271,7 +271,7 @@ async function processIndividualBackup(
     finalDropboxToken = validConfig.dropbox_token;
   }
 
-  const result = await createBackupForUser(userId, format, finalDropboxPath, finalDropboxToken, 'manual');
+  const result = await createBackupForUser(userId, exportFormat, finalDropboxPath, finalDropboxToken, 'manual');
   
   if (result.success) {
     return new Response(
@@ -427,7 +427,7 @@ async function processScheduledBackups(): Promise<Response> {
 
 async function createBackupForUser(
   userId: string, 
-  format: string, 
+  exportFormat: string, 
   dropboxPath: string, 
   dropboxToken: string,
   backupType: string = 'manual'
@@ -554,13 +554,13 @@ async function createBackupForUser(
         const dateString = format(previousDayPST, 'yyyy-MM-dd');
         
         const typePrefix = backupType === 'scheduled' ? 'backup' : 'manual_backup';
-        const fileName = `${typePrefix}_${dateString}_${safeName}.${format}`;
+        const fileName = `${typePrefix}_${dateString}_${safeName}.${exportFormat}`;
 
         console.log(`Generating backup for source ${sourceId} (${sourceName}) with PST date: ${dateString}`);
 
         // Generate backup content for this source
         let backupContent = '';
-        if (format === 'csv') {
+        if (exportFormat === 'csv') {
           backupContent = generateDataExplorerCSV(sourceData, sources);
         } else {
           backupContent = generateDataExplorerJSON(sourceData, sources);
@@ -578,7 +578,7 @@ async function createBackupForUser(
             file_path: `${dropboxPath}/${fileName}`,
             record_count: sourceData.length,
             backup_type: backupType,
-            format: format,
+            format: exportFormat,
             status: 'processing',
             file_size: fileSize
           })
