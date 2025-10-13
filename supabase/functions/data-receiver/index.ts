@@ -210,11 +210,26 @@ serve(async (req) => {
       }
     }
 
-    // Generate a unique ID if not provided
-    const entryId = body.id || crypto.randomUUID();
+    // Validate and generate entry ID
+    // If an ID is provided but not a valid UUID, store it in metadata and generate a new UUID
+    let entryId = crypto.randomUUID();
+    let originalId = null;
+    
+    if (body.id) {
+      // Check if the provided ID is a valid UUID format
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (uuidRegex.test(body.id)) {
+        entryId = body.id;
+      } else {
+        // Store the original ID in metadata if it's not a valid UUID
+        originalId = body.id;
+        console.log(`Invalid UUID format received: ${body.id}, generating new UUID and storing original in metadata`);
+      }
+    }
+    
     const now = new Date().toISOString();
 
-    // Add metadata to the data
+    // Add metadata to the data, including original ID if it was invalid
     const enhancedData = {
       ...body,
       id: entryId,
@@ -224,7 +239,8 @@ serve(async (req) => {
       user_id: source.user_id,
       receivedAt: now,
       timestamp: body.timestamp || now,
-      clientIp: req.headers.get('x-forwarded-for') || 'unknown'
+      clientIp: req.headers.get('x-forwarded-for') || 'unknown',
+      ...(originalId && { original_id: originalId })
     };
 
     // Generate a filename with timestamp and ID
