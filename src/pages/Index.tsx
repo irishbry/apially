@@ -68,8 +68,9 @@ const Index = () => {
     checkAuth();
   }, []);
 
-  // Load stats immediately when app loads
+  // Load stats immediately when app loads (cached, only once)
   useEffect(() => {
+    let isMounted = true;
     const loadStats = async () => {
       if (!isAuthenticated) return;
       
@@ -79,18 +80,21 @@ const Index = () => {
           ApiService.getSources()
         ]);
         
-        setTableStats({
-          totalCount: statsData.totalCount,
-          sources: sourcesData,
-          lastReceived: statsData.lastReceived,
-          uniqueSources: statsData.uniqueSources
-        });
+        if (isMounted) {
+          setTableStats({
+            totalCount: statsData.totalCount,
+            sources: sourcesData,
+            lastReceived: statsData.lastReceived,
+            uniqueSources: statsData.uniqueSources
+          });
+        }
       } catch (error) {
         console.error('Error loading stats:', error);
       }
     };
 
     loadStats();
+    return () => { isMounted = false; };
   }, [isAuthenticated]);
 
   useEffect(() => {

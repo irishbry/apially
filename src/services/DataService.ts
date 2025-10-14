@@ -98,41 +98,21 @@ export const DataService = {
     backedUpDropbox: number;
   }> => {
     try {
-      // Get total count
-      const { count: totalCount, error: countError } = await supabase
-        .from('data_entries')
-        .select('*', { count: 'exact', head: true });
+      // Get total count, latest timestamp, and backed up count in parallel
+      const [countResult, latestResult, backedUpResult, uniqueSourcesResult] = await Promise.all([
+        supabase.from('data_entries').select('*', { count: 'exact', head: true }),
+        supabase.from('data_entries').select('timestamp').order('created_at', { ascending: false }).limit(1),
+        supabase.from('data_entries').select('*', { count: 'exact', head: true }).eq('backed_up_dropbox', true),
+        supabase.rpc('count_distinct_sources_for_user')
+      ]);
 
-      if (countError) {
-        console.error('Error fetching total count:', countError);
-        return { totalCount: 0, uniqueSources: 0, lastReceived: 'No data', backedUpDropbox: 0 };
-      }
-
-      // Get latest entry for last received timestamp
-      const { data: latestData, error: latestError } = await supabase
-        .from('data_entries')
-        .select('timestamp')
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      // Get unique sources count
-      const { data: sourcesData, error: sourcesError } = await supabase
-        .from('data_entries')
-        .select('source_id')
-        .not('source_id', 'is', null);
-
-      // Get backed up dropbox count
-      const { count: backedUpCount, error: backedUpError } = await supabase
-        .from('data_entries')
-        .select('*', { count: 'exact', head: true })
-        .eq('backed_up_dropbox', true);
-
-      const uniqueSources = sourcesData ? new Set(sourcesData.map(item => item.source_id)).size : 0;
-      const lastReceived = latestData && latestData.length > 0 ? latestData[0].timestamp : 'No data';
-      const backedUpDropbox = backedUpError ? 0 : (backedUpCount || 0);
+      const totalCount = countResult.count || 0;
+      const lastReceived = latestResult.data?.[0]?.timestamp || 'No data';
+      const backedUpDropbox = backedUpResult.count || 0;
+      const uniqueSources = uniqueSourcesResult.data || 0;
 
       return {
-        totalCount: totalCount || 0,
+        totalCount,
         uniqueSources,
         lastReceived,
         backedUpDropbox

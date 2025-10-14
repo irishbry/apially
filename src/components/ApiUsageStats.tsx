@@ -44,7 +44,7 @@ const ApiUsageStats: React.FC<ApiUsageStatsProps> = ({ data: propData, sources: 
       setIsLoading(true);
       try {
         if (tableStats) {
-          // Use stats provided by the table component (no API calls needed!)
+          // Use stats provided by Index component (no API calls!)
           setStats({
             totalRequests: tableStats.totalCount,
             uniqueSources: tableStats.uniqueSources,
@@ -56,49 +56,16 @@ const ApiUsageStats: React.FC<ApiUsageStatsProps> = ({ data: propData, sources: 
             activeSources: tableStats.sources.filter(s => s.active).length,
             totalDataPoints: tableStats.totalCount
           });
-          setIsLoading(false);
-        } else if (propData) {
-          // If prop data is provided, calculate from it (for components that pass filtered data)
-          const statsData = {
-            totalRequests: data.length,
-            uniqueSources: new Set(data.map(item => item.sourceId || item.source_id)).size,
-            lastReceived: data.length > 0 ? data[0].timestamp : 'No data'
-          };
-          setStats(statsData);
-          
-          const srcStats = {
-            totalSources: sources.length,
-            activeSources: sources.filter(s => s.active).length,
-            totalDataPoints: data.length
-          };
-          setSourceStats(srcStats);
-          setIsLoading(false);
-        } else {
-          // If no prop data or table stats, get real statistics from server
-          const realStats = await ApiService.getDataStats();
-          const sourcesData = await ApiService.getSources();
-          
-          setStats({
-            totalRequests: realStats.totalCount,
-            uniqueSources: realStats.uniqueSources,
-            lastReceived: realStats.lastReceived
-          });
-          
-          setSourceStats({
-            totalSources: sourcesData.length,
-            activeSources: sourcesData.filter(s => s.active).length,
-            totalDataPoints: realStats.totalCount
-          });
-          setIsLoading(false);
         }
       } catch (error) {
-        console.error('Error fetching stats:', error);
+        console.error('Error in ApiUsageStats:', error);
+      } finally {
         setIsLoading(false);
       }
     };
 
     fetchStats();
-  }, [data, sources, propData, propSources, tableStats]);
+  }, [tableStats]);
 
   useEffect(() => {
     // Get schema field count

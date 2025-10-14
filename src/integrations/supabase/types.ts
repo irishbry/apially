@@ -323,6 +323,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      count_distinct_sources_for_user: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
       generate_unique_api_key: {
         Args: Record<PropertyKey, never>
         Returns: string
