@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Supabase
+supabase/.temp
+src/integrations/supabase/client.ts
+src/integrations/supabase/client_prod.ts
+src/integrations/supabase/client_staging.ts
+scripts
+apially-src-combined.txt
