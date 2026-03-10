@@ -299,12 +299,12 @@ serve(async (req) => {
       );
     }
 
-    // Update source statistics - increment data_count and update last_active
+    // Update source statistics - update last_active
+    // (data_count is no longer relied upon; real counts come from get_source_record_counts RPC)
     const { error: updateError } = await supabase
       .from('sources')
       .update({
-        last_active: new Date().toISOString(),
-        data_count: (source as any).data_count ? (source as any).data_count + 1 : 1
+        last_active: new Date().toISOString()
       })
       .eq('id', source.id);
 
