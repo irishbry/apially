@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Mail, Download, Trash2, Edit, Play, Pause } from 'lucide-react';
+import { Calendar, Mail, Download, Trash2, Edit, Play, Pause, RotateCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Tables } from '@/integrations/supabase/types';
@@ -161,6 +161,21 @@ const ScheduledExports = () => {
     } catch (error) {
       console.error('Error toggling export status:', error);
       toast({ title: "Error", description: "Failed to update export status", variant: "destructive" });
+    }
+  };
+
+  const runNow = async (exportItem: ScheduledExport) => {
+    try {
+      toast({ title: "Running export...", description: `Triggering "${exportItem.name}" now` });
+      const { data, error } = await supabase.functions.invoke('process-scheduled-exports', {
+        body: { exportId: exportItem.id },
+      });
+      if (error) throw error;
+      toast({ title: "Success", description: data?.message || `Export "${exportItem.name}" triggered successfully` });
+      fetchExports();
+    } catch (error) {
+      console.error('Error running export:', error);
+      toast({ title: "Error", description: "Failed to run export", variant: "destructive" });
     }
   };
 
@@ -433,6 +448,9 @@ const ScheduledExports = () => {
                     </div>
                     
                     <div className="flex items-center gap-1 ml-2">
+                      <Button variant="outline" size="sm" onClick={() => runNow(exportItem)} title="Run Now" className="h-6 px-2 text-xs">
+                        <RotateCw className="h-3 w-3" />
+                      </Button>
                       <Button variant="outline" size="sm" onClick={() => editExport(exportItem)} className="h-6 px-2 text-xs">
                         <Edit className="h-3 w-3" />
                       </Button>
