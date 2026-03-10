@@ -231,7 +231,7 @@ const Index = () => {
               <h1 className="text-2xl md:text-3xl font-medium tracking-tight">ApiAlly</h1>
             </div>
             <div className="flex items-center gap-2">
-              {user?.email === 'bryan@rvnu.com' && (
+              {userEmail === 'bryan@rvnu.com' && (
                 <Link
                   to="/admin"
                   className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-md hover:bg-muted"
