@@ -11,6 +11,7 @@ import AutoInstaller from "./components/AutoInstaller";
 import Signup from "./pages/Signup";
 import AuthCallback from "./pages/AuthCallback";
 import SmtpTest from "./pages/SmtpTest";
+import AdminPage from "./pages/AdminPage";
 
 // Initialize notification listeners
 import NotificationService from "./services/NotificationService";
