@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
-import { Shield, Users, Database, Activity, Loader2, AlertTriangle, Ban, CheckCircle, RefreshCw, HeartPulse, TrendingUp, AlertCircle } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Shield, Users, Database, Activity, Loader2, AlertTriangle, Ban, CheckCircle, RefreshCw, HeartPulse, TrendingUp, AlertCircle, BarChart3 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { format, differenceInHours, differenceInDays, subDays } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';

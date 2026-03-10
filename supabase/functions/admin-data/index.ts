@@ -73,6 +73,19 @@ Deno.serve(async (req) => {
         );
       }
 
+      if (action === "source_daily_counts") {
+        const { source_id, days = 30 } = body;
+        const { data: counts, error: countsError } = await adminClient.rpc(
+          "get_admin_source_daily_counts",
+          { p_source_id: source_id, p_days: days }
+        );
+        if (countsError) throw countsError;
+        return new Response(
+          JSON.stringify({ success: true, daily_counts: counts || [] }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       if (action === "ban_user") {
         const { user_id } = body;
         const { error: sourcesError } = await adminClient
