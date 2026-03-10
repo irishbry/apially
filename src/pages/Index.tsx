@@ -24,7 +24,7 @@ import { LogOut, Bell, Menu, Database, Shield } from "lucide-react";
 import { ApiService, DataEntry, Source } from "@/services/ApiService";
 import NotificationService from "@/services/NotificationService";
 import { useToast } from "@/hooks/use-toast";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import SimpleLoginForm from "@/components/SimpleLoginForm";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
