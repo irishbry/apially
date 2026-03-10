@@ -141,15 +141,26 @@ const ApiAnalytics: React.FC = () => {
       <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold">API Usage Analytics</h2>
-          <p className="text-muted-foreground">Monitor your API endpoint usage</p>
+          <p className="text-muted-foreground">
+            Monitor your API endpoint usage
+            <span className="text-xs ml-2">
+              (Last refreshed: {format(lastRefresh, 'HH:mm:ss')})
+            </span>
+          </p>
         </div>
-        <Tabs value={timeRange} onValueChange={(v) => setTimeRange(v as any)} className="w-full md:w-auto">
-          <TabsList className="grid w-full md:w-[200px] grid-cols-3">
-            <TabsTrigger value="7d">7 Days</TabsTrigger>
-            <TabsTrigger value="30d">30 Days</TabsTrigger>
-            <TabsTrigger value="90d">90 Days</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={fetchData} disabled={isLoading}>
+            <RefreshCw className={`h-4 w-4 mr-1.5 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <Tabs value={timeRange} onValueChange={(v) => setTimeRange(v as any)} className="w-full md:w-auto">
+            <TabsList className="grid w-full md:w-[200px] grid-cols-3">
+              <TabsTrigger value="7d">7 Days</TabsTrigger>
+              <TabsTrigger value="30d">30 Days</TabsTrigger>
+              <TabsTrigger value="90d">90 Days</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
       </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
