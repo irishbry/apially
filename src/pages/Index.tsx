@@ -87,22 +87,12 @@ const Index = () => {
   }, [isAuthenticated]);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        console.log("Auth state changed:", event, !!session);
-        const newAuthStatus = !!session;
-        setIsAuthenticated(newAuthStatus);
-        setUserEmail(session?.user?.email || null);
-      }
-    );
-    
     setNotifications(NotificationService.getNotifications());
     const unsubscribeNotifications = NotificationService.subscribe(newNotifications => {
       setNotifications(newNotifications);
     });
     
     return () => {
-      subscription.unsubscribe();
       unsubscribeNotifications();
     };
   }, []);
