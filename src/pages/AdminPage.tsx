@@ -4,10 +4,24 @@ import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Shield, Users, Database, Activity, Loader2, AlertTriangle } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Shield, Users, Database, Activity, Loader2, AlertTriangle, Ban, CheckCircle, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 interface AdminSource {
   id: string;
@@ -24,6 +38,7 @@ interface AdminSource {
 interface AdminUser {
   user_id: string;
   email: string;
+  banned: boolean;
   source_count: number;
   total_records: number;
   active_sources: number;
@@ -41,8 +56,10 @@ export default function AdminPage() {
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const [data, setData] = useState<AdminData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   useEffect(() => {
     if (authLoading) return;
@@ -53,35 +70,32 @@ export default function AdminPage() {
     fetchAdminData();
   }, [isAuthenticated, authLoading]);
 
+  const getHeaders = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error('Not authenticated');
+    return {
+      Authorization: `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json',
+    };
+  };
+
+  const getUrl = () => {
+    const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+    return `https://${projectId}.supabase.co/functions/v1/admin-data`;
+  };
+
   const fetchAdminData = async () => {
     try {
       setLoading(true);
       setError(null);
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        setError('Not authenticated');
-        return;
-      }
-
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/admin-data`,
-        {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+      const headers = await getHeaders();
+      const response = await fetch(getUrl(), { headers });
 
       if (response.status === 403) {
         setError('Access denied. You are not an admin.');
         return;
       }
-
-      if (!response.ok) {
-        throw new Error(`Error: ${response.statusText}`);
-      }
+      if (!response.ok) throw new Error(`Error: ${response.statusText}`);
 
       const result = await response.json();
       setData(result);
@@ -90,6 +104,41 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const adminAction = async (body: Record<string, any>, loadingKey: string) => {
+    try {
+      setActionLoading(loadingKey);
+      const headers = await getHeaders();
+      const response = await fetch(getUrl(), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Action failed');
+      toast({ title: 'Success', description: result.message });
+      await fetchAdminData();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleToggleSource = (sourceId: string, currentActive: boolean) => {
+    adminAction(
+      { action: 'toggle_source', source_id: sourceId, active: !currentActive },
+      `source-${sourceId}`
+    );
+  };
+
+  const handleBanUser = (userId: string) => {
+    adminAction({ action: 'ban_user', user_id: userId }, `ban-${userId}`);
+  };
+
+  const handleUnbanUser = (userId: string) => {
+    adminAction({ action: 'unban_user', user_id: userId }, `unban-${userId}`);
   };
 
   if (authLoading || loading) {
@@ -107,10 +156,7 @@ export default function AdminPage() {
           <CardContent className="pt-6 text-center">
             <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" />
             <p className="text-lg font-semibold text-foreground">{error}</p>
-            <button
-              onClick={() => navigate('/')}
-              className="mt-4 text-primary underline"
-            >
+            <button onClick={() => navigate('/')} className="mt-4 text-primary underline">
               Back to Dashboard
             </button>
           </CardContent>
@@ -132,9 +178,15 @@ export default function AdminPage() {
             <Shield className="h-6 w-6 text-primary" />
             <h1 className="text-xl font-bold text-foreground">Admin Dashboard</h1>
           </div>
-          <button onClick={() => navigate('/')} className="text-sm text-muted-foreground hover:text-foreground">
-            ← Back to Dashboard
-          </button>
+          <div className="flex items-center gap-3">
+            <Button variant="outline" size="sm" onClick={fetchAdminData} disabled={!!actionLoading}>
+              <RefreshCw className={`h-4 w-4 mr-1.5 ${actionLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+            <button onClick={() => navigate('/')} className="text-sm text-muted-foreground hover:text-foreground">
+              ← Back to Dashboard
+            </button>
+          </div>
         </div>
       </div>
 
@@ -212,11 +264,12 @@ export default function AdminPage() {
                         <TableHead>Created</TableHead>
                         <TableHead>Last Active</TableHead>
                         <TableHead>API Key</TableHead>
+                        <TableHead className="text-center">Active</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {data.sources.map((source) => (
-                        <TableRow key={source.id}>
+                        <TableRow key={source.id} className={!source.active ? 'opacity-60' : ''}>
                           <TableCell className="font-medium">{source.name}</TableCell>
                           <TableCell className="text-muted-foreground">{source.user_email}</TableCell>
                           <TableCell>
@@ -238,6 +291,13 @@ export default function AdminPage() {
                               {source.api_key.slice(0, 8)}…
                             </code>
                           </TableCell>
+                          <TableCell className="text-center">
+                            <Switch
+                              checked={source.active}
+                              disabled={actionLoading === `source-${source.id}`}
+                              onCheckedChange={() => handleToggleSource(source.id, source.active)}
+                            />
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -257,19 +317,73 @@ export default function AdminPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Email</TableHead>
+                      <TableHead>Status</TableHead>
                       <TableHead className="text-right">Sources</TableHead>
                       <TableHead className="text-right">Active Sources</TableHead>
                       <TableHead className="text-right">Total Records</TableHead>
+                      <TableHead className="text-center">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {data.users.map((u) => (
-                      <TableRow key={u.user_id}>
+                      <TableRow key={u.user_id} className={u.banned ? 'opacity-60' : ''}>
                         <TableCell className="font-medium">{u.email}</TableCell>
+                        <TableCell>
+                          <Badge variant={u.banned ? 'destructive' : 'default'}>
+                            {u.banned ? 'Banned' : 'Active'}
+                          </Badge>
+                        </TableCell>
                         <TableCell className="text-right">{u.source_count}</TableCell>
                         <TableCell className="text-right">{u.active_sources}</TableCell>
                         <TableCell className="text-right font-mono">
                           {formatNumber(u.total_records)}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {u.banned ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={actionLoading === `unban-${u.user_id}`}
+                              onClick={() => handleUnbanUser(u.user_id)}
+                            >
+                              {actionLoading === `unban-${u.user_id}` ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                              ) : (
+                                <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                              )}
+                              Unban
+                            </Button>
+                          ) : (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  disabled={!!actionLoading}
+                                >
+                                  <Ban className="h-3.5 w-3.5 mr-1" />
+                                  Ban
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Ban user {u.email}?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This will prevent the user from logging in and deactivate all their sources. You can unban them later.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => handleBanUser(u.user_id)}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  >
+                                    Ban User
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
