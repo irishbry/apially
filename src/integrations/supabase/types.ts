@@ -374,6 +374,21 @@ export type Database = {
     Functions: {
       count_distinct_sources_for_user: { Args: never; Returns: number }
       generate_unique_api_key: { Args: never; Returns: string }
+      get_daily_entry_counts: {
+        Args: { p_days?: number; p_user_id: string }
+        Returns: {
+          day: string
+          entry_count: number
+        }[]
+      }
+      get_source_entry_counts: {
+        Args: { p_user_id: string }
+        Returns: {
+          entry_count: number
+          source_id: string
+          source_name: string
+        }[]
+      }
       process_scheduled_exports: { Args: never; Returns: undefined }
       trigger_daily_backups: { Args: never; Returns: undefined }
       update_source_schema: {
