@@ -164,6 +164,21 @@ const ScheduledExports = () => {
     }
   };
 
+  const runNow = async (exportItem: ScheduledExport) => {
+    try {
+      toast({ title: "Running export...", description: `Triggering "${exportItem.name}" now` });
+      const { data, error } = await supabase.functions.invoke('process-scheduled-exports', {
+        body: { exportId: exportItem.id },
+      });
+      if (error) throw error;
+      toast({ title: "Success", description: data?.message || `Export "${exportItem.name}" triggered successfully` });
+      fetchExports();
+    } catch (error) {
+      console.error('Error running export:', error);
+      toast({ title: "Error", description: "Failed to run export", variant: "destructive" });
+    }
+  };
+
   const editExport = (exportItem: ScheduledExport) => {
     setEditingExport(exportItem);
     setFormData({
