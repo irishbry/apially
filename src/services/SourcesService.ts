@@ -82,7 +82,6 @@ export const SourcesService = {
       console.error('Error in getApiUsageBySource:', error);
       return [];
     }
-    }
   },
   
   subscribeToSources: (callback: (sources: Source[]) => void) => {
