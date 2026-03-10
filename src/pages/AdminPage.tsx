@@ -358,6 +358,10 @@ export default function AdminPage() {
           <TabsList>
             <TabsTrigger value="health">Source Health</TabsTrigger>
             <TabsTrigger value="usage">Data Usage</TabsTrigger>
+            <TabsTrigger value="drilldown">
+              <BarChart3 className="h-3.5 w-3.5 mr-1.5" />
+              Source Drilldown
+            </TabsTrigger>
             <TabsTrigger value="sources">All Sources</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
           </TabsList>
