@@ -328,6 +328,41 @@ export type Database = {
           },
         ]
       }
+      source_alerts: {
+        Row: {
+          alert_type: string
+          created_at: string
+          id: string
+          last_alerted_at: string
+          source_id: string
+          user_id: string
+        }
+        Insert: {
+          alert_type?: string
+          created_at?: string
+          id?: string
+          last_alerted_at?: string
+          source_id: string
+          user_id: string
+        }
+        Update: {
+          alert_type?: string
+          created_at?: string
+          id?: string
+          last_alerted_at?: string
+          source_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "source_alerts_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sources: {
         Row: {
           active: boolean
