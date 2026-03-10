@@ -6,12 +6,22 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Mail, Download, Trash2, Edit, Play, Pause, RotateCw } from 'lucide-react';
+import { Calendar, Mail, Download, Trash2, Edit, Play, Pause, RotateCw, History, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Tables } from '@/integrations/supabase/types';
 
 type ScheduledExport = Tables<'scheduled_exports'>;
+
+interface ExportLog {
+  id: string;
+  export_id: string;
+  user_id: string;
+  status: string;
+  record_count: number;
+  error_message: string | null;
+  created_at: string;
+}
 
 interface Source {
   id: string;
