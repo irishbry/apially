@@ -7,6 +7,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
 import { ApiService, ApiUsageByDay, ApiUsageBySource } from "@/services/ApiService";
 import { format, parseISO, subDays } from 'date-fns';
+import { RefreshCw } from 'lucide-react';
 import { useIsMobile } from "@/hooks/use-mobile";
 
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#0088fe', '#00C49F', '#FFBB28', '#FF8042'];
