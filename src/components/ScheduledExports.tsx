@@ -498,6 +498,93 @@ const ScheduledExports = () => {
             </div>
           )}
         </div>
+
+        {/* Export History Section */}
+        <div className="space-y-1">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium flex items-center gap-1">
+              <History className="h-3.5 w-3.5" />
+              Export History
+            </h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setShowHistory(!showHistory); if (!showHistory) fetchExportLogs(); }}
+              className="h-6 px-2 text-xs"
+            >
+              {showHistory ? 'Hide' : 'Show'}
+            </Button>
+          </div>
+
+          {showHistory && (
+            <div className="border rounded-lg overflow-hidden">
+              {exportLogs.length === 0 ? (
+                <div className="text-center py-4 text-sm text-muted-foreground">
+                  No export history yet
+                </div>
+              ) : (
+                <div className="divide-y max-h-64 overflow-y-auto">
+                  {exportLogs
+                    .filter(log => !selectedExportId || log.export_id === selectedExportId)
+                    .map((log) => {
+                      const exportName = exports.find(e => e.id === log.export_id)?.name || 'Deleted Export';
+                      return (
+                        <div key={log.id} className="flex items-center justify-between px-3 py-2 text-sm hover:bg-muted/20">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {log.status === 'completed' ? (
+                              <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                            ) : log.status === 'failed' ? (
+                              <XCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
+                            ) : (
+                              <Clock className="h-3.5 w-3.5 text-yellow-500 shrink-0" />
+                            )}
+                            <span className="font-medium truncate">{exportName}</span>
+                            <Badge variant="outline" className="text-xs px-1 py-0 h-4 shrink-0">
+                              {log.record_count} records
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0 ml-2">
+                            {log.error_message && (
+                              <span className="text-xs text-destructive max-w-32 truncate" title={log.error_message}>
+                                {log.error_message}
+                              </span>
+                            )}
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(log.created_at).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+              {exports.length > 0 && (
+                <div className="border-t px-3 py-1.5 bg-muted/30 flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Filter:</span>
+                  <Button
+                    variant={selectedExportId === null ? "secondary" : "ghost"}
+                    size="sm"
+                    onClick={() => setSelectedExportId(null)}
+                    className="h-5 px-1.5 text-xs"
+                  >
+                    All
+                  </Button>
+                  {exports.map(e => (
+                    <Button
+                      key={e.id}
+                      variant={selectedExportId === e.id ? "secondary" : "ghost"}
+                      size="sm"
+                      onClick={() => setSelectedExportId(e.id)}
+                      className="h-5 px-1.5 text-xs truncate max-w-24"
+                    >
+                      {e.name}
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
