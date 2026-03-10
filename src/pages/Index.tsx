@@ -30,11 +30,14 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import MobileDataSummary from "@/components/MobileDataSummary";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+
+const ADMIN_EMAILS = ['bryan@rvnu.com'];
 
 const Index = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { user, isLoading, isAuthenticated } = useAuth();
+  const userEmail = user?.email || null;
+  const isAdmin = userEmail ? ADMIN_EMAILS.includes(userEmail) : false;
   const [isChanged, setIsChanged] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [selectedApiKey, setSelectedApiKey] = useState<string>('');
@@ -51,24 +54,8 @@ const Index = () => {
   const isMobile = useIsMobile();
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        setIsLoading(true);
-        const { data: { session } } = await supabase.auth.getSession();
-        const authStatus = !!session;
-        console.log("Auth status from Supabase:", authStatus);
-        setIsAuthenticated(authStatus);
-        setUserEmail(session?.user?.email || null);
-      } catch (error) {
-        console.error("Error checking auth status:", error);
-        setIsAuthenticated(false);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    checkAuth();
-  }, []);
+    console.log("Auth status from useAuth:", isAuthenticated);
+  }, [isAuthenticated]);
 
   // Load stats immediately when app loads (cached, only once)
   useEffect(() => {
@@ -100,22 +87,12 @@ const Index = () => {
   }, [isAuthenticated]);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        console.log("Auth state changed:", event, !!session);
-        const newAuthStatus = !!session;
-        setIsAuthenticated(newAuthStatus);
-        setUserEmail(session?.user?.email || null);
-      }
-    );
-    
     setNotifications(NotificationService.getNotifications());
     const unsubscribeNotifications = NotificationService.subscribe(newNotifications => {
       setNotifications(newNotifications);
     });
     
     return () => {
-      subscription.unsubscribe();
       unsubscribeNotifications();
     };
   }, []);
@@ -170,7 +147,6 @@ const Index = () => {
         description: "You have been logged out successfully.",
         duration: 5000,
       });
-      setIsAuthenticated(false);
       navigate('/');
     } catch (error) {
       console.error("Error logging out:", error);
@@ -232,7 +208,7 @@ const Index = () => {
               <h1 className="text-2xl md:text-3xl font-medium tracking-tight">ApiAlly</h1>
             </div>
             <div className="flex items-center gap-2">
-              {userEmail === 'bryan@rvnu.com' && (
+              {isAdmin && (
                 <Link
                   to="/admin"
                   className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-md hover:bg-muted"
