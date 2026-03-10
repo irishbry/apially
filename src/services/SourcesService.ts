@@ -58,48 +58,26 @@ export const SourcesService = {
   
   getApiUsageBySource: async (): Promise<ApiUsageBySource[]> => {
     try {
-      const { data: entries, error: entriesError } = await supabase
-        .from('data_entries')
-        .select('source_id')
-        .not('source_id', 'is', null);
-        
-      if (entriesError) {
-        console.error('Error fetching API usage by source:', entriesError);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+
+      const { data, error } = await supabase.rpc('get_source_entry_counts', {
+        p_user_id: user.id,
+      });
+
+      if (error) {
+        console.error('Error fetching API usage by source:', error);
         return [];
       }
-      
-      const { data: sources, error: sourcesError } = await supabase
-        .from('sources')
-        .select('id, name');
-        
-      if (sourcesError) {
-        console.error('Error fetching sources for API usage:', sourcesError);
-        return [];
-      }
-      
-      const sourceMap: Record<string, string> = {};
-      sources.forEach(source => {
-        sourceMap[source.id] = source.name;
-      });
-      
-      const countBySource: Record<string, number> = {};
-      entries.forEach(entry => {
-        if (entry.source_id) {
-          countBySource[entry.source_id] = (countBySource[entry.source_id] || 0) + 1;
-        }
-      });
-      
-      const totalCount = entries.length;
-      
-      const result: ApiUsageBySource[] = Object.keys(countBySource).map(sourceId => ({
-        source: sourceMap[sourceId] || 'Unknown',
-        count: countBySource[sourceId],
-        percentage: Math.round((countBySource[sourceId] / totalCount) * 100)
+
+      const rows = data || [];
+      const totalCount = rows.reduce((sum: number, r: any) => sum + Number(r.entry_count), 0);
+
+      return rows.map((row: any) => ({
+        source: row.source_name,
+        count: Number(row.entry_count),
+        percentage: totalCount > 0 ? Math.round((Number(row.entry_count) / totalCount) * 100) : 0,
       }));
-      
-      result.sort((a, b) => b.count - a.count);
-      
-      return result;
     } catch (error) {
       console.error('Error in getApiUsageBySource:', error);
       return [];
