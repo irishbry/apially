@@ -416,6 +416,13 @@ export type Database = {
           entry_count: number
         }[]
       }
+      get_admin_source_daily_counts: {
+        Args: { p_days?: number; p_source_id: string }
+        Returns: {
+          day: string
+          entry_count: number
+        }[]
+      }
       get_admin_user_usage: {
         Args: never
         Returns: {
