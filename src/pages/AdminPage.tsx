@@ -68,6 +68,10 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
+  const [sourceDailyCounts, setSourceDailyCounts] = useState<DailyCount[]>([]);
+  const [sourceChartLoading, setSourceChartLoading] = useState(false);
+  const [sourceChartDays, setSourceChartDays] = useState(30);
   const navigate = useNavigate();
   const { toast } = useToast();
 
