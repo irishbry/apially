@@ -323,22 +323,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      count_distinct_sources_for_user: {
-        Args: Record<PropertyKey, never>
-        Returns: number
-      }
-      generate_unique_api_key: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      process_scheduled_exports: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      trigger_daily_backups: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      count_distinct_sources_for_user: { Args: never; Returns: number }
+      generate_unique_api_key: { Args: never; Returns: string }
+      process_scheduled_exports: { Args: never; Returns: undefined }
+      trigger_daily_backups: { Args: never; Returns: undefined }
       update_source_schema: {
         Args: { p_api_key: string; p_schema: Json }
         Returns: undefined

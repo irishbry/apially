@@ -476,29 +476,6 @@ async function createBackupForUser(
     console.log(`Filtering data for PST date range: ${format(previousDayPST, 'yyyy-MM-dd')} PST`);
     console.log(`UTC range: ${startOfDayUTC.toISOString()} to ${endOfDayUTC.toISOString()}`);
     
-    // Get data from the previous day in PST timezone
-    const { data: userData, error: userError } = await supabase
-      .from('data_entries')
-      .select('*')
-      .eq('user_id', userId)
-      .gte('created_at', startOfDayUTC.toISOString())
-      .lte('created_at', endOfDayUTC.toISOString())
-      .order('created_at', { ascending: false });
-
-    if (userError) {
-      console.error(`Error fetching data for user ${userId}:`, userError);
-      return { success: false, error: 'Failed to fetch user data' };
-    }
-
-    console.log(`Query returned ${userData?.length || 0} entries for user ${userId} in PST date range`);
-
-    if (!userData || userData.length === 0) {
-      console.log(`No data found for user ${userId} in the previous PST day`);
-      return { success: true, fileName: '', path: '', backedUpCount: 0 };
-    }
-
-    console.log(`Found ${userData.length} entries to backup for user ${userId} from previous PST day`);
-
     // Get user's sources
     const { data: sourcesData } = await supabase
       .from('sources')
@@ -506,6 +483,68 @@ async function createBackupForUser(
       .eq('user_id', userId);
 
     const sources = sourcesData || [];
+
+    // Step 1: Get distinct source_ids for this user + date range (small query)
+    const PAGE_SIZE = 1000;
+    const { data: sourceIdRows, error: sourceIdError } = await supabase
+      .from('data_entries')
+      .select('source_id')
+      .eq('user_id', userId)
+      .gte('created_at', startOfDayUTC.toISOString())
+      .lte('created_at', endOfDayUTC.toISOString())
+      .not('source_id', 'is', null);
+
+    if (sourceIdError) {
+      console.error(`Error fetching source_ids for user ${userId}:`, sourceIdError);
+      return { success: false, error: 'Failed to fetch source IDs' };
+    }
+
+    const uniqueSourceIds = [...new Set(sourceIdRows?.map(r => r.source_id).filter(Boolean))];
+    console.log(`Found ${uniqueSourceIds.length} distinct sources for user ${userId} in date range`);
+
+    if (uniqueSourceIds.length === 0) {
+      console.log(`No data found for user ${userId} in the previous PST day`);
+      return { success: true, fileName: '', path: '', backedUpCount: 0 };
+    }
+
+    // Step 2: For each source, fetch ALL entries with pagination
+    const dataBySource = new Map<string, DataEntry[]>();
+    for (const sourceId of uniqueSourceIds) {
+      const allEntries: DataEntry[] = [];
+      let offset = 0;
+      while (true) {
+        const { data: page, error: pageError } = await supabase
+          .from('data_entries')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('source_id', sourceId)
+          .gte('created_at', startOfDayUTC.toISOString())
+          .lte('created_at', endOfDayUTC.toISOString())
+          .order('created_at', { ascending: false })
+          .range(offset, offset + PAGE_SIZE - 1);
+
+        if (pageError) {
+          console.error(`Error fetching page at offset ${offset} for source ${sourceId}:`, pageError);
+          break;
+        }
+        if (!page || page.length === 0) break;
+        allEntries.push(...page);
+        console.log(`Fetched ${page.length} entries at offset ${offset} for source ${sourceId}`);
+        if (page.length < PAGE_SIZE) break;
+        offset += PAGE_SIZE;
+      }
+      if (allEntries.length > 0) {
+        dataBySource.set(sourceId, allEntries);
+      }
+    }
+
+    const totalEntries = Array.from(dataBySource.values()).reduce((sum, arr) => sum + arr.length, 0);
+    console.log(`Fetched ${totalEntries} total entries across ${dataBySource.size} sources (paginated)`);
+
+    if (dataBySource.size === 0) {
+      console.log(`No data entries found after paginated fetch for user ${userId}`);
+      return { success: true, fileName: '', path: '', backedUpCount: 0 };
+    }
 
     // Test Dropbox connection first
     console.log('Testing Dropbox connection before upload...');
@@ -515,18 +554,6 @@ async function createBackupForUser(
       return { success: false, error: 'Dropbox connection failed' };
     }
     console.log('Dropbox connection test passed');
-
-    // Group data by source_id
-    const dataBySource = new Map<string, DataEntry[]>();
-    userData.forEach(entry => {
-      const sourceId = entry.source_id || 'unknown';
-      if (!dataBySource.has(sourceId)) {
-        dataBySource.set(sourceId, []);
-      }
-      dataBySource.get(sourceId)!.push(entry);
-    });
-
-    console.log(`Data grouped into ${dataBySource.size} sources for separate backup files`);
 
     let totalBackedUpCount = 0;
     const backupResults: Array<{
