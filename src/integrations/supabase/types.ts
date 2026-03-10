@@ -190,6 +190,44 @@ export type Database = {
         }
         Relationships: []
       }
+      export_logs: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          export_id: string
+          id: string
+          record_count: number
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          export_id: string
+          id?: string
+          record_count?: number
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          export_id?: string
+          id?: string
+          record_count?: number
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "export_logs_export_id_fkey"
+            columns: ["export_id"]
+            isOneToOne: false
+            referencedRelation: "scheduled_exports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scheduled_exports: {
         Row: {
           active: boolean | null

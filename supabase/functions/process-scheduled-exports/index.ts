@@ -166,6 +166,15 @@ const handler = async (req: Request): Promise<Response> => {
             .from('scheduled_exports')
             .update({ last_export: now.toISOString(), next_export: nextExport.toISOString() })
             .eq('id', exportConfig.id);
+          
+          // Log the run even when no data
+          await supabase.from('export_logs').insert({
+            export_id: exportConfig.id,
+            user_id: exportConfig.user_id,
+            status: 'completed',
+            record_count: 0,
+          });
+
           processedExports.push(`${exportConfig.name} (no new data)`);
           continue;
         }
@@ -204,13 +213,35 @@ const handler = async (req: Request): Promise<Response> => {
           }).then(async (response) => {
             if (response.error) {
               console.error(`Error calling email service for export ${exportConfig.name}:`, response.error);
+              // Log failure
+              await supabase.from('export_logs').insert({
+                export_id: exportConfig.id,
+                user_id: exportConfig.user_id,
+                status: 'failed',
+                record_count: userData.length,
+                error_message: response.error.message || 'Email delivery failed',
+              });
             } else {
               console.log(`Email service called successfully for export: ${exportConfig.name}`);
               const entryIds = userData.map(entry => entry.id);
               await updateBackupStatusInChunks(entryIds, 100);
+              // Log success
+              await supabase.from('export_logs').insert({
+                export_id: exportConfig.id,
+                user_id: exportConfig.user_id,
+                status: 'completed',
+                record_count: userData.length,
+              });
             }
-          }).catch(error => {
+          }).catch(async (error) => {
             console.error(`Exception in email service for export ${exportConfig.name}:`, error);
+            await supabase.from('export_logs').insert({
+              export_id: exportConfig.id,
+              user_id: exportConfig.user_id,
+              status: 'failed',
+              record_count: userData.length,
+              error_message: error.message || 'Unexpected error',
+            });
           });
           
           emailTasks.push(emailPromise);
@@ -230,6 +261,14 @@ const handler = async (req: Request): Promise<Response> => {
         }
       } catch (error) {
         console.error(`Error processing export ${exportConfig.name}:`, error);
+        // Log the error
+        await supabase.from('export_logs').insert({
+          export_id: exportConfig.id,
+          user_id: exportConfig.user_id,
+          status: 'failed',
+          record_count: 0,
+          error_message: error.message || 'Processing error',
+        }).catch(() => {});
       }
     }
 
