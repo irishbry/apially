@@ -202,6 +202,7 @@ export type Database = {
           last_export: string | null
           name: string
           next_export: string | null
+          source_id: string | null
           updated_at: string | null
           user_id: string | null
         }
@@ -216,6 +217,7 @@ export type Database = {
           last_export?: string | null
           name: string
           next_export?: string | null
+          source_id?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
@@ -230,10 +232,19 @@ export type Database = {
           last_export?: string | null
           name?: string
           next_export?: string | null
+          source_id?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_exports_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "sources"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       schema_configs: {
         Row: {
