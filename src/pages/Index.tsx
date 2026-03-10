@@ -20,11 +20,11 @@ import BackupAttempts from "@/components/BackupAttempts";
 import NotificationsCenter, { Notification } from "@/components/NotificationsCenter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { LogOut, Bell, Menu, Database } from "lucide-react";
+import { LogOut, Bell, Menu, Database, Shield } from "lucide-react";
 import { ApiService, DataEntry, Source } from "@/services/ApiService";
 import NotificationService from "@/services/NotificationService";
 import { useToast } from "@/hooks/use-toast";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import SimpleLoginForm from "@/components/SimpleLoginForm";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -33,6 +33,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isChanged, setIsChanged] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -57,6 +58,7 @@ const Index = () => {
         const authStatus = !!session;
         console.log("Auth status from Supabase:", authStatus);
         setIsAuthenticated(authStatus);
+        setUserEmail(session?.user?.email || null);
       } catch (error) {
         console.error("Error checking auth status:", error);
         setIsAuthenticated(false);
@@ -103,6 +105,7 @@ const Index = () => {
         console.log("Auth state changed:", event, !!session);
         const newAuthStatus = !!session;
         setIsAuthenticated(newAuthStatus);
+        setUserEmail(session?.user?.email || null);
       }
     );
     
@@ -229,6 +232,15 @@ const Index = () => {
               <h1 className="text-2xl md:text-3xl font-medium tracking-tight">ApiAlly</h1>
             </div>
             <div className="flex items-center gap-2">
+              {userEmail === 'bryan@rvnu.com' && (
+                <Link
+                  to="/admin"
+                  className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-md hover:bg-muted"
+                >
+                  <Shield className="h-4 w-4" />
+                  Admin
+                </Link>
+              )}
               <NotificationsCenter 
                 notifications={notifications}
                 onMarkRead={handleMarkRead}
