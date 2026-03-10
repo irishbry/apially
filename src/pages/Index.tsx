@@ -20,7 +20,7 @@ import BackupAttempts from "@/components/BackupAttempts";
 import NotificationsCenter, { Notification } from "@/components/NotificationsCenter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { LogOut, Bell, Menu, Database } from "lucide-react";
+import { LogOut, Bell, Menu, Database, Shield } from "lucide-react";
 import { ApiService, DataEntry, Source } from "@/services/ApiService";
 import NotificationService from "@/services/NotificationService";
 import { useToast } from "@/hooks/use-toast";
