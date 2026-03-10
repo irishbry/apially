@@ -183,7 +183,41 @@ export default function AdminPage() {
     return Object.entries(weeks).map(([week, count]) => ({ week, count }));
   }, [data]);
 
-  if (authLoading || loading) {
+  // Fetch per-source daily counts
+  const fetchSourceDailyCounts = useCallback(async (sourceId: string, days: number) => {
+    try {
+      setSourceChartLoading(true);
+      const headers = await getHeaders();
+      const response = await fetch(getUrl(), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ action: 'source_daily_counts', source_id: sourceId, days }),
+      });
+      const result = await response.json();
+      if (result.success) {
+        setSourceDailyCounts(result.daily_counts);
+      }
+    } catch (err) {
+      console.error('Failed to fetch source daily counts:', err);
+    } finally {
+      setSourceChartLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedSourceId) {
+      fetchSourceDailyCounts(selectedSourceId, sourceChartDays);
+    }
+  }, [selectedSourceId, sourceChartDays, fetchSourceDailyCounts]);
+
+  const sourceChartData = useMemo(() => {
+    return sourceDailyCounts.map(d => ({
+      date: format(new Date(d.day), 'MMM d'),
+      count: Number(d.entry_count),
+    }));
+  }, [sourceDailyCounts]);
+
+
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
