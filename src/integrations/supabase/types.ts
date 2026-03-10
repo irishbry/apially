@@ -396,6 +396,13 @@ export type Database = {
           source_id: string
         }[]
       }
+      get_source_record_counts_admin: {
+        Args: never
+        Returns: {
+          record_count: number
+          source_id: string
+        }[]
+      }
       process_scheduled_exports: { Args: never; Returns: undefined }
       trigger_daily_backups: { Args: never; Returns: undefined }
       update_source_schema: {
