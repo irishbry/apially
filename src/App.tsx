@@ -38,6 +38,7 @@ const App = () => (
         <Route path="/signup" element={<Signup />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/smtp-test" element={<SmtpTest />} />
+        <Route path="/admin" element={<AdminPage />} />
         {/* Handle 404 errors */}
         <Route path="/404" element={<NotFound />} />
         {/* Redirect all other routes to the 404 page instead of rendering it directly */}
