@@ -24,35 +24,30 @@ export const SourcesService = {
   
   getSourcesStats: async () => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return { totalSources: 0, activeSources: 0, totalDataPoints: 0 };
+
       const { data: sources, error: sourcesError } = await supabase
         .from('sources')
-        .select('*');
+        .select('*')
+        .eq('user_id', user.id);
       
       if (sourcesError) {
         console.error('Error getting sources:', sourcesError);
-        return {
-          totalSources: 0,
-          activeSources: 0,
-          totalDataPoints: 0
-        };
+        return { totalSources: 0, activeSources: 0, totalDataPoints: 0 };
       }
       
       const totalSources = sources.length;
       const activeSources = sources.filter(s => s.active).length;
-      const totalDataPoints = sources.reduce((sum, source) => sum + (source.data_count || 0), 0);
+
+      // Get actual record counts via RPC
+      const { data: counts } = await supabase.rpc('get_source_record_counts', { p_user_id: user.id });
+      const totalDataPoints = (counts || []).reduce((sum: number, r: any) => sum + Number(r.record_count), 0);
       
-      return {
-        totalSources,
-        activeSources,
-        totalDataPoints
-      };
+      return { totalSources, activeSources, totalDataPoints };
     } catch (error) {
       console.error('Error in getSourcesStats:', error);
-      return {
-        totalSources: 0,
-        activeSources: 0,
-        totalDataPoints: 0
-      };
+      return { totalSources: 0, activeSources: 0, totalDataPoints: 0 };
     }
   },
   
