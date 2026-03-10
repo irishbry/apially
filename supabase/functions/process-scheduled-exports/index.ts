@@ -100,24 +100,49 @@ const handler = async (req: Request): Promise<Response> => {
 
   try {
     const now = new Date();
-    const { data: dueExports, error: exportsError } = await supabase
-      .from('scheduled_exports')
-      .select('*')
-      .eq('active', true)
-      .lte('next_export', now.toISOString());
+    const body = await req.json().catch(() => ({}));
+    const manualExportId = body.exportId; // For on-demand "Run Now"
 
-    if (exportsError) {
-      console.error('Error fetching scheduled exports:', exportsError);
-      return new Response(JSON.stringify({ error: exportsError.message }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    let dueExports;
+
+    if (manualExportId) {
+      // Run a specific export on demand (regardless of next_export time or active status)
+      console.log(`Manual run requested for export ID: ${manualExportId}`);
+      const { data, error: exportsError } = await supabase
+        .from('scheduled_exports')
+        .select('*')
+        .eq('id', manualExportId);
+
+      if (exportsError) {
+        console.error('Error fetching export:', exportsError);
+        return new Response(JSON.stringify({ error: exportsError.message }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      dueExports = data;
+    } else {
+      // Normal scheduled run
+      const { data, error: exportsError } = await supabase
+        .from('scheduled_exports')
+        .select('*')
+        .eq('active', true)
+        .lte('next_export', now.toISOString());
+
+      if (exportsError) {
+        console.error('Error fetching scheduled exports:', exportsError);
+        return new Response(JSON.stringify({ error: exportsError.message }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      dueExports = data;
     }
 
-    console.log(`Found ${dueExports?.length || 0} due exports`);
+    console.log(`Found ${dueExports?.length || 0} exports to process`);
 
     if (!dueExports || dueExports.length === 0) {
-      return new Response(JSON.stringify({ message: 'No exports due' }), {
+      return new Response(JSON.stringify({ message: manualExportId ? 'Export not found' : 'No exports due' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
