@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
-import { Shield, Users, Database, Activity, Loader2, AlertTriangle, Ban, CheckCircle, RefreshCw, HeartPulse, TrendingUp, AlertCircle } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Shield, Users, Database, Activity, Loader2, AlertTriangle, Ban, CheckCircle, RefreshCw, HeartPulse, TrendingUp, AlertCircle, BarChart3 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { format, differenceInHours, differenceInDays, subDays } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -67,6 +68,10 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
+  const [sourceDailyCounts, setSourceDailyCounts] = useState<DailyCount[]>([]);
+  const [sourceChartLoading, setSourceChartLoading] = useState(false);
+  const [sourceChartDays, setSourceChartDays] = useState(30);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -178,7 +183,41 @@ export default function AdminPage() {
     return Object.entries(weeks).map(([week, count]) => ({ week, count }));
   }, [data]);
 
-  if (authLoading || loading) {
+  // Fetch per-source daily counts
+  const fetchSourceDailyCounts = useCallback(async (sourceId: string, days: number) => {
+    try {
+      setSourceChartLoading(true);
+      const headers = await getHeaders();
+      const response = await fetch(getUrl(), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ action: 'source_daily_counts', source_id: sourceId, days }),
+      });
+      const result = await response.json();
+      if (result.success) {
+        setSourceDailyCounts(result.daily_counts);
+      }
+    } catch (err) {
+      console.error('Failed to fetch source daily counts:', err);
+    } finally {
+      setSourceChartLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedSourceId) {
+      fetchSourceDailyCounts(selectedSourceId, sourceChartDays);
+    }
+  }, [selectedSourceId, sourceChartDays, fetchSourceDailyCounts]);
+
+  const sourceChartData = useMemo(() => {
+    return sourceDailyCounts.map(d => ({
+      date: format(new Date(d.day), 'MMM d'),
+      count: Number(d.entry_count),
+    }));
+  }, [sourceDailyCounts]);
+
+
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -319,6 +358,10 @@ export default function AdminPage() {
           <TabsList>
             <TabsTrigger value="health">Source Health</TabsTrigger>
             <TabsTrigger value="usage">Data Usage</TabsTrigger>
+            <TabsTrigger value="drilldown">
+              <BarChart3 className="h-3.5 w-3.5 mr-1.5" />
+              Source Drilldown
+            </TabsTrigger>
             <TabsTrigger value="sources">All Sources</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
           </TabsList>
@@ -503,7 +546,85 @@ export default function AdminPage() {
             </Card>
           </TabsContent>
 
-          {/* ALL SOURCES TAB */}
+          {/* SOURCE DRILLDOWN TAB */}
+          <TabsContent value="drilldown" className="mt-4 space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center justify-between">
+                  <span>Per-Source Daily Ingestion</span>
+                  <div className="flex items-center gap-3">
+                    <Select value={sourceChartDays.toString()} onValueChange={(v) => setSourceChartDays(Number(v))}>
+                      <SelectTrigger className="w-[120px] h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="7">Last 7 days</SelectItem>
+                        <SelectItem value="30">Last 30 days</SelectItem>
+                        <SelectItem value="60">Last 60 days</SelectItem>
+                        <SelectItem value="90">Last 90 days</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={selectedSourceId || ''}
+                      onValueChange={(v) => setSelectedSourceId(v)}
+                    >
+                      <SelectTrigger className="w-[240px] h-8 text-xs">
+                        <SelectValue placeholder="Select a source..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {data.sources.map(s => (
+                          <SelectItem key={s.id} value={s.id}>
+                            <span className="flex items-center gap-2">
+                              {s.name}
+                              <span className="text-muted-foreground">({s.user_email})</span>
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {!selectedSourceId ? (
+                  <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
+                    Select a source above to view its daily ingestion chart
+                  </div>
+                ) : sourceChartLoading ? (
+                  <div className="h-64 flex items-center justify-center">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : sourceChartData.length === 0 ? (
+                  <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
+                    No data found for this source in the selected period
+                  </div>
+                ) : (
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={sourceChartData}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis dataKey="date" tick={{ fontSize: 11 }} className="text-muted-foreground" />
+                        <YAxis tick={{ fontSize: 11 }} className="text-muted-foreground" allowDecimals={false} />
+                        <Tooltip
+                          contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '6px' }}
+                          labelStyle={{ color: 'hsl(var(--foreground))' }}
+                        />
+                        <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Entries" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+                {selectedSourceId && sourceChartData.length > 0 && (
+                  <div className="mt-4 flex gap-6 text-sm text-muted-foreground">
+                    <span>Total: <strong className="text-foreground">{formatNumber(sourceChartData.reduce((s, d) => s + d.count, 0))}</strong></span>
+                    <span>Avg/day: <strong className="text-foreground">{(sourceChartData.reduce((s, d) => s + d.count, 0) / sourceChartData.length).toFixed(1)}</strong></span>
+                    <span>Peak: <strong className="text-foreground">{formatNumber(Math.max(...sourceChartData.map(d => d.count)))}</strong></span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="sources" className="mt-4">
             <Card>
               <CardHeader>
