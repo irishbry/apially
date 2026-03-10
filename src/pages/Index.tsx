@@ -58,6 +58,7 @@ const Index = () => {
         const authStatus = !!session;
         console.log("Auth status from Supabase:", authStatus);
         setIsAuthenticated(authStatus);
+        setUserEmail(session?.user?.email || null);
       } catch (error) {
         console.error("Error checking auth status:", error);
         setIsAuthenticated(false);
