@@ -147,7 +147,6 @@ const Index = () => {
         description: "You have been logged out successfully.",
         duration: 5000,
       });
-      setIsAuthenticated(false);
       navigate('/');
     } catch (error) {
       console.error("Error logging out:", error);
