@@ -33,6 +33,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isChanged, setIsChanged] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
