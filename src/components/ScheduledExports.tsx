@@ -202,6 +202,8 @@ const ScheduledExports = () => {
       if (error) throw error;
       toast({ title: "Success", description: data?.message || `Export "${exportItem.name}" triggered successfully` });
       fetchExports();
+      // Refresh logs after a short delay to allow the edge function to complete
+      setTimeout(() => fetchExportLogs(), 3000);
     } catch (error) {
       console.error('Error running export:', error);
       toast({ title: "Error", description: "Failed to run export", variant: "destructive" });
