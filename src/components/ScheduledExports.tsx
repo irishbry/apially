@@ -98,6 +98,20 @@ const ScheduledExports = () => {
     }
   };
 
+  const fetchExportLogs = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('export_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      setExportLogs((data as ExportLog[]) || []);
+    } catch (error) {
+      console.error('Error fetching export logs:', error);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
