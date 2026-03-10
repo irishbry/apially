@@ -30,11 +30,14 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import MobileDataSummary from "@/components/MobileDataSummary";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+
+const ADMIN_EMAILS = ['bryan@rvnu.com'];
 
 const Index = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { user, isLoading, isAuthenticated } = useAuth();
+  const userEmail = user?.email || null;
+  const isAdmin = userEmail ? ADMIN_EMAILS.includes(userEmail) : false;
   const [isChanged, setIsChanged] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [selectedApiKey, setSelectedApiKey] = useState<string>('');

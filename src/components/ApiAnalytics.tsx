@@ -15,35 +15,37 @@ const ApiAnalytics: React.FC = () => {
   const [usageBySource, setUsageBySource] = useState<ApiUsageBySource[]>([]);
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('30d');
   const [isLoading, setIsLoading] = useState(true);
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const isMobile = useIsMobile();
 
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const days = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90;
+      const [byDayData, bySourceData] = await Promise.all([
+        ApiService.getApiUsageByDay(days),
+        ApiService.getApiUsageBySource(),
+      ]);
+      setUsageByDay(byDayData);
+      setUsageBySource(bySourceData);
+      setLastRefresh(new Date());
+    } catch (error) {
+      console.error("Error fetching API analytics:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      try {
-        const days = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90;
-        const byDayData = await ApiService.getApiUsageByDay(days);
-        setUsageByDay(byDayData);
-        
-        const bySourceData = await ApiService.getApiUsageBySource();
-        setUsageBySource(bySourceData);
-      } catch (error) {
-        console.error("Error fetching API analytics:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
     fetchData();
-    
-    // Set up subscription to data changes
-    const unsubscribe = ApiService.subscribe(() => {
+  }, [timeRange]);
+
+  // Poll every 60 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
       fetchData();
-    });
-    
-    return () => {
-      unsubscribe();
-    };
+    }, 60000);
+    return () => clearInterval(interval);
   }, [timeRange]);
 
   // Fill in missing dates in the time range
