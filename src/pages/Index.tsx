@@ -54,24 +54,8 @@ const Index = () => {
   const isMobile = useIsMobile();
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        setIsLoading(true);
-        const { data: { session } } = await supabase.auth.getSession();
-        const authStatus = !!session;
-        console.log("Auth status from Supabase:", authStatus);
-        setIsAuthenticated(authStatus);
-        setUserEmail(session?.user?.email || null);
-      } catch (error) {
-        console.error("Error checking auth status:", error);
-        setIsAuthenticated(false);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    checkAuth();
-  }, []);
+    console.log("Auth status from useAuth:", isAuthenticated);
+  }, [isAuthenticated]);
 
   // Load stats immediately when app loads (cached, only once)
   useEffect(() => {
