@@ -66,7 +66,6 @@ Deno.serve(async (req) => {
           .from("sources")
           .update({ active })
           .eq("id", source_id);
-
         if (error) throw error;
         return new Response(
           JSON.stringify({ success: true, message: `Source ${active ? "activated" : "deactivated"}` }),
@@ -76,20 +75,16 @@ Deno.serve(async (req) => {
 
       if (action === "ban_user") {
         const { user_id } = body;
-        // Deactivate all user's sources
         const { error: sourcesError } = await adminClient
           .from("sources")
           .update({ active: false })
           .eq("user_id", user_id);
         if (sourcesError) throw sourcesError;
-
-        // Ban user in auth (prevents login)
         const { error: banError } = await adminClient.auth.admin.updateUserById(
           user_id,
-          { ban_duration: "876000h" } // ~100 years
+          { ban_duration: "876000h" }
         );
         if (banError) throw banError;
-
         return new Response(
           JSON.stringify({ success: true, message: "User banned and all sources deactivated" }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -103,7 +98,6 @@ Deno.serve(async (req) => {
           { ban_duration: "none" }
         );
         if (unbanError) throw unbanError;
-
         return new Response(
           JSON.stringify({ success: true, message: "User unbanned" }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -116,21 +110,20 @@ Deno.serve(async (req) => {
       );
     }
 
-    // GET: fetch admin data
+    // GET: fetch all admin data
+
+    // 1. Sources
     const { data: sources, error: sourcesError } = await adminClient
       .from("sources")
       .select("*")
       .order("created_at", { ascending: false });
-
     if (sourcesError) throw sourcesError;
 
+    // 2. User info
     const userIds = [...new Set((sources || []).map((s: any) => s.user_id))];
-
     const userMap: Record<string, { email: string; banned: boolean }> = {};
     for (const uid of userIds) {
-      const { data: userData } = await adminClient.auth.admin.getUserById(
-        uid as string
-      );
+      const { data: userData } = await adminClient.auth.admin.getUserById(uid as string);
       if (userData?.user) {
         userMap[uid as string] = {
           email: userData.user.email || "Unknown",
@@ -139,27 +132,43 @@ Deno.serve(async (req) => {
       }
     }
 
+    // 3. Record counts per source
     const { data: counts } = await adminClient.rpc("get_source_record_counts_admin");
     const countMap: Record<string, number> = {};
     for (const c of counts || []) {
       countMap[c.source_id] = Number(c.record_count);
     }
 
+    // 4. Total entries
     const { count: totalEntries } = await adminClient
       .from("data_entries")
       .select("*", { count: "exact", head: true });
 
+    // 5. Growth trends (last 90 days)
+    const { data: dailyCounts } = await adminClient.rpc("get_admin_daily_counts", { p_days: 90 });
+
+    // 6. Per-user usage
+    const { data: userUsage } = await adminClient.rpc("get_admin_user_usage");
+
+    // Build enriched sources
     const enrichedSources = (sources || []).map((s: any) => ({
       ...s,
       user_email: userMap[s.user_id]?.email || "Unknown",
       actual_record_count: countMap[s.id] || 0,
     }));
 
+    // Build user summary with usage data
+    const usageMap: Record<string, any> = {};
+    for (const u of userUsage || []) {
+      usageMap[u.user_id] = u;
+    }
+
     const userSummary = Object.entries(userMap).map(([uid, info]) => {
       const userSources = enrichedSources.filter((s: any) => s.user_id === uid);
       const totalRecords = userSources.reduce(
         (sum: number, s: any) => sum + s.actual_record_count, 0
       );
+      const usage = usageMap[uid];
       return {
         user_id: uid,
         email: info.email,
@@ -167,6 +176,8 @@ Deno.serve(async (req) => {
         source_count: userSources.length,
         total_records: totalRecords,
         active_sources: userSources.filter((s: any) => s.active).length,
+        earliest_entry: usage?.earliest_entry || null,
+        latest_entry: usage?.latest_entry || null,
       };
     });
 
@@ -177,6 +188,7 @@ Deno.serve(async (req) => {
         total_entries: totalEntries || 0,
         total_sources: (sources || []).length,
         total_users: userIds.length,
+        daily_counts: dailyCounts || [],
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

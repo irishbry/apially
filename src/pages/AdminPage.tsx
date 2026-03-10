@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,9 +7,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
-import { Shield, Users, Database, Activity, Loader2, AlertTriangle, Ban, CheckCircle, RefreshCw } from 'lucide-react';
+import { Shield, Users, Database, Activity, Loader2, AlertTriangle, Ban, CheckCircle, RefreshCw, HeartPulse, TrendingUp, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { format } from 'date-fns';
+import { format, differenceInHours, differenceInDays, subDays } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -22,6 +22,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar } from 'recharts';
 
 interface AdminSource {
   id: string;
@@ -42,6 +43,13 @@ interface AdminUser {
   source_count: number;
   total_records: number;
   active_sources: number;
+  earliest_entry: string | null;
+  latest_entry: string | null;
+}
+
+interface DailyCount {
+  day: string;
+  entry_count: number;
 }
 
 interface AdminData {
@@ -50,6 +58,7 @@ interface AdminData {
   total_entries: number;
   total_sources: number;
   total_users: number;
+  daily_counts: DailyCount[];
 }
 
 export default function AdminPage() {
@@ -90,13 +99,8 @@ export default function AdminPage() {
       setError(null);
       const headers = await getHeaders();
       const response = await fetch(getUrl(), { headers });
-
-      if (response.status === 403) {
-        setError('Access denied. You are not an admin.');
-        return;
-      }
+      if (response.status === 403) { setError('Access denied. You are not an admin.'); return; }
       if (!response.ok) throw new Error(`Error: ${response.statusText}`);
-
       const result = await response.json();
       setData(result);
     } catch (err: any) {
@@ -110,11 +114,7 @@ export default function AdminPage() {
     try {
       setActionLoading(loadingKey);
       const headers = await getHeaders();
-      const response = await fetch(getUrl(), {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
-      });
+      const response = await fetch(getUrl(), { method: 'POST', headers, body: JSON.stringify(body) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Action failed');
       toast({ title: 'Success', description: result.message });
@@ -127,19 +127,56 @@ export default function AdminPage() {
   };
 
   const handleToggleSource = (sourceId: string, currentActive: boolean) => {
-    adminAction(
-      { action: 'toggle_source', source_id: sourceId, active: !currentActive },
-      `source-${sourceId}`
-    );
+    adminAction({ action: 'toggle_source', source_id: sourceId, active: !currentActive }, `source-${sourceId}`);
   };
-
   const handleBanUser = (userId: string) => {
     adminAction({ action: 'ban_user', user_id: userId }, `ban-${userId}`);
   };
-
   const handleUnbanUser = (userId: string) => {
     adminAction({ action: 'unban_user', user_id: userId }, `unban-${userId}`);
   };
+
+  // Source health classification
+  const sourceHealth = useMemo(() => {
+    if (!data) return { healthy: [], warning: [], critical: [], inactive: [] };
+    const now = new Date();
+    const healthy: AdminSource[] = [];
+    const warning: AdminSource[] = [];
+    const critical: AdminSource[] = [];
+    const inactive: AdminSource[] = [];
+
+    for (const s of data.sources) {
+      if (!s.active) { inactive.push(s); continue; }
+      if (!s.last_active) { critical.push(s); continue; }
+      const hours = differenceInHours(now, new Date(s.last_active));
+      if (hours <= 24) healthy.push(s);
+      else if (hours <= 168) warning.push(s); // 7 days
+      else critical.push(s);
+    }
+    return { healthy, warning, critical, inactive };
+  }, [data]);
+
+  // Growth chart data
+  const chartData = useMemo(() => {
+    if (!data?.daily_counts) return [];
+    return data.daily_counts.map(d => ({
+      date: format(new Date(d.day), 'MMM d'),
+      count: Number(d.entry_count),
+    }));
+  }, [data]);
+
+  // Weekly totals for bar chart
+  const weeklyData = useMemo(() => {
+    if (!data?.daily_counts) return [];
+    const weeks: Record<string, number> = {};
+    for (const d of data.daily_counts) {
+      const date = new Date(d.day);
+      const weekStart = subDays(date, date.getDay());
+      const key = format(weekStart, 'MMM d');
+      weeks[key] = (weeks[key] || 0) + Number(d.entry_count);
+    }
+    return Object.entries(weeks).map(([week, count]) => ({ week, count }));
+  }, [data]);
 
   if (authLoading || loading) {
     return (
@@ -170,6 +207,25 @@ export default function AdminPage() {
   const formatNumber = (n: number) => n.toLocaleString();
   const formatDate = (d: string | null) => d ? format(new Date(d), 'MMM d, yyyy HH:mm') : '—';
 
+  const getHealthBadge = (source: AdminSource) => {
+    if (!source.active) return <Badge variant="secondary">Inactive</Badge>;
+    if (!source.last_active) return <Badge variant="destructive">Never sent</Badge>;
+    const hours = differenceInHours(new Date(), new Date(source.last_active));
+    if (hours <= 24) return <Badge className="bg-green-600 text-white">Healthy</Badge>;
+    if (hours <= 168) return <Badge className="bg-yellow-600 text-white">Warning ({differenceInDays(new Date(), new Date(source.last_active))}d ago)</Badge>;
+    return <Badge variant="destructive">Stale ({differenceInDays(new Date(), new Date(source.last_active))}d ago)</Badge>;
+  };
+
+  // Calculate recent trends
+  const last7Days = data.daily_counts.filter(d => new Date(d.day) >= subDays(new Date(), 7));
+  const prev7Days = data.daily_counts.filter(d => {
+    const date = new Date(d.day);
+    return date >= subDays(new Date(), 14) && date < subDays(new Date(), 7);
+  });
+  const last7Total = last7Days.reduce((s, d) => s + Number(d.entry_count), 0);
+  const prev7Total = prev7Days.reduce((s, d) => s + Number(d.entry_count), 0);
+  const growthPct = prev7Total > 0 ? Math.round(((last7Total - prev7Total) / prev7Total) * 100) : 0;
+
   return (
     <div className="min-h-screen bg-background">
       <div className="border-b border-border bg-card">
@@ -184,7 +240,7 @@ export default function AdminPage() {
               Refresh
             </Button>
             <button onClick={() => navigate('/')} className="text-sm text-muted-foreground hover:text-foreground">
-              ← Back to Dashboard
+              ← Back
             </button>
           </div>
         </div>
@@ -192,13 +248,13 @@ export default function AdminPage() {
 
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
                 <Users className="h-5 w-5 text-primary" />
                 <div>
-                  <p className="text-sm text-muted-foreground">Total Users</p>
+                  <p className="text-xs text-muted-foreground">Users</p>
                   <p className="text-2xl font-bold text-foreground">{data.total_users}</p>
                 </div>
               </div>
@@ -209,7 +265,7 @@ export default function AdminPage() {
               <div className="flex items-center gap-3">
                 <Activity className="h-5 w-5 text-primary" />
                 <div>
-                  <p className="text-sm text-muted-foreground">Total Sources</p>
+                  <p className="text-xs text-muted-foreground">Sources</p>
                   <p className="text-2xl font-bold text-foreground">{data.total_sources}</p>
                 </div>
               </div>
@@ -220,7 +276,7 @@ export default function AdminPage() {
               <div className="flex items-center gap-3">
                 <Database className="h-5 w-5 text-primary" />
                 <div>
-                  <p className="text-sm text-muted-foreground">Total Data Entries</p>
+                  <p className="text-xs text-muted-foreground">Total Entries</p>
                   <p className="text-2xl font-bold text-foreground">{formatNumber(data.total_entries)}</p>
                 </div>
               </div>
@@ -229,24 +285,225 @@ export default function AdminPage() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <Activity className="h-5 w-5 text-primary" />
+                <TrendingUp className="h-5 w-5 text-primary" />
                 <div>
-                  <p className="text-sm text-muted-foreground">Active Sources</p>
-                  <p className="text-2xl font-bold text-foreground">
-                    {data.sources.filter(s => s.active).length}
-                  </p>
+                  <p className="text-xs text-muted-foreground">Last 7 Days</p>
+                  <p className="text-2xl font-bold text-foreground">{formatNumber(last7Total)}</p>
+                  {growthPct !== 0 && (
+                    <p className={`text-xs ${growthPct > 0 ? 'text-green-600' : 'text-destructive'}`}>
+                      {growthPct > 0 ? '+' : ''}{growthPct}% vs prev week
+                    </p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <HeartPulse className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Source Health</p>
+                  <div className="flex gap-1.5 mt-1">
+                    <span className="text-xs text-green-600 font-medium">{sourceHealth.healthy.length} ok</span>
+                    <span className="text-xs text-yellow-600 font-medium">{sourceHealth.warning.length} warn</span>
+                    <span className="text-xs text-destructive font-medium">{sourceHealth.critical.length} crit</span>
+                  </div>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        <Tabs defaultValue="sources">
+        <Tabs defaultValue="health">
           <TabsList>
+            <TabsTrigger value="health">Source Health</TabsTrigger>
+            <TabsTrigger value="usage">Data Usage</TabsTrigger>
             <TabsTrigger value="sources">All Sources</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
           </TabsList>
 
+          {/* SOURCE HEALTH TAB */}
+          <TabsContent value="health" className="mt-4 space-y-4">
+            {sourceHealth.critical.length > 0 && (
+              <Card className="border-destructive/50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2 text-destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    Critical — No data in 7+ days or never sent ({sourceHealth.critical.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {sourceHealth.critical.map(s => (
+                      <div key={s.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+                        <div>
+                          <span className="font-medium text-sm">{s.name}</span>
+                          <span className="text-xs text-muted-foreground ml-2">{s.user_email}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs text-muted-foreground">
+                            {s.last_active ? `Last: ${formatDate(s.last_active)}` : 'Never sent data'}
+                          </span>
+                          <Switch
+                            checked={s.active}
+                            disabled={actionLoading === `source-${s.id}`}
+                            onCheckedChange={() => handleToggleSource(s.id, s.active)}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {sourceHealth.warning.length > 0 && (
+              <Card className="border-yellow-500/50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2 text-yellow-600">
+                    <AlertTriangle className="h-4 w-4" />
+                    Warning — No data in 1-7 days ({sourceHealth.warning.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {sourceHealth.warning.map(s => (
+                      <div key={s.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+                        <div>
+                          <span className="font-medium text-sm">{s.name}</span>
+                          <span className="text-xs text-muted-foreground ml-2">{s.user_email}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs text-muted-foreground">
+                            Last: {formatDate(s.last_active)}
+                          </span>
+                          <span className="text-xs font-mono">{formatNumber(s.actual_record_count)} records</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            <Card className="border-green-500/30">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2 text-green-600">
+                  <CheckCircle className="h-4 w-4" />
+                  Healthy — Active within 24h ({sourceHealth.healthy.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {sourceHealth.healthy.map(s => (
+                    <div key={s.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+                      <div>
+                        <span className="font-medium text-sm">{s.name}</span>
+                        <span className="text-xs text-muted-foreground ml-2">{s.user_email}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-muted-foreground">
+                          Last: {formatDate(s.last_active)}
+                        </span>
+                        <span className="text-xs font-mono">{formatNumber(s.actual_record_count)} records</span>
+                      </div>
+                    </div>
+                  ))}
+                  {sourceHealth.healthy.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No healthy sources</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* DATA USAGE TAB */}
+          <TabsContent value="usage" className="mt-4 space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Daily Ingestion — Last 90 Days</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData}>
+                      <defs>
+                        <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis dataKey="date" tick={{ fontSize: 11 }} className="text-muted-foreground" />
+                      <YAxis tick={{ fontSize: 11 }} className="text-muted-foreground" />
+                      <Tooltip
+                        contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '6px' }}
+                        labelStyle={{ color: 'hsl(var(--foreground))' }}
+                      />
+                      <Area type="monotone" dataKey="count" stroke="hsl(var(--primary))" fill="url(#colorCount)" strokeWidth={2} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Weekly Volume</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={weeklyData}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis dataKey="week" tick={{ fontSize: 11 }} className="text-muted-foreground" />
+                      <YAxis tick={{ fontSize: 11 }} className="text-muted-foreground" />
+                      <Tooltip
+                        contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '6px' }}
+                        labelStyle={{ color: 'hsl(var(--foreground))' }}
+                      />
+                      <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Usage by User</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>User</TableHead>
+                      <TableHead className="text-right">Total Records</TableHead>
+                      <TableHead className="text-right">Sources</TableHead>
+                      <TableHead>First Entry</TableHead>
+                      <TableHead>Latest Entry</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {data.users
+                      .sort((a, b) => b.total_records - a.total_records)
+                      .map(u => (
+                        <TableRow key={u.user_id}>
+                          <TableCell className="font-medium">{u.email}</TableCell>
+                          <TableCell className="text-right font-mono">{formatNumber(u.total_records)}</TableCell>
+                          <TableCell className="text-right">{u.source_count}</TableCell>
+                          <TableCell className="text-muted-foreground text-sm">{formatDate(u.earliest_entry)}</TableCell>
+                          <TableCell className="text-muted-foreground text-sm">{formatDate(u.latest_entry)}</TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ALL SOURCES TAB */}
           <TabsContent value="sources" className="mt-4">
             <Card>
               <CardHeader>
@@ -259,7 +516,7 @@ export default function AdminPage() {
                       <TableRow>
                         <TableHead>Source Name</TableHead>
                         <TableHead>Owner</TableHead>
-                        <TableHead>Status</TableHead>
+                        <TableHead>Health</TableHead>
                         <TableHead className="text-right">Records</TableHead>
                         <TableHead>Created</TableHead>
                         <TableHead>Last Active</TableHead>
@@ -272,24 +529,12 @@ export default function AdminPage() {
                         <TableRow key={source.id} className={!source.active ? 'opacity-60' : ''}>
                           <TableCell className="font-medium">{source.name}</TableCell>
                           <TableCell className="text-muted-foreground">{source.user_email}</TableCell>
+                          <TableCell>{getHealthBadge(source)}</TableCell>
+                          <TableCell className="text-right font-mono">{formatNumber(source.actual_record_count)}</TableCell>
+                          <TableCell className="text-muted-foreground text-sm">{formatDate(source.created_at)}</TableCell>
+                          <TableCell className="text-muted-foreground text-sm">{formatDate(source.last_active)}</TableCell>
                           <TableCell>
-                            <Badge variant={source.active ? 'default' : 'secondary'}>
-                              {source.active ? 'Active' : 'Inactive'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right font-mono">
-                            {formatNumber(source.actual_record_count)}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground text-sm">
-                            {formatDate(source.created_at)}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground text-sm">
-                            {formatDate(source.last_active)}
-                          </TableCell>
-                          <TableCell>
-                            <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                              {source.api_key.slice(0, 8)}…
-                            </code>
+                            <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{source.api_key.slice(0, 8)}…</code>
                           </TableCell>
                           <TableCell className="text-center">
                             <Switch
@@ -307,6 +552,7 @@ export default function AdminPage() {
             </Card>
           </TabsContent>
 
+          {/* USERS TAB */}
           <TabsContent value="users" className="mt-4">
             <Card>
               <CardHeader>
@@ -319,7 +565,7 @@ export default function AdminPage() {
                       <TableHead>Email</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Sources</TableHead>
-                      <TableHead className="text-right">Active Sources</TableHead>
+                      <TableHead className="text-right">Active</TableHead>
                       <TableHead className="text-right">Total Records</TableHead>
                       <TableHead className="text-center">Actions</TableHead>
                     </TableRow>
@@ -335,49 +581,30 @@ export default function AdminPage() {
                         </TableCell>
                         <TableCell className="text-right">{u.source_count}</TableCell>
                         <TableCell className="text-right">{u.active_sources}</TableCell>
-                        <TableCell className="text-right font-mono">
-                          {formatNumber(u.total_records)}
-                        </TableCell>
+                        <TableCell className="text-right font-mono">{formatNumber(u.total_records)}</TableCell>
                         <TableCell className="text-center">
                           {u.banned ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={actionLoading === `unban-${u.user_id}`}
-                              onClick={() => handleUnbanUser(u.user_id)}
-                            >
-                              {actionLoading === `unban-${u.user_id}` ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
-                              ) : (
-                                <CheckCircle className="h-3.5 w-3.5 mr-1" />
-                              )}
+                            <Button variant="outline" size="sm" disabled={actionLoading === `unban-${u.user_id}`} onClick={() => handleUnbanUser(u.user_id)}>
+                              {actionLoading === `unban-${u.user_id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <CheckCircle className="h-3.5 w-3.5 mr-1" />}
                               Unban
                             </Button>
                           ) : (
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  disabled={!!actionLoading}
-                                >
-                                  <Ban className="h-3.5 w-3.5 mr-1" />
-                                  Ban
+                                <Button variant="destructive" size="sm" disabled={!!actionLoading}>
+                                  <Ban className="h-3.5 w-3.5 mr-1" /> Ban
                                 </Button>
                               </AlertDialogTrigger>
                               <AlertDialogContent>
                                 <AlertDialogHeader>
                                   <AlertDialogTitle>Ban user {u.email}?</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    This will prevent the user from logging in and deactivate all their sources. You can unban them later.
+                                    This will prevent the user from logging in and deactivate all their sources.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                   <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => handleBanUser(u.user_id)}
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                  >
+                                  <AlertDialogAction onClick={() => handleBanUser(u.user_id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                                     Ban User
                                   </AlertDialogAction>
                                 </AlertDialogFooter>
