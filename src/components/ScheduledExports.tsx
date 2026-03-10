@@ -45,6 +45,10 @@ const ScheduledExports = () => {
   const [editingExport, setEditingExport] = useState<ScheduledExport | null>(null);
   const { toast } = useToast();
 
+  const [exportLogs, setExportLogs] = useState<ExportLog[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [selectedExportId, setSelectedExportId] = useState<string | null>(null);
+
   const [formData, setFormData] = useState<FormDataType>({
     name: '',
     frequency: 'daily',
@@ -57,6 +61,7 @@ const ScheduledExports = () => {
   useEffect(() => {
     fetchExports();
     fetchSources();
+    fetchExportLogs();
   }, []);
 
   const fetchSources = async () => {
