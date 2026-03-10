@@ -546,7 +546,85 @@ export default function AdminPage() {
             </Card>
           </TabsContent>
 
-          {/* ALL SOURCES TAB */}
+          {/* SOURCE DRILLDOWN TAB */}
+          <TabsContent value="drilldown" className="mt-4 space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center justify-between">
+                  <span>Per-Source Daily Ingestion</span>
+                  <div className="flex items-center gap-3">
+                    <Select value={sourceChartDays.toString()} onValueChange={(v) => setSourceChartDays(Number(v))}>
+                      <SelectTrigger className="w-[120px] h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="7">Last 7 days</SelectItem>
+                        <SelectItem value="30">Last 30 days</SelectItem>
+                        <SelectItem value="60">Last 60 days</SelectItem>
+                        <SelectItem value="90">Last 90 days</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={selectedSourceId || ''}
+                      onValueChange={(v) => setSelectedSourceId(v)}
+                    >
+                      <SelectTrigger className="w-[240px] h-8 text-xs">
+                        <SelectValue placeholder="Select a source..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {data.sources.map(s => (
+                          <SelectItem key={s.id} value={s.id}>
+                            <span className="flex items-center gap-2">
+                              {s.name}
+                              <span className="text-muted-foreground">({s.user_email})</span>
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {!selectedSourceId ? (
+                  <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
+                    Select a source above to view its daily ingestion chart
+                  </div>
+                ) : sourceChartLoading ? (
+                  <div className="h-64 flex items-center justify-center">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : sourceChartData.length === 0 ? (
+                  <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
+                    No data found for this source in the selected period
+                  </div>
+                ) : (
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={sourceChartData}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis dataKey="date" tick={{ fontSize: 11 }} className="text-muted-foreground" />
+                        <YAxis tick={{ fontSize: 11 }} className="text-muted-foreground" allowDecimals={false} />
+                        <Tooltip
+                          contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '6px' }}
+                          labelStyle={{ color: 'hsl(var(--foreground))' }}
+                        />
+                        <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Entries" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+                {selectedSourceId && sourceChartData.length > 0 && (
+                  <div className="mt-4 flex gap-6 text-sm text-muted-foreground">
+                    <span>Total: <strong className="text-foreground">{formatNumber(sourceChartData.reduce((s, d) => s + d.count, 0))}</strong></span>
+                    <span>Avg/day: <strong className="text-foreground">{(sourceChartData.reduce((s, d) => s + d.count, 0) / sourceChartData.length).toFixed(1)}</strong></span>
+                    <span>Peak: <strong className="text-foreground">{formatNumber(Math.max(...sourceChartData.map(d => d.count)))}</strong></span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="sources" className="mt-4">
             <Card>
               <CardHeader>
