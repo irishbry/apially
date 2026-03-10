@@ -105,6 +105,7 @@ const Index = () => {
         console.log("Auth state changed:", event, !!session);
         const newAuthStatus = !!session;
         setIsAuthenticated(newAuthStatus);
+        setUserEmail(session?.user?.email || null);
       }
     );
     
