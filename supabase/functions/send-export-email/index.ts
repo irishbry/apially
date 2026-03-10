@@ -68,7 +68,7 @@ const handler = async (req: Request): Promise<Response> => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'ApiAlly <noreply@apially.com>',
+        from: 'ApiAlly <noreply@rvnucrm.com>',
         to: [exportConfig.email],
         subject: `Scheduled Export: ${exportConfig.name}`,
         html: emailHtml,
