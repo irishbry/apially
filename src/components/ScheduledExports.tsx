@@ -1,12 +1,16 @@
 
 import React, { useState, useEffect } from 'react';
+import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Mail, Download, Trash2, Edit, Play, Pause, RotateCw, History, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar, CalendarIcon, Mail, Download, Trash2, Edit, Play, Pause, RotateCw, History, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Tables } from '@/integrations/supabase/types';
@@ -52,6 +56,8 @@ const ScheduledExports = () => {
   const [manualSourceId, setManualSourceId] = useState<string>('all');
   const [manualFormat, setManualFormat] = useState<'csv' | 'json'>('csv');
   const [isManualExporting, setIsManualExporting] = useState(false);
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
+  const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
 
   const [formData, setFormData] = useState<FormDataType>({
     name: '',
@@ -256,6 +262,15 @@ const ScheduledExports = () => {
 
       if (sourceId) {
         query = query.eq('source_id', sourceId);
+      }
+
+      if (dateFrom) {
+        query = query.gte('created_at', dateFrom.toISOString());
+      }
+      if (dateTo) {
+        const endOfDay = new Date(dateTo);
+        endOfDay.setHours(23, 59, 59, 999);
+        query = query.lte('created_at', endOfDay.toISOString());
       }
 
       const { data: entries, error } = await query.order('created_at', { ascending: false });
@@ -530,6 +545,65 @@ const ScheduledExports = () => {
                       <SelectItem value="json">JSON</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-sm">From</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("h-8 text-sm w-full justify-start font-normal", !dateFrom && "text-muted-foreground")}>
+                          <CalendarIcon className="mr-1.5 h-3.5 w-3.5" />
+                          {dateFrom ? format(dateFrom, "MMM d, yyyy") : "All time"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="single"
+                          selected={dateFrom}
+                          onSelect={setDateFrom}
+                          disabled={(date) => date > new Date() || (dateTo ? date > dateTo : false)}
+                          initialFocus
+                          className={cn("p-3 pointer-events-auto")}
+                        />
+                        {dateFrom && (
+                          <div className="px-3 pb-2">
+                            <Button variant="ghost" size="sm" className="h-6 text-xs w-full" onClick={() => setDateFrom(undefined)}>
+                              Clear
+                            </Button>
+                          </div>
+                        )}
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-sm">To</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("h-8 text-sm w-full justify-start font-normal", !dateTo && "text-muted-foreground")}>
+                          <CalendarIcon className="mr-1.5 h-3.5 w-3.5" />
+                          {dateTo ? format(dateTo, "MMM d, yyyy") : "Now"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="single"
+                          selected={dateTo}
+                          onSelect={setDateTo}
+                          disabled={(date) => date > new Date() || (dateFrom ? date < dateFrom : false)}
+                          initialFocus
+                          className={cn("p-3 pointer-events-auto")}
+                        />
+                        {dateTo && (
+                          <div className="px-3 pb-2">
+                            <Button variant="ghost" size="sm" className="h-6 text-xs w-full" onClick={() => setDateTo(undefined)}>
+                              Clear
+                            </Button>
+                          </div>
+                        )}
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                 </div>
 
                 <Button
