@@ -437,18 +437,23 @@ async function createBackupForUser(
     console.log(`Dropbox config - Path: ${dropboxPath}, Token present: ${!!dropboxToken}`);
     
     // Log backup attempt first using PST date
+    let attemptId: string | null = null;
     try {
       const PST_TIMEZONE = 'America/Los_Angeles';
       const nowPST = toZonedTime(new Date(), PST_TIMEZONE);
       const pstDateString = format(nowPST, 'yyyy-MM-dd');
       
-      await supabase
+      const { data: attemptData } = await supabase
         .from('backup_attempts')
         .insert({
           user_id: userId,
           attempt_date: pstDateString,
           status: 'attempting'
-        });
+        })
+        .select('id')
+        .single();
+      
+      attemptId = attemptData?.id || null;
     } catch (logError) {
       console.warn('Failed to log backup attempt:', logError);
     }
@@ -721,23 +726,37 @@ async function createBackupForUser(
       }
     }
 
-    // Log overall attempt result
+    // Log overall attempt result - UPDATE the existing attempt record
     const successfulBackups = backupResults.filter(r => r.success).length;
     const failedBackups = backupResults.filter(r => !r.success).length;
 
     try {
-      const PST_TIMEZONE = 'America/Los_Angeles';
-      const nowPST = toZonedTime(new Date(), PST_TIMEZONE);
-      const pstDateString = format(nowPST, 'yyyy-MM-dd');
+      const finalStatus = successfulBackups > 0 ? 'success' : 'failed';
+      const errorMsg = failedBackups > 0 ? `${failedBackups} source backups failed` : null;
       
-      await supabase
-        .from('backup_attempts')
-        .insert({
-          user_id: userId,
-          attempt_date: pstDateString,
-          status: successfulBackups > 0 ? 'success' : 'failed',
-          error_message: failedBackups > 0 ? `${failedBackups} source backups failed` : undefined
-        });
+      if (attemptId) {
+        await supabase
+          .from('backup_attempts')
+          .update({
+            status: finalStatus,
+            error_message: errorMsg
+          })
+          .eq('id', attemptId);
+      } else {
+        // Fallback: insert if we don't have the attempt ID
+        const PST_TIMEZONE = 'America/Los_Angeles';
+        const nowPST = toZonedTime(new Date(), PST_TIMEZONE);
+        const pstDateString = format(nowPST, 'yyyy-MM-dd');
+        
+        await supabase
+          .from('backup_attempts')
+          .insert({
+            user_id: userId,
+            attempt_date: pstDateString,
+            status: finalStatus,
+            error_message: errorMsg
+          });
+      }
     } catch (logError) {
       console.warn('Failed to log backup attempt result:', logError);
     }
@@ -762,20 +781,28 @@ async function createBackupForUser(
   } catch (error) {
     console.error(`Error creating backup for user ${userId}:`, error);
     
-    // Log failed attempt using PST date
+    // Log failed attempt - UPDATE existing or insert new
     try {
-      const PST_TIMEZONE = 'America/Los_Angeles';
-      const nowPST = toZonedTime(new Date(), PST_TIMEZONE);
-      const pstDateString = format(nowPST, 'yyyy-MM-dd');
-      
-      await supabase
-        .from('backup_attempts')
-        .insert({
-          user_id: userId,
-          attempt_date: pstDateString,
-          status: 'failed',
-          error_message: error instanceof Error ? error.message : 'Unknown error occurred'
-        });
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
+      if (attemptId) {
+        await supabase
+          .from('backup_attempts')
+          .update({ status: 'failed', error_message: errorMsg })
+          .eq('id', attemptId);
+      } else {
+        const PST_TIMEZONE = 'America/Los_Angeles';
+        const nowPST = toZonedTime(new Date(), PST_TIMEZONE);
+        const pstDateString = format(nowPST, 'yyyy-MM-dd');
+        
+        await supabase
+          .from('backup_attempts')
+          .insert({
+            user_id: userId,
+            attempt_date: pstDateString,
+            status: 'failed',
+            error_message: errorMsg
+          });
+      }
     } catch (logError) {
       console.warn('Failed to log backup failure:', logError);
     }
