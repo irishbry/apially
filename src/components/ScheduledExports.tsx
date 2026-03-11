@@ -547,6 +547,65 @@ const ScheduledExports = () => {
                   </Select>
                 </div>
 
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-sm">From</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("h-8 text-sm w-full justify-start font-normal", !dateFrom && "text-muted-foreground")}>
+                          <CalendarIcon className="mr-1.5 h-3.5 w-3.5" />
+                          {dateFrom ? format(dateFrom, "MMM d, yyyy") : "All time"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="single"
+                          selected={dateFrom}
+                          onSelect={setDateFrom}
+                          disabled={(date) => date > new Date() || (dateTo ? date > dateTo : false)}
+                          initialFocus
+                          className={cn("p-3 pointer-events-auto")}
+                        />
+                        {dateFrom && (
+                          <div className="px-3 pb-2">
+                            <Button variant="ghost" size="sm" className="h-6 text-xs w-full" onClick={() => setDateFrom(undefined)}>
+                              Clear
+                            </Button>
+                          </div>
+                        )}
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-sm">To</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("h-8 text-sm w-full justify-start font-normal", !dateTo && "text-muted-foreground")}>
+                          <CalendarIcon className="mr-1.5 h-3.5 w-3.5" />
+                          {dateTo ? format(dateTo, "MMM d, yyyy") : "Now"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="single"
+                          selected={dateTo}
+                          onSelect={setDateTo}
+                          disabled={(date) => date > new Date() || (dateFrom ? date < dateFrom : false)}
+                          initialFocus
+                          className={cn("p-3 pointer-events-auto")}
+                        />
+                        {dateTo && (
+                          <div className="px-3 pb-2">
+                            <Button variant="ghost" size="sm" className="h-6 text-xs w-full" onClick={() => setDateTo(undefined)}>
+                              Clear
+                            </Button>
+                          </div>
+                        )}
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+
                 <Button
                   onClick={triggerManualExport}
                   disabled={isManualExporting}
