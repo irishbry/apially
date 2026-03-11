@@ -264,6 +264,15 @@ const ScheduledExports = () => {
         query = query.eq('source_id', sourceId);
       }
 
+      if (dateFrom) {
+        query = query.gte('created_at', dateFrom.toISOString());
+      }
+      if (dateTo) {
+        const endOfDay = new Date(dateTo);
+        endOfDay.setHours(23, 59, 59, 999);
+        query = query.lte('created_at', endOfDay.toISOString());
+      }
+
       const { data: entries, error } = await query.order('created_at', { ascending: false });
       if (error) throw error;
 
