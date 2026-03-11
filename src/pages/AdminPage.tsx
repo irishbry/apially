@@ -459,6 +459,48 @@ export default function AdminPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {sourceHealth.inactive.length > 0 && (
+              <Card className="border-muted">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2 text-muted-foreground">
+                    <Ban className="h-4 w-4" />
+                    Deactivated ({sourceHealth.inactive.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {sourceHealth.inactive.map(s => (
+                      <div key={s.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+                        <div>
+                          <span className="font-medium text-sm text-muted-foreground">{s.name}</span>
+                          <span className="text-xs text-muted-foreground ml-2">{s.user_email}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs font-mono text-muted-foreground">{formatNumber(s.actual_record_count)} records</span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            disabled={actionLoading === `source-${s.id}`}
+                            onClick={() => handleToggleSource(s.id, s.active)}
+                          >
+                            {actionLoading === `source-${s.id}` ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <>
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                                Reactivate
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* DATA USAGE TAB */}
