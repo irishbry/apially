@@ -177,36 +177,41 @@ serve(async (req) => {
     }
 
     // Check for duplicate email within the last 24 hours
+    // Optimized: filter by source_id too and use metadata->>email filter to avoid scanning all rows
     if (body.email) {
       const twentyFourHoursAgo = new Date();
       twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
       
-      const { data: existingEntries, error: duplicateCheckError } = await supabase
-        .from('data_entries')
-        .select('id, timestamp, metadata')
-        .eq('user_id', source.user_id)
-        .gte('timestamp', twentyFourHoursAgo.toISOString());
-      
-      if (duplicateCheckError) {
-        console.error('Duplicate check error:', duplicateCheckError);
-      } else if (existingEntries && existingEntries.length > 0) {
-        // Check if any existing entry has the same email in metadata
-        for (const entry of existingEntries) {
-          if (entry.metadata && entry.metadata.email === body.email) {
-            return new Response(
-              JSON.stringify({ 
-                success: false,
-                message: 'Duplicate email detected. This email was already submitted within the last 24 hours.',
-                code: 'DUPLICATE_EMAIL',
-                details: {
-                  email: body.email,
-                  previousSubmission: entry.timestamp
-                }
-              }),
-              { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 409 }
-            );
-          }
+      try {
+        const { data: existingEntries, error: duplicateCheckError } = await supabase
+          .from('data_entries')
+          .select('id, timestamp')
+          .eq('user_id', source.user_id)
+          .eq('source_id', source.id)
+          .gte('timestamp', twentyFourHoursAgo.toISOString())
+          .filter('metadata->>email', 'eq', body.email)
+          .limit(1);
+        
+        if (duplicateCheckError) {
+          // Log but don't block - duplicate check is non-critical
+          console.error('Duplicate check error:', duplicateCheckError);
+        } else if (existingEntries && existingEntries.length > 0) {
+          return new Response(
+            JSON.stringify({ 
+              success: false,
+              message: 'Duplicate email detected. This email was already submitted within the last 24 hours.',
+              code: 'DUPLICATE_EMAIL',
+              details: {
+                email: body.email,
+                previousSubmission: existingEntries[0].timestamp
+              }
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 409 }
+          );
         }
+      } catch (dupError) {
+        // Don't let duplicate check failures block data ingestion
+        console.error('Duplicate check exception (non-blocking):', dupError);
       }
     }
 

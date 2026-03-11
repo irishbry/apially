@@ -781,20 +781,28 @@ async function createBackupForUser(
   } catch (error) {
     console.error(`Error creating backup for user ${userId}:`, error);
     
-    // Log failed attempt using PST date
+    // Log failed attempt - UPDATE existing or insert new
     try {
-      const PST_TIMEZONE = 'America/Los_Angeles';
-      const nowPST = toZonedTime(new Date(), PST_TIMEZONE);
-      const pstDateString = format(nowPST, 'yyyy-MM-dd');
-      
-      await supabase
-        .from('backup_attempts')
-        .insert({
-          user_id: userId,
-          attempt_date: pstDateString,
-          status: 'failed',
-          error_message: error instanceof Error ? error.message : 'Unknown error occurred'
-        });
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
+      if (attemptId) {
+        await supabase
+          .from('backup_attempts')
+          .update({ status: 'failed', error_message: errorMsg })
+          .eq('id', attemptId);
+      } else {
+        const PST_TIMEZONE = 'America/Los_Angeles';
+        const nowPST = toZonedTime(new Date(), PST_TIMEZONE);
+        const pstDateString = format(nowPST, 'yyyy-MM-dd');
+        
+        await supabase
+          .from('backup_attempts')
+          .insert({
+            user_id: userId,
+            attempt_date: pstDateString,
+            status: 'failed',
+            error_message: errorMsg
+          });
+      }
     } catch (logError) {
       console.warn('Failed to log backup failure:', logError);
     }
