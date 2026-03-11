@@ -437,18 +437,23 @@ async function createBackupForUser(
     console.log(`Dropbox config - Path: ${dropboxPath}, Token present: ${!!dropboxToken}`);
     
     // Log backup attempt first using PST date
+    let attemptId: string | null = null;
     try {
       const PST_TIMEZONE = 'America/Los_Angeles';
       const nowPST = toZonedTime(new Date(), PST_TIMEZONE);
       const pstDateString = format(nowPST, 'yyyy-MM-dd');
       
-      await supabase
+      const { data: attemptData } = await supabase
         .from('backup_attempts')
         .insert({
           user_id: userId,
           attempt_date: pstDateString,
           status: 'attempting'
-        });
+        })
+        .select('id')
+        .single();
+      
+      attemptId = attemptData?.id || null;
     } catch (logError) {
       console.warn('Failed to log backup attempt:', logError);
     }
