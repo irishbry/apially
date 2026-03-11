@@ -1,0 +1,1 @@
+UPDATE public.backup_attempts SET status = 'success' WHERE status = 'attempting' AND attempt_date = '2026-03-11';
