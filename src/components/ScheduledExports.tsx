@@ -56,6 +56,8 @@ const ScheduledExports = () => {
   const [manualSourceId, setManualSourceId] = useState<string>('all');
   const [manualFormat, setManualFormat] = useState<'csv' | 'json'>('csv');
   const [isManualExporting, setIsManualExporting] = useState(false);
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
+  const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
 
   const [formData, setFormData] = useState<FormDataType>({
     name: '',
