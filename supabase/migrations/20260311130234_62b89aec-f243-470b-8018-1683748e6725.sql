@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_data_entries_user_timestamp ON public.data_entries (user_id, timestamp DESC);
