@@ -49,6 +49,10 @@ const ScheduledExports = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [selectedExportId, setSelectedExportId] = useState<string | null>(null);
 
+  const [manualSourceId, setManualSourceId] = useState<string>('all');
+  const [manualFormat, setManualFormat] = useState<'csv' | 'json'>('csv');
+  const [isManualExporting, setIsManualExporting] = useState(false);
+
   const [formData, setFormData] = useState<FormDataType>({
     name: '',
     frequency: 'daily',
@@ -235,6 +239,103 @@ const ScheduledExports = () => {
     return source ? source.name : 'Unknown';
   };
 
+  const triggerManualExport = async () => {
+    setIsManualExporting(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      const sourceId = manualSourceId === 'all' ? null : manualSourceId;
+      const sourceName = sourceId ? sources.find(s => s.id === sourceId)?.name || 'Unknown' : 'All_Sources';
+
+      // Fetch data entries for the selected source
+      let query = supabase
+        .from('data_entries')
+        .select('*')
+        .eq('user_id', user.id);
+
+      if (sourceId) {
+        query = query.eq('source_id', sourceId);
+      }
+
+      const { data: entries, error } = await query.order('created_at', { ascending: false });
+      if (error) throw error;
+
+      if (!entries || entries.length === 0) {
+        toast({ title: "No Data", description: `No data entries found for ${sourceName}` });
+        setIsManualExporting(false);
+        return;
+      }
+
+      // Build export content
+      const metadataKeys = new Set<string>();
+      entries.forEach(entry => {
+        if (entry.metadata && typeof entry.metadata === 'object' && !Array.isArray(entry.metadata)) {
+          Object.keys(entry.metadata).forEach(key => {
+            if (key !== 'clientIp' && key !== 'receivedAt') metadataKeys.add(key);
+          });
+        }
+      });
+
+      let content: string;
+      const getEntrySourceName = (sid: string | null) => {
+        if (!sid) return 'Unknown';
+        const s = sources.find(src => src.id === sid);
+        return s ? s.name : sid;
+      };
+
+      if (manualFormat === 'csv') {
+        const headers = ['Source', 'Created At', ...Array.from(metadataKeys)];
+        const rows = [headers.join(',')];
+        entries.forEach(entry => {
+          const meta = (entry.metadata && typeof entry.metadata === 'object' && !Array.isArray(entry.metadata)) ? entry.metadata as Record<string, any> : {};
+          const row = [
+            `"${getEntrySourceName(entry.source_id)}"`,
+            `"${new Date(entry.created_at).toLocaleString()}"`,
+            ...Array.from(metadataKeys).map(key => {
+              const value = meta[key];
+              if (value === undefined || value === null) return '""';
+              return `"${String(value).replace(/"/g, '""')}"`;
+            })
+          ];
+          rows.push(row.join(','));
+        });
+        content = rows.join('\n');
+      } else {
+        const transformed = entries.map(entry => {
+          const meta = (entry.metadata && typeof entry.metadata === 'object' && !Array.isArray(entry.metadata)) ? entry.metadata as Record<string, any> : {};
+          const obj: any = {
+            Source: getEntrySourceName(entry.source_id),
+            'Created At': new Date(entry.created_at).toLocaleString(),
+          };
+          Array.from(metadataKeys).forEach(key => {
+            if (key !== 'clientIp' && key !== 'receivedAt') obj[key] = meta[key];
+          });
+          return obj;
+        });
+        content = JSON.stringify(transformed, null, 2);
+      }
+
+      // Trigger download
+      const blob = new Blob([content], { type: manualFormat === 'csv' ? 'text/csv' : 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `export_${sourceName}_${new Date().toISOString().split('T')[0]}.${manualFormat}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({ title: "Success", description: `Exported ${entries.length} records for ${sourceName}` });
+    } catch (error) {
+      console.error('Error triggering manual export:', error);
+      toast({ title: "Error", description: "Failed to export data", variant: "destructive" });
+    } finally {
+      setIsManualExporting(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -392,33 +493,53 @@ const ScheduledExports = () => {
             </div>
           </div>
 
-          {/* Right Column - About Scheduled Exports */}
+          {/* Right Column - Quick Export */}
           <div className="space-y-3">
             <div className="border rounded-lg p-4 h-full flex flex-col">
-              <h3 className="text-sm font-medium mb-3">About Scheduled Exports</h3>
-              <div className="flex-1 flex flex-col justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-3">
-                    Scheduled exports allow you to automatically export your data on a regular basis. 
-                    You can choose between CSV and JSON formats, filter by source, and have the exports 
-                    emailed to you or automatically downloaded.
-                  </p>
-                  
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm">
-                      <span>• Daily, weekly, or monthly schedules</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <span>• Filter by specific source or export all</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <span>• Email delivery via Resend</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <span>• Automated background processing</span>
-                    </div>
-                  </div>
+              <h3 className="text-sm font-medium mb-3">Quick Export</h3>
+              <p className="text-sm text-muted-foreground mb-3">
+                Instantly download data for a specific source without setting up a schedule.
+              </p>
+              
+              <div className="space-y-3 flex-1 flex flex-col">
+                <div className="space-y-1">
+                  <Label className="text-sm">Source</Label>
+                  <Select value={manualSourceId} onValueChange={setManualSourceId}>
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue placeholder="Select source" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Sources</SelectItem>
+                      {sources.map((source) => (
+                        <SelectItem key={source.id} value={source.id}>
+                          {source.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
+
+                <div className="space-y-1">
+                  <Label className="text-sm">Format</Label>
+                  <Select value={manualFormat} onValueChange={(v: 'csv' | 'json') => setManualFormat(v)}>
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="csv">CSV</SelectItem>
+                      <SelectItem value="json">JSON</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Button
+                  onClick={triggerManualExport}
+                  disabled={isManualExporting}
+                  className="mt-auto h-8 text-sm"
+                >
+                  <Download className="mr-2 h-3.5 w-3.5" />
+                  {isManualExporting ? 'Exporting...' : 'Export Now'}
+                </Button>
               </div>
             </div>
           </div>
