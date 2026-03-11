@@ -239,6 +239,103 @@ const ScheduledExports = () => {
     return source ? source.name : 'Unknown';
   };
 
+  const triggerManualExport = async () => {
+    setIsManualExporting(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      const sourceId = manualSourceId === 'all' ? null : manualSourceId;
+      const sourceName = sourceId ? sources.find(s => s.id === sourceId)?.name || 'Unknown' : 'All_Sources';
+
+      // Fetch data entries for the selected source
+      let query = supabase
+        .from('data_entries')
+        .select('*')
+        .eq('user_id', user.id);
+
+      if (sourceId) {
+        query = query.eq('source_id', sourceId);
+      }
+
+      const { data: entries, error } = await query.order('created_at', { ascending: false });
+      if (error) throw error;
+
+      if (!entries || entries.length === 0) {
+        toast({ title: "No Data", description: `No data entries found for ${sourceName}` });
+        setIsManualExporting(false);
+        return;
+      }
+
+      // Build export content
+      const metadataKeys = new Set<string>();
+      entries.forEach(entry => {
+        if (entry.metadata && typeof entry.metadata === 'object' && !Array.isArray(entry.metadata)) {
+          Object.keys(entry.metadata).forEach(key => {
+            if (key !== 'clientIp' && key !== 'receivedAt') metadataKeys.add(key);
+          });
+        }
+      });
+
+      let content: string;
+      const getEntrySourceName = (sid: string | null) => {
+        if (!sid) return 'Unknown';
+        const s = sources.find(src => src.id === sid);
+        return s ? s.name : sid;
+      };
+
+      if (manualFormat === 'csv') {
+        const headers = ['Source', 'Created At', ...Array.from(metadataKeys)];
+        const rows = [headers.join(',')];
+        entries.forEach(entry => {
+          const meta = (entry.metadata && typeof entry.metadata === 'object' && !Array.isArray(entry.metadata)) ? entry.metadata as Record<string, any> : {};
+          const row = [
+            `"${getEntrySourceName(entry.source_id)}"`,
+            `"${new Date(entry.created_at).toLocaleString()}"`,
+            ...Array.from(metadataKeys).map(key => {
+              const value = meta[key];
+              if (value === undefined || value === null) return '""';
+              return `"${String(value).replace(/"/g, '""')}"`;
+            })
+          ];
+          rows.push(row.join(','));
+        });
+        content = rows.join('\n');
+      } else {
+        const transformed = entries.map(entry => {
+          const meta = (entry.metadata && typeof entry.metadata === 'object' && !Array.isArray(entry.metadata)) ? entry.metadata as Record<string, any> : {};
+          const obj: any = {
+            Source: getEntrySourceName(entry.source_id),
+            'Created At': new Date(entry.created_at).toLocaleString(),
+          };
+          Array.from(metadataKeys).forEach(key => {
+            if (key !== 'clientIp' && key !== 'receivedAt') obj[key] = meta[key];
+          });
+          return obj;
+        });
+        content = JSON.stringify(transformed, null, 2);
+      }
+
+      // Trigger download
+      const blob = new Blob([content], { type: manualFormat === 'csv' ? 'text/csv' : 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `export_${sourceName}_${new Date().toISOString().split('T')[0]}.${manualFormat}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({ title: "Success", description: `Exported ${entries.length} records for ${sourceName}` });
+    } catch (error) {
+      console.error('Error triggering manual export:', error);
+      toast({ title: "Error", description: "Failed to export data", variant: "destructive" });
+    } finally {
+      setIsManualExporting(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <Card>
