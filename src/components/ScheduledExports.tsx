@@ -49,6 +49,10 @@ const ScheduledExports = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [selectedExportId, setSelectedExportId] = useState<string | null>(null);
 
+  const [manualSourceId, setManualSourceId] = useState<string>('all');
+  const [manualFormat, setManualFormat] = useState<'csv' | 'json'>('csv');
+  const [isManualExporting, setIsManualExporting] = useState(false);
+
   const [formData, setFormData] = useState<FormDataType>({
     name: '',
     frequency: 'daily',
