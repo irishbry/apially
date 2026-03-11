@@ -493,33 +493,53 @@ const ScheduledExports = () => {
             </div>
           </div>
 
-          {/* Right Column - About Scheduled Exports */}
+          {/* Right Column - Quick Export */}
           <div className="space-y-3">
             <div className="border rounded-lg p-4 h-full flex flex-col">
-              <h3 className="text-sm font-medium mb-3">About Scheduled Exports</h3>
-              <div className="flex-1 flex flex-col justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-3">
-                    Scheduled exports allow you to automatically export your data on a regular basis. 
-                    You can choose between CSV and JSON formats, filter by source, and have the exports 
-                    emailed to you or automatically downloaded.
-                  </p>
-                  
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm">
-                      <span>• Daily, weekly, or monthly schedules</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <span>• Filter by specific source or export all</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <span>• Email delivery via Resend</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <span>• Automated background processing</span>
-                    </div>
-                  </div>
+              <h3 className="text-sm font-medium mb-3">Quick Export</h3>
+              <p className="text-sm text-muted-foreground mb-3">
+                Instantly download data for a specific source without setting up a schedule.
+              </p>
+              
+              <div className="space-y-3 flex-1 flex flex-col">
+                <div className="space-y-1">
+                  <Label className="text-sm">Source</Label>
+                  <Select value={manualSourceId} onValueChange={setManualSourceId}>
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue placeholder="Select source" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Sources</SelectItem>
+                      {sources.map((source) => (
+                        <SelectItem key={source.id} value={source.id}>
+                          {source.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
+
+                <div className="space-y-1">
+                  <Label className="text-sm">Format</Label>
+                  <Select value={manualFormat} onValueChange={(v: 'csv' | 'json') => setManualFormat(v)}>
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="csv">CSV</SelectItem>
+                      <SelectItem value="json">JSON</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Button
+                  onClick={triggerManualExport}
+                  disabled={isManualExporting}
+                  className="mt-auto h-8 text-sm"
+                >
+                  <Download className="mr-2 h-3.5 w-3.5" />
+                  {isManualExporting ? 'Exporting...' : 'Export Now'}
+                </Button>
               </div>
             </div>
           </div>

@@ -187,15 +187,6 @@ const ControlPanel: React.FC = () => {
             <div className="flex flex-wrap gap-2">
               <Button
                 variant="outline"
-                onClick={triggerExport}
-                className="hover-lift"
-              >
-                <Clock className="mr-2 h-4 w-4" />
-                Trigger CSV Export Now
-              </Button>
-              
-              <Button
-                variant="outline"
                 onClick={clearAllData}
                 className="hover-lift"
               >
