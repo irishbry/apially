@@ -1,12 +1,16 @@
 
 import React, { useState, useEffect } from 'react';
+import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Mail, Download, Trash2, Edit, Play, Pause, RotateCw, History, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar, CalendarIcon, Mail, Download, Trash2, Edit, Play, Pause, RotateCw, History, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Tables } from '@/integrations/supabase/types';
