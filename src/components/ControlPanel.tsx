@@ -105,10 +105,6 @@ const ControlPanel: React.FC = () => {
     }
   };
 
-  const triggerExport = () => {
-    ApiService.exportToCsv();
-  };
-
   const clearAllData = () => {
     ApiService.clearData();
   };
