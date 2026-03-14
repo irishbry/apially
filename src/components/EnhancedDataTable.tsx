@@ -678,7 +678,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
             />
           </div>
           <div className="flex gap-2">
-            <Select value={selectedSource} onValueChange={setSelectedSource}>
+            <Select value={selectedSource} onValueChange={(val) => { setSelectedSource(val); setCurrentPage(1); }}>
               <SelectTrigger className="w-full sm:w-48">
                 <SelectValue placeholder="Filter by source" />
               </SelectTrigger>
