@@ -477,7 +477,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
         setInternalData(freshData);
         
         // Update total count
-        const count = await ApiService.getDataCount();
+        const count = await ApiService.getDataCount({ sourceId });
         setTotalCount(count);
         setTotalPages(Math.ceil(count / itemsPerPage));
       }
