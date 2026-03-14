@@ -466,10 +466,12 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
         
         // Fetch fresh data for page 1
         const offset = 0;
+        const sourceId = selectedSource && selectedSource !== 'all' ? selectedSource : undefined;
         const freshData = await ApiService.getData({ 
           limit: itemsPerPage, 
           offset: offset,
-          includeCount: true 
+          includeCount: true,
+          sourceId
         });
         
         setInternalData(freshData);
