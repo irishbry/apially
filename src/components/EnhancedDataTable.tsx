@@ -139,7 +139,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
   };
 
   // Fetch paginated data
-  const fetchPaginatedData = async (page: number, itemsPerPage: number) => {
+  const fetchPaginatedData = async (page: number, itemsPerPage: number, sourceFilter?: string) => {
     if (propData) return; // Skip if prop data is provided
     
     try {
@@ -147,17 +147,19 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
       setError(null);
       
       const offset = (page - 1) * itemsPerPage;
+      const sourceId = sourceFilter && sourceFilter !== 'all' ? sourceFilter : undefined;
       const data = await ApiService.getData({ 
         limit: itemsPerPage, 
         offset: offset,
-        includeCount: page === 1 // Only get count on first page load
+        includeCount: page === 1,
+        sourceId
       });
       
       setInternalData(data);
       
       // Get total count for pagination
       if (page === 1) {
-        const count = await ApiService.getDataCount();
+        const count = await ApiService.getDataCount({ sourceId });
         setTotalCount(count);
         setTotalPages(Math.ceil(count / itemsPerPage));
       }
