@@ -139,7 +139,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
   };
 
   // Fetch paginated data
-  const fetchPaginatedData = async (page: number, itemsPerPage: number) => {
+  const fetchPaginatedData = async (page: number, itemsPerPage: number, sourceFilter?: string) => {
     if (propData) return; // Skip if prop data is provided
     
     try {
@@ -147,17 +147,19 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
       setError(null);
       
       const offset = (page - 1) * itemsPerPage;
+      const sourceId = sourceFilter && sourceFilter !== 'all' ? sourceFilter : undefined;
       const data = await ApiService.getData({ 
         limit: itemsPerPage, 
         offset: offset,
-        includeCount: page === 1 // Only get count on first page load
+        includeCount: page === 1,
+        sourceId
       });
       
       setInternalData(data);
       
       // Get total count for pagination
       if (page === 1) {
-        const count = await ApiService.getDataCount();
+        const count = await ApiService.getDataCount({ sourceId });
         setTotalCount(count);
         setTotalPages(Math.ceil(count / itemsPerPage));
       }
@@ -173,7 +175,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
   useEffect(() => {
     // Only fetch data if no prop data is provided
     if (!propData && !propSources) {
-      fetchPaginatedData(currentPage, itemsPerPage);
+      fetchPaginatedData(currentPage, itemsPerPage, selectedSource);
       
       // Load sources
       const loadSources = async () => {
@@ -187,7 +189,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
       
       loadSources();
     }
-  }, [propData, propSources, currentPage, itemsPerPage]);
+  }, [propData, propSources, currentPage, itemsPerPage, selectedSource]);
 
   // Pass stats data to parent component
   useEffect(() => {
@@ -464,16 +466,18 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
         
         // Fetch fresh data for page 1
         const offset = 0;
+        const sourceId = selectedSource && selectedSource !== 'all' ? selectedSource : undefined;
         const freshData = await ApiService.getData({ 
           limit: itemsPerPage, 
           offset: offset,
-          includeCount: true 
+          includeCount: true,
+          sourceId
         });
         
         setInternalData(freshData);
         
         // Update total count
-        const count = await ApiService.getDataCount();
+        const count = await ApiService.getDataCount({ sourceId });
         setTotalCount(count);
         setTotalPages(Math.ceil(count / itemsPerPage));
       }
@@ -676,7 +680,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
             />
           </div>
           <div className="flex gap-2">
-            <Select value={selectedSource} onValueChange={setSelectedSource}>
+            <Select value={selectedSource} onValueChange={(val) => { setSelectedSource(val); setCurrentPage(1); }}>
               <SelectTrigger className="w-full sm:w-48">
                 <SelectValue placeholder="Filter by source" />
               </SelectTrigger>

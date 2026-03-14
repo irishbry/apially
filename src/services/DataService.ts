@@ -3,14 +3,18 @@ import { supabase } from '@/integrations/supabase/client';
 import { DataEntry } from '@/types/api.types';
 
 export const DataService = {
-  getData: async (options: { limit?: number; offset?: number; includeCount?: boolean } = {}): Promise<DataEntry[]> => {
-    const { limit = 1000, offset = 0, includeCount = false } = options;
+  getData: async (options: { limit?: number; offset?: number; includeCount?: boolean; sourceId?: string } = {}): Promise<DataEntry[]> => {
+    const { limit = 1000, offset = 0, includeCount = false, sourceId } = options;
     
     try {
       let query = supabase
         .from('data_entries')
         .select('*', { count: includeCount ? 'exact' : undefined })
         .order('created_at', { ascending: false });
+
+      if (sourceId) {
+        query = query.eq('source_id', sourceId);
+      }
 
       if (limit > 0) {
         query = query.limit(limit);
@@ -73,11 +77,18 @@ export const DataService = {
     }
   },
 
-  getDataCount: async (): Promise<number> => {
+  getDataCount: async (options: { sourceId?: string } = {}): Promise<number> => {
+    const { sourceId } = options;
     try {
-      const { count, error } = await supabase
+      let query = supabase
         .from('data_entries')
         .select('*', { count: 'exact', head: true });
+      
+      if (sourceId) {
+        query = query.eq('source_id', sourceId);
+      }
+
+      const { count, error } = await query;
       
       if (error) {
         console.error('Error fetching data count:', error);
