@@ -175,7 +175,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
   useEffect(() => {
     // Only fetch data if no prop data is provided
     if (!propData && !propSources) {
-      fetchPaginatedData(currentPage, itemsPerPage);
+      fetchPaginatedData(currentPage, itemsPerPage, selectedSource);
       
       // Load sources
       const loadSources = async () => {
@@ -189,7 +189,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
       
       loadSources();
     }
-  }, [propData, propSources, currentPage, itemsPerPage]);
+  }, [propData, propSources, currentPage, itemsPerPage, selectedSource]);
 
   // Pass stats data to parent component
   useEffect(() => {
