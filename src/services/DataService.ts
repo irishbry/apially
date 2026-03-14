@@ -12,6 +12,10 @@ export const DataService = {
         .select('*', { count: includeCount ? 'exact' : undefined })
         .order('created_at', { ascending: false });
 
+      if (sourceId) {
+        query = query.eq('source_id', sourceId);
+      }
+
       if (limit > 0) {
         query = query.limit(limit);
       }
