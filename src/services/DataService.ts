@@ -77,11 +77,18 @@ export const DataService = {
     }
   },
 
-  getDataCount: async (): Promise<number> => {
+  getDataCount: async (options: { sourceId?: string } = {}): Promise<number> => {
+    const { sourceId } = options;
     try {
-      const { count, error } = await supabase
+      let query = supabase
         .from('data_entries')
         .select('*', { count: 'exact', head: true });
+      
+      if (sourceId) {
+        query = query.eq('source_id', sourceId);
+      }
+
+      const { count, error } = await query;
       
       if (error) {
         console.error('Error fetching data count:', error);
