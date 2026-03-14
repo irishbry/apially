@@ -3,8 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { DataEntry } from '@/types/api.types';
 
 export const DataService = {
-  getData: async (options: { limit?: number; offset?: number; includeCount?: boolean } = {}): Promise<DataEntry[]> => {
-    const { limit = 1000, offset = 0, includeCount = false } = options;
+  getData: async (options: { limit?: number; offset?: number; includeCount?: boolean; sourceId?: string } = {}): Promise<DataEntry[]> => {
+    const { limit = 1000, offset = 0, includeCount = false, sourceId } = options;
     
     try {
       let query = supabase
