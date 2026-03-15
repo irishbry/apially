@@ -1056,7 +1056,7 @@ function generateDataExplorerCSV(data: DataEntry[], sources: Source[]): string {
   const getDisplayName = (column: string): string => {
     const displayNames: Record<string, string> = {
       'source': 'Source',
-      'created_at': 'Date/Time'
+      'created_at': 'Date'
     };
     return displayNames[column] || column;
   };
