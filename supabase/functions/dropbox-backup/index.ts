@@ -1082,7 +1082,11 @@ function generateDataExplorerCSV(data: DataEntry[], sources: Source[]): string {
     if (key === 'source') return getSourceName(value);
     if (key === 'created_at') {
       try {
-        return new Date(value).toLocaleString();
+        const d = new Date(value);
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        return `${mm}/${dd}/${yyyy}`;
       } catch (e) {
         return value;
       }
