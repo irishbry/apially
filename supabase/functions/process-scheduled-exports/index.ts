@@ -301,6 +301,9 @@ function generateCSV(data: DataEntry[], sources: Source[]): string {
     return source ? source.name : sourceId;
   };
 
+  // Preferred column order for metadata keys
+  const preferredMetaOrder = ['fname', 'phone', 'lname', 'address', 'city', 'state', 'zip', 'email', 'ip', 'jornaya', 'trusted_form_url'];
+
   const metadataKeys = new Set<string>();
   data.forEach(entry => {
     if (entry.metadata && typeof entry.metadata === 'object') {
@@ -310,14 +313,34 @@ function generateCSV(data: DataEntry[], sources: Source[]): string {
     }
   });
 
-  const headers = ['Source', 'Created At', ...Array.from(metadataKeys)];
+  // Sort metadata keys: preferred first, then remaining
+  const allMetaKeys = Array.from(metadataKeys);
+  const orderedMeta: string[] = [];
+  for (const col of preferredMetaOrder) {
+    if (allMetaKeys.includes(col)) orderedMeta.push(col);
+  }
+  for (const col of allMetaKeys) {
+    if (!orderedMeta.includes(col)) orderedMeta.push(col);
+  }
+
+  const formatDate = (dateStr: string): string => {
+    try {
+      const d = new Date(dateStr);
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const yyyy = d.getFullYear();
+      return `${mm}/${dd}/${yyyy}`;
+    } catch { return dateStr; }
+  };
+
+  const headers = ['Source', 'Date', ...orderedMeta];
   const csvRows = [headers.join(',')];
 
   data.forEach(entry => {
     const row = [
       `"${getSourceName(entry.source_id)}"`,
-      `"${new Date(entry.created_at).toLocaleString()}"`,
-      ...Array.from(metadataKeys).map(key => {
+      `"${formatDate(entry.created_at)}"`,
+      ...orderedMeta.map(key => {
         const value = entry.metadata?.[key];
         if (value === undefined || value === null) return '""';
         return `"${String(value).replace(/"/g, '""')}"`;
