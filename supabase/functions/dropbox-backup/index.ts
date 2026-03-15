@@ -1016,29 +1016,38 @@ function generateDataExplorerCSV(data: DataEntry[], sources: Source[]): string {
     return source ? source.name : `Unknown (${sourceId.substring(0, 8)}...)`;
   };
 
-  // Get columns that match exactly what's shown in the Data Explorer table
+  // Preferred column order
+  const preferredOrder = [
+    'source', 'created_at', 'fname', 'phone', 'lname', 'address', 'city', 'state', 'zip', 'email', 'ip', 'jornaya', 'trusted_form_url'
+  ];
+
   const getColumns = () => {
     if (data.length === 0) return ['No Data'];
     
-    const columns = new Set<string>();
+    const allKeys = new Set<string>();
+    allKeys.add('source');
+    allKeys.add('created_at');
     
-    // Always include source and created_at columns first (matches Data Explorer)
-    columns.add('source');
-    columns.add('created_at');
-    
-    // Extract metadata fields from all entries, excluding clientIp and receivedAt
     data.forEach(entry => {
       if (entry && entry.metadata && typeof entry.metadata === 'object') {
         Object.keys(entry.metadata).forEach(key => {
-          // Exclude clientIp and receivedAt from columns (matches Data Explorer)
           if (key !== 'clientIp' && key !== 'receivedAt') {
-            columns.add(key);
+            allKeys.add(key);
           }
         });
       }
     });
     
-    return Array.from(columns);
+    // Sort: preferred columns first in order, then remaining alphabetically
+    const allKeysArray = Array.from(allKeys);
+    const ordered: string[] = [];
+    for (const col of preferredOrder) {
+      if (allKeysArray.includes(col)) ordered.push(col);
+    }
+    for (const col of allKeysArray) {
+      if (!ordered.includes(col)) ordered.push(col);
+    }
+    return ordered;
   };
 
   const columns = getColumns();
