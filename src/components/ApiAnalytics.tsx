@@ -4,8 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
 import { ApiService, ApiUsageByDay, ApiUsageBySource } from "@/services/ApiService";
+import { SourcesService } from "@/services/SourcesService";
 import { format, parseISO, subDays } from 'date-fns';
 import { RefreshCw } from 'lucide-react';
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -16,7 +18,10 @@ const ApiAnalytics: React.FC = () => {
   const [usageByDay, setUsageByDay] = useState<ApiUsageByDay[]>([]);
   const [usageBySource, setUsageBySource] = useState<ApiUsageBySource[]>([]);
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('30d');
+  const [distributionRange, setDistributionRange] = useState<'today' | 'yesterday' | '7d' | '30d'>('30d');
+  const [filteredUsageBySource, setFilteredUsageBySource] = useState<ApiUsageBySource[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDistributionLoading, setIsDistributionLoading] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const isMobile = useIsMobile();
 
@@ -41,6 +46,30 @@ const ApiAnalytics: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, [timeRange]);
+
+  // Fetch distribution data when range changes
+  const fetchDistributionData = async () => {
+    setIsDistributionLoading(true);
+    try {
+      let days = 30;
+      let offset = 0;
+      if (distributionRange === 'today') { days = 1; offset = 0; }
+      else if (distributionRange === 'yesterday') { days = 1; offset = 1; }
+      else if (distributionRange === '7d') { days = 7; offset = 0; }
+      else { days = 30; offset = 0; }
+
+      const data = await SourcesService.getApiUsageBySourceForPeriod(days, offset);
+      setFilteredUsageBySource(data);
+    } catch (error) {
+      console.error("Error fetching distribution data:", error);
+    } finally {
+      setIsDistributionLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDistributionData();
+  }, [distributionRange]);
 
   // Poll every 60 seconds
   useEffect(() => {
@@ -244,28 +273,52 @@ const ApiAnalytics: React.FC = () => {
       
       <Card className="shadow-sm">
         <CardHeader className="pb-2">
-          <CardTitle className="text-lg">API Request Distribution</CardTitle>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <CardTitle className="text-lg">API Request Distribution</CardTitle>
+            <ToggleGroup
+              type="single"
+              value={distributionRange}
+              onValueChange={(v) => { if (v) setDistributionRange(v as any); }}
+              variant="outline"
+              size="sm"
+            >
+              <ToggleGroupItem value="today">Today</ToggleGroupItem>
+              <ToggleGroupItem value="yesterday">Yesterday</ToggleGroupItem>
+              <ToggleGroupItem value="7d">7 Days</ToggleGroupItem>
+              <ToggleGroupItem value="30d">30 Days</ToggleGroupItem>
+            </ToggleGroup>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={usageBySource} layout="vertical" margin={{ top: 5, right: 30, left: 100, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
-                <XAxis type="number" />
-                <YAxis 
-                  type="category" 
-                  dataKey="source" 
-                  tick={{ fontSize: 12 }}
-                  width={100}
-                />
-                <Tooltip content={renderSourceTooltip} />
-                <Bar dataKey="count" name="Requests" fill="#8884d8" radius={[0, 4, 4, 0]}>
-                  {usageBySource.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            {isDistributionLoading ? (
+              <div className="flex h-full items-center justify-center">
+                <div className="w-6 h-6 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            ) : filteredUsageBySource.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={filteredUsageBySource} layout="vertical" margin={{ top: 5, right: 30, left: 100, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
+                  <XAxis type="number" />
+                  <YAxis 
+                    type="category" 
+                    dataKey="source" 
+                    tick={{ fontSize: 12 }}
+                    width={100}
+                  />
+                  <Tooltip content={renderSourceTooltip} />
+                  <Bar dataKey="count" name="Requests" fill="#8884d8" radius={[0, 4, 4, 0]}>
+                    {filteredUsageBySource.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center">
+                <p className="text-muted-foreground">No data for this period</p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
