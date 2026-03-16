@@ -18,7 +18,10 @@ const ApiAnalytics: React.FC = () => {
   const [usageByDay, setUsageByDay] = useState<ApiUsageByDay[]>([]);
   const [usageBySource, setUsageBySource] = useState<ApiUsageBySource[]>([]);
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('30d');
+  const [distributionRange, setDistributionRange] = useState<'today' | 'yesterday' | '7d' | '30d'>('30d');
+  const [filteredUsageBySource, setFilteredUsageBySource] = useState<ApiUsageBySource[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDistributionLoading, setIsDistributionLoading] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const isMobile = useIsMobile();
 
