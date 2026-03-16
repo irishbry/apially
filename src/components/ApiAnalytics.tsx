@@ -47,6 +47,30 @@ const ApiAnalytics: React.FC = () => {
     fetchData();
   }, [timeRange]);
 
+  // Fetch distribution data when range changes
+  const fetchDistributionData = async () => {
+    setIsDistributionLoading(true);
+    try {
+      let days = 30;
+      let offset = 0;
+      if (distributionRange === 'today') { days = 1; offset = 0; }
+      else if (distributionRange === 'yesterday') { days = 1; offset = 1; }
+      else if (distributionRange === '7d') { days = 7; offset = 0; }
+      else { days = 30; offset = 0; }
+
+      const data = await SourcesService.getApiUsageBySourceForPeriod(days, offset);
+      setFilteredUsageBySource(data);
+    } catch (error) {
+      console.error("Error fetching distribution data:", error);
+    } finally {
+      setIsDistributionLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDistributionData();
+  }, [distributionRange]);
+
   // Poll every 60 seconds
   useEffect(() => {
     const interval = setInterval(() => {
