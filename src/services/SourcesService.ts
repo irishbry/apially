@@ -78,6 +78,54 @@ export const SourcesService = {
       return [];
     }
   },
+
+  getApiUsageBySourceForPeriod: async (days: number, offset: number = 0): Promise<ApiUsageBySource[]> => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+
+      const now = new Date();
+      const endDate = new Date(now);
+      endDate.setDate(endDate.getDate() - offset);
+      const startDate = new Date(endDate);
+      startDate.setDate(startDate.getDate() - days);
+
+      const { data, error } = await supabase
+        .from('data_entries')
+        .select('source_id, sources!inner(name)')
+        .eq('user_id', user.id)
+        .not('source_id', 'is', null)
+        .gte('created_at', startDate.toISOString())
+        .lte('created_at', endDate.toISOString());
+
+      if (error) {
+        console.error('Error fetching usage by source for period:', error);
+        return [];
+      }
+
+      const countMap = new Map<string, { name: string; count: number }>();
+      for (const row of data || []) {
+        const sid = row.source_id!;
+        const name = (row as any).sources?.name || 'Unknown';
+        const existing = countMap.get(sid);
+        if (existing) {
+          existing.count++;
+        } else {
+          countMap.set(sid, { name, count: 1 });
+        }
+      }
+
+      const totalCount = Array.from(countMap.values()).reduce((s, v) => s + v.count, 0);
+      return Array.from(countMap.values()).map(v => ({
+        source: v.name,
+        count: v.count,
+        percentage: totalCount > 0 ? Math.round((v.count / totalCount) * 100) : 0,
+      }));
+    } catch (error) {
+      console.error('Error in getApiUsageBySourceForPeriod:', error);
+      return [];
+    }
+  },
   
   subscribeToSources: (callback: (sources: Source[]) => void) => {
     const channel = supabase
