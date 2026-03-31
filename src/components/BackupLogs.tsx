@@ -32,8 +32,25 @@ const BackupLogs: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
   const [isDownloadingId, setIsDownloadingId] = useState<string | null>(null);
+  const [selectedSource, setSelectedSource] = useState<string>('all');
   const { toast } = useToast();
   const { user } = useAuth();
+
+  // Extract source name from backup file name pattern: backup_YYYY-MM-DD_SourceName.csv
+  const extractSourceName = (fileName: string): string => {
+    const match = fileName.match(/(?:manual_)?backup_\d{4}-\d{2}-\d{2}_(.+)\.\w+$/);
+    return match ? match[1].replace(/_/g, ' ') : 'Unknown';
+  };
+
+  const sourceNames = useMemo(() => {
+    const names = new Set(logs.map(log => extractSourceName(log.file_name)));
+    return Array.from(names).sort();
+  }, [logs]);
+
+  const filteredLogs = useMemo(() => {
+    if (selectedSource === 'all') return logs;
+    return logs.filter(log => extractSourceName(log.file_name) === selectedSource);
+  }, [logs, selectedSource]);
 
   useEffect(() => {
     if (user) {
