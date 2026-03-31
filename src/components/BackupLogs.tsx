@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -31,8 +32,25 @@ const BackupLogs: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
   const [isDownloadingId, setIsDownloadingId] = useState<string | null>(null);
+  const [selectedSource, setSelectedSource] = useState<string>('all');
   const { toast } = useToast();
   const { user } = useAuth();
+
+  // Extract source name from backup file name pattern: backup_YYYY-MM-DD_SourceName.csv
+  const extractSourceName = (fileName: string): string => {
+    const match = fileName.match(/(?:manual_)?backup_\d{4}-\d{2}-\d{2}_(.+)\.\w+$/);
+    return match ? match[1].replace(/_/g, ' ') : 'Unknown';
+  };
+
+  const sourceNames = useMemo(() => {
+    const names = new Set(logs.map(log => extractSourceName(log.file_name)));
+    return Array.from(names).sort();
+  }, [logs]);
+
+  const filteredLogs = useMemo(() => {
+    if (selectedSource === 'all') return logs;
+    return logs.filter(log => extractSourceName(log.file_name) === selectedSource);
+  }, [logs, selectedSource]);
 
   useEffect(() => {
     if (user) {
@@ -297,8 +315,21 @@ const BackupLogs: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="flex items-center justify-between text-sm text-slate-600">
-              <span>{logs.length} backup log{logs.length !== 1 ? 's' : ''} found</span>
+            {sourceNames.length > 1 && (
+              <Tabs value={selectedSource} onValueChange={setSelectedSource}>
+                <TabsList className="flex-wrap h-auto gap-1">
+                  <TabsTrigger value="all">All Sources</TabsTrigger>
+                  {sourceNames.map(name => (
+                    <TabsTrigger key={name} value={name}>
+                      {name}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+            )}
+
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <span>{filteredLogs.length} backup log{filteredLogs.length !== 1 ? 's' : ''} found{selectedSource !== 'all' ? ` for ${selectedSource}` : ''}</span>
             </div>
 
             <Table>
@@ -315,7 +346,7 @@ const BackupLogs: React.FC = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {logs.map((log) => (
+                {filteredLogs.map((log) => (
                   <TableRow key={log.id}>
                     <TableCell>
                       <div className="flex items-center gap-2">
