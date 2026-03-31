@@ -315,8 +315,21 @@ const BackupLogs: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="flex items-center justify-between text-sm text-slate-600">
-              <span>{logs.length} backup log{logs.length !== 1 ? 's' : ''} found</span>
+            {sourceNames.length > 1 && (
+              <Tabs value={selectedSource} onValueChange={setSelectedSource}>
+                <TabsList className="flex-wrap h-auto gap-1">
+                  <TabsTrigger value="all">All Sources</TabsTrigger>
+                  {sourceNames.map(name => (
+                    <TabsTrigger key={name} value={name}>
+                      {name}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+            )}
+
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <span>{filteredLogs.length} backup log{filteredLogs.length !== 1 ? 's' : ''} found{selectedSource !== 'all' ? ` for ${selectedSource}` : ''}</span>
             </div>
 
             <Table>
