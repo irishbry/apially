@@ -497,7 +497,9 @@ async function createBackupForUser(
       .eq('user_id', userId)
       .gte('created_at', startOfDayUTC.toISOString())
       .lte('created_at', endOfDayUTC.toISOString())
-      .not('source_id', 'is', null);
+      .not('source_id', 'is', null)
+      // Skip entries that were ingested while their source was paused
+      .or('metadata->>paused.is.null,metadata->>paused.neq.true');
 
     if (sourceIdError) {
       console.error(`Error fetching source_ids for user ${userId}:`, sourceIdError);
