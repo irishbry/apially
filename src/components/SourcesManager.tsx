@@ -490,6 +490,19 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
+                          togglePauseSource(source.id, source.name, source.active);
+                        }}
+                        title={source.active ? 'Pause source' : 'Resume source'}
+                      >
+                        {source.active
+                          ? <Pause className="h-4 w-4" />
+                          : <Play className="h-4 w-4 text-amber-600" />}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
                           deleteSource(source.id, source.name);
                         }}
                         className="text-destructive hover:text-destructive"
