@@ -271,6 +271,37 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
     }
   };
 
+  const togglePauseSource = async (sourceId: string, sourceName: string, currentlyActive: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('sources')
+        .update({ active: !currentlyActive })
+        .eq('id', sourceId);
+
+      if (error) {
+        console.error('Error updating source pause state:', error);
+        toast({
+          title: "Error",
+          description: `Failed to ${currentlyActive ? 'pause' : 'resume'} source`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: currentlyActive ? "Source paused" : "Source resumed",
+        description: currentlyActive
+          ? `"${sourceName}" will still accept data, but new entries are excluded from the feed and backups.`
+          : `"${sourceName}" is active. New data will appear in the feed and be backed up.`,
+      });
+
+      loadSources();
+    } catch (error) {
+      console.error('Error in togglePauseSource:', error);
+      toast({ title: "Error", description: "An unexpected error occurred", variant: "destructive" });
+    }
+  };
+
   const toggleApiKeyVisibility = (sourceId: string) => {
     setShowApiKey(prev => ({
       ...prev,
