@@ -527,6 +527,8 @@ async function createBackupForUser(
           .eq('source_id', sourceId)
           .gte('created_at', startOfDayUTC.toISOString())
           .lte('created_at', endOfDayUTC.toISOString())
+          // Skip entries that were ingested while their source was paused
+          .or('metadata->>paused.is.null,metadata->>paused.neq.true')
           .order('created_at', { ascending: false })
           .range(offset, offset + PAGE_SIZE - 1);
 
