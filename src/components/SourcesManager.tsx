@@ -447,7 +447,7 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                             <span>{source.recordCount} records</span>
                           </div>
                           <span>•</span>
-                          <span className={source.active ? '' : 'text-amber-600 font-medium'}>
+                          <span className={source.active ? '' : 'font-medium text-foreground'}>
                             {source.active ? 'Active' : 'Paused'}
                           </span>
                         </div>
