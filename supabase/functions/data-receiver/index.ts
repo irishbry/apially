@@ -248,7 +248,8 @@ serve(async (req) => {
       receivedAt: now,
       timestamp: body.timestamp || now,
       clientIp: req.headers.get('x-forwarded-for') || 'unknown',
-      ...(originalId && { original_id: originalId })
+      ...(originalId && { original_id: originalId }),
+      ...(isPaused && { paused: true, paused_at: now })
     };
 
     // Generate a filename with timestamp and ID
