@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Plus, Trash2, Eye, EyeOff, Copy, CheckCircle, Database } from "lucide-react";
+import { Plus, Trash2, Eye, EyeOff, Copy, CheckCircle, Database, Pause, Play } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Source, DataSchema } from "@/types/api.types";
@@ -271,6 +271,37 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
     }
   };
 
+  const togglePauseSource = async (sourceId: string, sourceName: string, currentlyActive: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('sources')
+        .update({ active: !currentlyActive })
+        .eq('id', sourceId);
+
+      if (error) {
+        console.error('Error updating source pause state:', error);
+        toast({
+          title: "Error",
+          description: `Failed to ${currentlyActive ? 'pause' : 'resume'} source`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: currentlyActive ? "Source paused" : "Source resumed",
+        description: currentlyActive
+          ? `"${sourceName}" will still accept data, but new entries are excluded from the feed and backups.`
+          : `"${sourceName}" is active. New data will appear in the feed and be backed up.`,
+      });
+
+      loadSources();
+    } catch (error) {
+      console.error('Error in togglePauseSource:', error);
+      toast({ title: "Error", description: "An unexpected error occurred", variant: "destructive" });
+    }
+  };
+
   const toggleApiKeyVisibility = (sourceId: string) => {
     setShowApiKey(prev => ({
       ...prev,
@@ -416,7 +447,9 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                             <span>{source.recordCount} records</span>
                           </div>
                           <span>•</span>
-                          <span>{source.active ? 'Active' : 'Inactive'}</span>
+                          <span className={source.active ? '' : 'font-medium text-foreground'}>
+                            {source.active ? 'Active' : 'Paused'}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -452,6 +485,19 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                           <Copy className="h-3 w-3" />
                         </Button>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          togglePauseSource(source.id, source.name, source.active);
+                        }}
+                        title={source.active ? 'Pause source' : 'Resume source'}
+                      >
+                        {source.active
+                          ? <Pause className="h-4 w-4" />
+                          : <Play className="h-4 w-4 text-primary" />}
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"

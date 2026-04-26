@@ -142,12 +142,13 @@ serve(async (req) => {
       }
     });
 
-    // Validate the API key against sources table and get the source information
+    // Validate the API key against sources table and get the source information.
+    // Note: we accept data even when the source is paused (active=false) — paused
+    // entries are flagged in metadata so they are excluded from the feed and backups.
     const { data: source, error: sourceError } = await supabase
       .from('sources')
-      .select('id, name, user_id')
+      .select('id, name, user_id, active')
       .eq('api_key', apiKey)
-      .eq('active', true)
       .single();
 
     if (sourceError || !source) {
@@ -155,13 +156,15 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false,
-          message: 'Invalid or inactive API key',
+          message: 'Invalid API key',
           code: 'AUTH_FAILED',
-          details: sourceError ? sourceError.message : 'No active source found with this API key' 
+          details: sourceError ? sourceError.message : 'No source found with this API key' 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
       );
     }
+
+    const isPaused = source.active === false;
 
     // Parse the request body
     const body = await req.json().catch(() => null);
@@ -245,7 +248,8 @@ serve(async (req) => {
       receivedAt: now,
       timestamp: body.timestamp || now,
       clientIp: req.headers.get('x-forwarded-for') || 'unknown',
-      ...(originalId && { original_id: originalId })
+      ...(originalId && { original_id: originalId }),
+      ...(isPaused && { paused: true, paused_at: now })
     };
 
     // Generate a filename with timestamp and ID

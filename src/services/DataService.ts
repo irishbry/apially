@@ -10,7 +10,9 @@ export const DataService = {
       let query = supabase
         .from('data_entries')
         .select('*', { count: includeCount ? 'exact' : undefined })
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        // Exclude entries that were ingested while their source was paused
+        .or('metadata->>paused.is.null,metadata->>paused.neq.true');
 
       if (sourceId) {
         query = query.eq('source_id', sourceId);
