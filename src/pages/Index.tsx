@@ -316,7 +316,7 @@ const Index = () => {
                 />
               </TabsContent>
               
-              <TabsContent value="backups" className="space-y-6">
+              <TabsContent value="backups" forceMount className="space-y-6 data-[state=inactive]:hidden">
                 <BackupAttempts />
                 <BackupLogs />
               </TabsContent>
