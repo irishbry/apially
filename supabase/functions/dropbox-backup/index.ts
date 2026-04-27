@@ -567,6 +567,7 @@ async function createBackupForUser(
 
     if (dataBySource.size === 0) {
       console.log(`No data entries found after paginated fetch for user ${userId}`);
+      await finalizeAttempt('success', 'No data to back up for this day');
       return { success: true, fileName: '', path: '', backedUpCount: 0 };
     }
 
@@ -575,6 +576,7 @@ async function createBackupForUser(
     const connectionValid = await testDropboxConnectionInternal(dropboxPath, dropboxToken);
     if (!connectionValid) {
       console.error('Dropbox connection test failed before upload');
+      await finalizeAttempt('failed', 'Dropbox connection failed');
       return { success: false, error: 'Dropbox connection failed' };
     }
     console.log('Dropbox connection test passed');
