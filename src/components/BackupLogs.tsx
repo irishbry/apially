@@ -27,9 +27,15 @@ import { useToast } from "@/hooks/use-toast";
 import { BackupLogsService, BackupLog } from "@/services/BackupLogsService";
 import { useAuth } from "@/hooks/useAuth";
 
+// Module-level cache so logs persist across remounts/tab switches/navigations
+let cachedLogs: BackupLog[] | null = null;
+let cachedAt = 0;
+const CACHE_TTL_MS = 60_000; // 1 minute — background refresh after this
+
 const BackupLogs: React.FC = () => {
-  const [logs, setLogs] = useState<BackupLog[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [logs, setLogs] = useState<BackupLog[]>(cachedLogs ?? []);
+  // Only show the spinner if we have nothing cached yet
+  const [isLoading, setIsLoading] = useState(cachedLogs === null);
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
   const [isDownloadingId, setIsDownloadingId] = useState<string | null>(null);
   const [selectedSource, setSelectedSource] = useState<string>('all');
@@ -53,32 +59,43 @@ const BackupLogs: React.FC = () => {
   }, [logs, selectedSource]);
 
   useEffect(() => {
-    if (user) {
-      loadBackupLogs();
-      
-      // Subscribe to real-time updates
-      const unsubscribe = BackupLogsService.subscribeToBackupLogs((updatedLogs) => {
-        setLogs(updatedLogs);
-      });
+    if (!user) return;
 
-      return unsubscribe;
+    const isStale = Date.now() - cachedAt > CACHE_TTL_MS;
+    // Fetch only if no cache or cache is stale; otherwise reuse cached data
+    if (cachedLogs === null || isStale) {
+      loadBackupLogs(cachedLogs !== null);
     }
+
+    // Subscribe to real-time updates so the cache stays fresh in the background
+    const unsubscribe = BackupLogsService.subscribeToBackupLogs((updatedLogs) => {
+      cachedLogs = updatedLogs;
+      cachedAt = Date.now();
+      setLogs(updatedLogs);
+    });
+
+    return unsubscribe;
   }, [user]);
 
-  const loadBackupLogs = async () => {
+  // background = true means we already have cached data shown, just refresh silently
+  const loadBackupLogs = async (background = false) => {
     try {
-      setIsLoading(true);
+      if (!background) setIsLoading(true);
       const backupLogs = await BackupLogsService.getBackupLogs();
+      cachedLogs = backupLogs;
+      cachedAt = Date.now();
       setLogs(backupLogs);
     } catch (error) {
       console.error('Error loading backup logs:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load backup logs",
-        variant: "destructive",
-      });
+      if (!background) {
+        toast({
+          title: "Error",
+          description: "Failed to load backup logs",
+          variant: "destructive",
+        });
+      }
     } finally {
-      setIsLoading(false);
+      if (!background) setIsLoading(false);
     }
   };
 
