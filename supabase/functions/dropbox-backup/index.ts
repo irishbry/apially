@@ -501,8 +501,22 @@ async function createBackupForUser(
       // Skip entries that were ingested while their source was paused
       .or('metadata->>paused.is.null,metadata->>paused.neq.true');
 
+    // Helper to finalize the attempt row on early returns
+    const finalizeAttempt = async (status: string, errorMsg: string | null = null) => {
+      if (!attemptId) return;
+      try {
+        await supabase
+          .from('backup_attempts')
+          .update({ status, error_message: errorMsg })
+          .eq('id', attemptId);
+      } catch (e) {
+        console.warn('Failed to finalize backup attempt:', e);
+      }
+    };
+
     if (sourceIdError) {
       console.error(`Error fetching source_ids for user ${userId}:`, sourceIdError);
+      await finalizeAttempt('failed', 'Failed to fetch source IDs');
       return { success: false, error: 'Failed to fetch source IDs' };
     }
 
@@ -511,6 +525,7 @@ async function createBackupForUser(
 
     if (uniqueSourceIds.length === 0) {
       console.log(`No data found for user ${userId} in the previous PST day`);
+      await finalizeAttempt('success', 'No data to back up for this day');
       return { success: true, fileName: '', path: '', backedUpCount: 0 };
     }
 
