@@ -107,7 +107,7 @@ const BackupLogs: React.FC = () => {
         title: "Success",
         description: "Backup log deleted successfully",
       });
-      await loadBackupLogs();
+      await loadBackupLogs(true);
     } catch (error) {
       console.error('Error deleting backup log:', error);
       toast({
