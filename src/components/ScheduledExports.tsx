@@ -1,18 +1,36 @@
 
 import React, { useState, useEffect } from 'react';
+import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Mail, Download, Trash2, Edit, Play, Pause } from 'lucide-react';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar, CalendarIcon, Mail, Download, Trash2, Edit, Play, Pause, RotateCw, History, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Tables } from '@/integrations/supabase/types';
 
-// Use the database type directly
 type ScheduledExport = Tables<'scheduled_exports'>;
+
+interface ExportLog {
+  id: string;
+  export_id: string;
+  user_id: string;
+  status: string;
+  record_count: number;
+  error_message: string | null;
+  created_at: string;
+}
+
+interface Source {
+  id: string;
+  name: string;
+}
 
 type FormDataType = {
   name: string;
@@ -20,32 +38,64 @@ type FormDataType = {
   format: 'csv' | 'json';
   delivery: 'email' | 'download';
   email: string;
+  source_id: string; // '' means all sources
 };
 
 const ScheduledExports = () => {
   const [exports, setExports] = useState<ScheduledExport[]>([]);
+  const [sources, setSources] = useState<Source[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingExport, setEditingExport] = useState<ScheduledExport | null>(null);
   const { toast } = useToast();
+
+  const [exportLogs, setExportLogs] = useState<ExportLog[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [selectedExportId, setSelectedExportId] = useState<string | null>(null);
+
+  const [manualSourceId, setManualSourceId] = useState<string>('all');
+  const [manualFormat, setManualFormat] = useState<'csv' | 'json'>('csv');
+  const [isManualExporting, setIsManualExporting] = useState(false);
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
+  const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
 
   const [formData, setFormData] = useState<FormDataType>({
     name: '',
     frequency: 'daily',
     format: 'csv',
     delivery: 'email',
-    email: ''
+    email: '',
+    source_id: '',
   });
 
   useEffect(() => {
     fetchExports();
+    fetchSources();
+    fetchExportLogs();
   }, []);
+
+  const fetchSources = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('sources')
+        .select('id, name')
+        .order('name');
+      if (error) throw error;
+      setSources(data || []);
+    } catch (error) {
+      console.error('Error fetching sources:', error);
+    }
+  };
 
   const fetchExports = async () => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
       const { data, error } = await supabase
         .from('scheduled_exports')
         .select('*')
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -62,6 +112,20 @@ const ScheduledExports = () => {
     }
   };
 
+  const fetchExportLogs = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('export_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      setExportLogs((data as ExportLog[]) || []);
+    } catch (error) {
+      console.error('Error fetching export logs:', error);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -69,10 +133,15 @@ const ScheduledExports = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      const exportData = {
-        ...formData,
+      const exportData: any = {
+        name: formData.name,
+        frequency: formData.frequency,
+        format: formData.format,
+        delivery: formData.delivery,
+        email: formData.email,
+        source_id: formData.source_id || null,
         user_id: user.id,
-        next_export: calculateNextExport(formData.frequency)
+        next_export: calculateNextExport(formData.frequency),
       };
 
       if (editingExport) {
@@ -80,89 +149,46 @@ const ScheduledExports = () => {
           .from('scheduled_exports')
           .update(exportData)
           .eq('id', editingExport.id);
-        
         if (error) throw error;
-        
-        toast({
-          title: "Success",
-          description: "Scheduled export updated successfully",
-        });
+        toast({ title: "Success", description: "Scheduled export updated successfully" });
       } else {
         const { error } = await supabase
           .from('scheduled_exports')
           .insert([exportData]);
-        
         if (error) throw error;
-        
-        toast({
-          title: "Success",
-          description: "Scheduled export created successfully",
-        });
+        toast({ title: "Success", description: "Scheduled export created successfully" });
       }
 
       setShowForm(false);
       setEditingExport(null);
-      setFormData({
-        name: '',
-        frequency: 'daily',
-        format: 'csv',
-        delivery: 'email',
-        email: ''
-      });
+      setFormData({ name: '', frequency: 'daily', format: 'csv', delivery: 'email', email: '', source_id: '' });
       fetchExports();
     } catch (error) {
       console.error('Error saving scheduled export:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save scheduled export",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to save scheduled export", variant: "destructive" });
     }
   };
 
   const calculateNextExport = (frequency: string): string => {
-    const now = new Date();
-    const next = new Date(now);
-    
+    const next = new Date();
     switch (frequency) {
-      case 'daily':
-        next.setDate(next.getDate() + 1);
-        break;
-      case 'weekly':
-        next.setDate(next.getDate() + 7);
-        break;
-      case 'monthly':
-        next.setMonth(next.getMonth() + 1);
-        break;
+      case 'daily': next.setDate(next.getDate() + 1); break;
+      case 'weekly': next.setDate(next.getDate() + 7); break;
+      case 'monthly': next.setMonth(next.getMonth() + 1); break;
     }
-    
-    // Set to 8 AM
     next.setHours(8, 0, 0, 0);
     return next.toISOString();
   };
 
   const deleteExport = async (id: string) => {
     try {
-      const { error } = await supabase
-        .from('scheduled_exports')
-        .delete()
-        .eq('id', id);
-      
+      const { error } = await supabase.from('scheduled_exports').delete().eq('id', id);
       if (error) throw error;
-      
-      toast({
-        title: "Success",
-        description: "Scheduled export deleted successfully",
-      });
-      
+      toast({ title: "Success", description: "Scheduled export deleted successfully" });
       fetchExports();
     } catch (error) {
       console.error('Error deleting scheduled export:', error);
-      toast({
-        title: "Error",
-        description: "Failed to delete scheduled export",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to delete scheduled export", variant: "destructive" });
     }
   };
 
@@ -172,22 +198,29 @@ const ScheduledExports = () => {
         .from('scheduled_exports')
         .update({ active: !exportItem.active })
         .eq('id', exportItem.id);
-      
       if (error) throw error;
-      
-      toast({
-        title: "Success",
-        description: `Export ${exportItem.active ? 'paused' : 'resumed'} successfully`,
-      });
-      
+      toast({ title: "Success", description: `Export ${exportItem.active ? 'paused' : 'resumed'} successfully` });
       fetchExports();
     } catch (error) {
       console.error('Error toggling export status:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update export status",
-        variant: "destructive",
+      toast({ title: "Error", description: "Failed to update export status", variant: "destructive" });
+    }
+  };
+
+  const runNow = async (exportItem: ScheduledExport) => {
+    try {
+      toast({ title: "Running export...", description: `Triggering "${exportItem.name}" now` });
+      const { data, error } = await supabase.functions.invoke('process-scheduled-exports', {
+        body: { exportId: exportItem.id },
       });
+      if (error) throw error;
+      toast({ title: "Success", description: data?.message || `Export "${exportItem.name}" triggered successfully` });
+      fetchExports();
+      // Refresh logs after a short delay to allow the edge function to complete
+      setTimeout(() => fetchExportLogs(), 3000);
+    } catch (error) {
+      console.error('Error running export:', error);
+      toast({ title: "Error", description: "Failed to run export", variant: "destructive" });
     }
   };
 
@@ -198,7 +231,8 @@ const ScheduledExports = () => {
       frequency: exportItem.frequency as 'daily' | 'weekly' | 'monthly',
       format: exportItem.format as 'csv' | 'json',
       delivery: exportItem.delivery as 'email' | 'download',
-      email: exportItem.email || ''
+      email: exportItem.email || '',
+      source_id: (exportItem as any).source_id || '',
     });
     setShowForm(true);
   };
@@ -206,13 +240,119 @@ const ScheduledExports = () => {
   const cancelForm = () => {
     setShowForm(false);
     setEditingExport(null);
-    setFormData({
-      name: '',
-      frequency: 'daily',
-      format: 'csv',
-      delivery: 'email',
-      email: ''
-    });
+    setFormData({ name: '', frequency: 'daily', format: 'csv', delivery: 'email', email: '', source_id: '' });
+  };
+
+  const getSourceName = (sourceId: string | null | undefined): string => {
+    if (!sourceId) return 'All Sources';
+    const source = sources.find(s => s.id === sourceId);
+    return source ? source.name : 'Unknown';
+  };
+
+  const triggerManualExport = async () => {
+    setIsManualExporting(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      const sourceId = manualSourceId === 'all' ? null : manualSourceId;
+      const sourceName = sourceId ? sources.find(s => s.id === sourceId)?.name || 'Unknown' : 'All_Sources';
+
+      // Fetch data entries for the selected source
+      let query = supabase
+        .from('data_entries')
+        .select('*')
+        .eq('user_id', user.id);
+
+      if (sourceId) {
+        query = query.eq('source_id', sourceId);
+      }
+
+      if (dateFrom) {
+        query = query.gte('created_at', dateFrom.toISOString());
+      }
+      if (dateTo) {
+        const endOfDay = new Date(dateTo);
+        endOfDay.setHours(23, 59, 59, 999);
+        query = query.lte('created_at', endOfDay.toISOString());
+      }
+
+      const { data: entries, error } = await query.order('created_at', { ascending: false });
+      if (error) throw error;
+
+      if (!entries || entries.length === 0) {
+        toast({ title: "No Data", description: `No data entries found for ${sourceName}` });
+        setIsManualExporting(false);
+        return;
+      }
+
+      // Build export content
+      const metadataKeys = new Set<string>();
+      entries.forEach(entry => {
+        if (entry.metadata && typeof entry.metadata === 'object' && !Array.isArray(entry.metadata)) {
+          Object.keys(entry.metadata).forEach(key => {
+            if (key !== 'clientIp' && key !== 'receivedAt') metadataKeys.add(key);
+          });
+        }
+      });
+
+      let content: string;
+      const getEntrySourceName = (sid: string | null) => {
+        if (!sid) return 'Unknown';
+        const s = sources.find(src => src.id === sid);
+        return s ? s.name : sid;
+      };
+
+      if (manualFormat === 'csv') {
+        const headers = ['Source', 'Created At', ...Array.from(metadataKeys)];
+        const rows = [headers.join(',')];
+        entries.forEach(entry => {
+          const meta = (entry.metadata && typeof entry.metadata === 'object' && !Array.isArray(entry.metadata)) ? entry.metadata as Record<string, any> : {};
+          const row = [
+            `"${getEntrySourceName(entry.source_id)}"`,
+            `"${new Date(entry.created_at).toLocaleString()}"`,
+            ...Array.from(metadataKeys).map(key => {
+              const value = meta[key];
+              if (value === undefined || value === null) return '""';
+              return `"${String(value).replace(/"/g, '""')}"`;
+            })
+          ];
+          rows.push(row.join(','));
+        });
+        content = rows.join('\n');
+      } else {
+        const transformed = entries.map(entry => {
+          const meta = (entry.metadata && typeof entry.metadata === 'object' && !Array.isArray(entry.metadata)) ? entry.metadata as Record<string, any> : {};
+          const obj: any = {
+            Source: getEntrySourceName(entry.source_id),
+            'Created At': new Date(entry.created_at).toLocaleString(),
+          };
+          Array.from(metadataKeys).forEach(key => {
+            if (key !== 'clientIp' && key !== 'receivedAt') obj[key] = meta[key];
+          });
+          return obj;
+        });
+        content = JSON.stringify(transformed, null, 2);
+      }
+
+      // Trigger download
+      const blob = new Blob([content], { type: manualFormat === 'csv' ? 'text/csv' : 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `export_${sourceName}_${new Date().toISOString().split('T')[0]}.${manualFormat}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({ title: "Success", description: `Exported ${entries.length} records for ${sourceName}` });
+    } catch (error) {
+      console.error('Error triggering manual export:', error);
+      toast({ title: "Error", description: "Failed to export data", variant: "destructive" });
+    } finally {
+      setIsManualExporting(false);
+    }
   };
 
   if (isLoading) {
@@ -249,7 +389,9 @@ const ScheduledExports = () => {
           {/* Left Column - New Scheduled Export Form */}
           <div className="space-y-3">
             <div className="border rounded-lg p-4 h-full flex flex-col">
-              <h3 className="text-sm font-medium mb-3">New Scheduled Export</h3>
+              <h3 className="text-sm font-medium mb-3">
+                {editingExport ? 'Edit Scheduled Export' : 'New Scheduled Export'}
+              </h3>
               
               <form onSubmit={handleSubmit} className="space-y-3 flex-1 flex flex-col">
                 <div className="space-y-1">
@@ -262,6 +404,26 @@ const ScheduledExports = () => {
                     required
                     className="h-8 text-sm"
                   />
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="source" className="text-sm">Source</Label>
+                  <Select
+                    value={formData.source_id || 'all'}
+                    onValueChange={(value) => setFormData({ ...formData, source_id: value === 'all' ? '' : value })}
+                  >
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue placeholder="Select source" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Sources</SelectItem>
+                      {sources.map((source) => (
+                        <SelectItem key={source.id} value={source.id}>
+                          {source.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -336,39 +498,126 @@ const ScheduledExports = () => {
                   </div>
                 )}
                 
-                <div className="mt-auto">
-                  <Button type="submit" className="w-full h-8 text-sm">
-                    Schedule Export
+                <div className="mt-auto flex gap-2">
+                  {editingExport && (
+                    <Button type="button" variant="outline" onClick={cancelForm} className="h-8 text-sm">
+                      Cancel
+                    </Button>
+                  )}
+                  <Button type="submit" className="flex-1 h-8 text-sm">
+                    {editingExport ? 'Update Export' : 'Schedule Export'}
                   </Button>
                 </div>
               </form>
             </div>
           </div>
 
-          {/* Right Column - About Scheduled Exports */}
+          {/* Right Column - Quick Export */}
           <div className="space-y-3">
             <div className="border rounded-lg p-4 h-full flex flex-col">
-              <h3 className="text-sm font-medium mb-3">About Scheduled Exports</h3>
-              <div className="flex-1 flex flex-col justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-3">
-                    Scheduled exports allow you to automatically export your data on a regular basis. 
-                    You can choose between CSV and JSON formats, and have the exports emailed to you 
-                    or automatically downloaded.
-                  </p>
-                  
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm">
-                      <span>• Daily, weekly, or monthly schedules</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <span>• Email delivery to any address</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <span>• Automated background processing</span>
-                    </div>
+              <h3 className="text-sm font-medium mb-3">Quick Export</h3>
+              <p className="text-sm text-muted-foreground mb-3">
+                Instantly download data for a specific source without setting up a schedule.
+              </p>
+              
+              <div className="space-y-3 flex-1 flex flex-col">
+                <div className="space-y-1">
+                  <Label className="text-sm">Source</Label>
+                  <Select value={manualSourceId} onValueChange={setManualSourceId}>
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue placeholder="Select source" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Sources</SelectItem>
+                      {sources.map((source) => (
+                        <SelectItem key={source.id} value={source.id}>
+                          {source.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-sm">Format</Label>
+                  <Select value={manualFormat} onValueChange={(v: 'csv' | 'json') => setManualFormat(v)}>
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="csv">CSV</SelectItem>
+                      <SelectItem value="json">JSON</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-sm">From</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("h-8 text-sm w-full justify-start font-normal", !dateFrom && "text-muted-foreground")}>
+                          <CalendarIcon className="mr-1.5 h-3.5 w-3.5" />
+                          {dateFrom ? format(dateFrom, "MMM d, yyyy") : "All time"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="single"
+                          selected={dateFrom}
+                          onSelect={setDateFrom}
+                          disabled={(date) => date > new Date() || (dateTo ? date > dateTo : false)}
+                          initialFocus
+                          className={cn("p-3 pointer-events-auto")}
+                        />
+                        {dateFrom && (
+                          <div className="px-3 pb-2">
+                            <Button variant="ghost" size="sm" className="h-6 text-xs w-full" onClick={() => setDateFrom(undefined)}>
+                              Clear
+                            </Button>
+                          </div>
+                        )}
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-sm">To</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("h-8 text-sm w-full justify-start font-normal", !dateTo && "text-muted-foreground")}>
+                          <CalendarIcon className="mr-1.5 h-3.5 w-3.5" />
+                          {dateTo ? format(dateTo, "MMM d, yyyy") : "Now"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="single"
+                          selected={dateTo}
+                          onSelect={setDateTo}
+                          disabled={(date) => date > new Date() || (dateFrom ? date < dateFrom : false)}
+                          initialFocus
+                          className={cn("p-3 pointer-events-auto")}
+                        />
+                        {dateTo && (
+                          <div className="px-3 pb-2">
+                            <Button variant="ghost" size="sm" className="h-6 text-xs w-full" onClick={() => setDateTo(undefined)}>
+                              Clear
+                            </Button>
+                          </div>
+                        )}
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 </div>
+
+                <Button
+                  onClick={triggerManualExport}
+                  disabled={isManualExporting}
+                  className="mt-auto h-8 text-sm"
+                >
+                  <Download className="mr-2 h-3.5 w-3.5" />
+                  {isManualExporting ? 'Exporting...' : 'Export Now'}
+                </Button>
               </div>
             </div>
           </div>
@@ -399,6 +648,9 @@ const ScheduledExports = () => {
                         <Badge variant="outline" className="capitalize text-xs px-1 py-0 h-4">
                           {exportItem.frequency}
                         </Badge>
+                        <Badge variant="outline" className="text-xs px-1 py-0 h-4">
+                          {getSourceName((exportItem as any).source_id)}
+                        </Badge>
                       </div>
                       
                       <div className="flex items-center gap-3 text-sm text-muted-foreground">
@@ -426,38 +678,109 @@ const ScheduledExports = () => {
                     </div>
                     
                     <div className="flex items-center gap-1 ml-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => editExport(exportItem)}
-                        className="h-6 px-2 text-xs"
-                      >
+                      <Button variant="outline" size="sm" onClick={() => runNow(exportItem)} title="Run Now" className="h-6 px-2 text-xs">
+                        <RotateCw className="h-3 w-3" />
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => editExport(exportItem)} className="h-6 px-2 text-xs">
                         <Edit className="h-3 w-3" />
                       </Button>
-                      <Button
-                        variant={exportItem.active ? "outline" : "default"}
-                        size="sm"
-                        onClick={() => toggleActive(exportItem)}
-                        className="h-6 px-2 text-xs"
-                      >
-                        {exportItem.active ? (
-                          <Pause className="h-3 w-3" />
-                        ) : (
-                          <Play className="h-3 w-3" />
-                        )}
+                      <Button variant={exportItem.active ? "outline" : "default"} size="sm" onClick={() => toggleActive(exportItem)} className="h-6 px-2 text-xs">
+                        {exportItem.active ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => deleteExport(exportItem.id)}
-                        className="text-destructive hover:text-destructive h-6 px-2 text-xs"
-                      >
+                      <Button variant="outline" size="sm" onClick={() => deleteExport(exportItem.id)} className="text-destructive hover:text-destructive h-6 px-2 text-xs">
                         <Trash2 className="h-3 w-3" />
                       </Button>
                     </div>
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+
+        {/* Export History Section */}
+        <div className="space-y-1">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium flex items-center gap-1">
+              <History className="h-3.5 w-3.5" />
+              Export History
+            </h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setShowHistory(!showHistory); if (!showHistory) fetchExportLogs(); }}
+              className="h-6 px-2 text-xs"
+            >
+              {showHistory ? 'Hide' : 'Show'}
+            </Button>
+          </div>
+
+          {showHistory && (
+            <div className="border rounded-lg overflow-hidden">
+              {exportLogs.length === 0 ? (
+                <div className="text-center py-4 text-sm text-muted-foreground">
+                  No export history yet
+                </div>
+              ) : (
+                <div className="divide-y max-h-64 overflow-y-auto">
+                  {exportLogs
+                    .filter(log => !selectedExportId || log.export_id === selectedExportId)
+                    .map((log) => {
+                      const exportName = exports.find(e => e.id === log.export_id)?.name || 'Deleted Export';
+                      return (
+                        <div key={log.id} className="flex items-center justify-between px-3 py-2 text-sm hover:bg-muted/20">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {log.status === 'completed' ? (
+                              <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                            ) : log.status === 'failed' ? (
+                              <XCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
+                            ) : (
+                              <Clock className="h-3.5 w-3.5 text-yellow-500 shrink-0" />
+                            )}
+                            <span className="font-medium truncate">{exportName}</span>
+                            <Badge variant="outline" className="text-xs px-1 py-0 h-4 shrink-0">
+                              {log.record_count} records
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0 ml-2">
+                            {log.error_message && (
+                              <span className="text-xs text-destructive max-w-32 truncate" title={log.error_message}>
+                                {log.error_message}
+                              </span>
+                            )}
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(log.created_at).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+              {exports.length > 0 && (
+                <div className="border-t px-3 py-1.5 bg-muted/30 flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Filter:</span>
+                  <Button
+                    variant={selectedExportId === null ? "secondary" : "ghost"}
+                    size="sm"
+                    onClick={() => setSelectedExportId(null)}
+                    className="h-5 px-1.5 text-xs"
+                  >
+                    All
+                  </Button>
+                  {exports.map(e => (
+                    <Button
+                      key={e.id}
+                      variant={selectedExportId === e.id ? "secondary" : "ghost"}
+                      size="sm"
+                      onClick={() => setSelectedExportId(e.id)}
+                      className="h-5 px-1.5 text-xs truncate max-w-24"
+                    >
+                      {e.name}
+                    </Button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

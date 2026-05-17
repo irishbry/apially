@@ -6,36 +6,23 @@ import { ApiRequestService } from './ApiRequestService';
 export const AnalyticsService = {
   getApiUsageByDay: async (days: number = 30): Promise<ApiUsageByDay[]> => {
     try {
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - days);
-      
-      const { data, error } = await supabase
-        .from('data_entries')
-        .select('created_at, source_id')
-        .gte('created_at', startDate.toISOString())
-        .lte('created_at', endDate.toISOString());
-        
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+
+      const { data, error } = await supabase.rpc('get_daily_entry_counts', {
+        p_user_id: user.id,
+        p_days: days,
+      });
+
       if (error) {
         console.error('Error fetching API usage by day:', error);
         return [];
       }
-      
-      const usageByDay: Record<string, number> = {};
-      
-      data.forEach(entry => {
-        const date = new Date(entry.created_at).toISOString().split('T')[0];
-        usageByDay[date] = (usageByDay[date] || 0) + 1;
-      });
-      
-      const result: ApiUsageByDay[] = Object.keys(usageByDay).map(date => ({
-        date,
-        count: usageByDay[date]
+
+      return (data || []).map((row: any) => ({
+        date: row.day,
+        count: Number(row.entry_count),
       }));
-      
-      result.sort((a, b) => a.date.localeCompare(b.date));
-      
-      return result;
     } catch (error) {
       console.error('Error in getApiUsageByDay:', error);
       return [];

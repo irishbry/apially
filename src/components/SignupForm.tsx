@@ -29,6 +29,15 @@ const SignupForm: React.FC = () => {
       return;
     }
 
+    if (!email.trim().toLowerCase().endsWith('@rvnu.com')) {
+      toast({
+        title: "Restricted Access",
+        description: "Only @rvnu.com email addresses are allowed to sign up.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (password !== confirmPassword) {
       toast({
         title: "Error",

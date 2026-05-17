@@ -190,6 +190,44 @@ export type Database = {
         }
         Relationships: []
       }
+      export_logs: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          export_id: string
+          id: string
+          record_count: number
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          export_id: string
+          id?: string
+          record_count?: number
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          export_id?: string
+          id?: string
+          record_count?: number
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "export_logs_export_id_fkey"
+            columns: ["export_id"]
+            isOneToOne: false
+            referencedRelation: "scheduled_exports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scheduled_exports: {
         Row: {
           active: boolean | null
@@ -202,6 +240,7 @@ export type Database = {
           last_export: string | null
           name: string
           next_export: string | null
+          source_id: string | null
           updated_at: string | null
           user_id: string | null
         }
@@ -216,6 +255,7 @@ export type Database = {
           last_export?: string | null
           name: string
           next_export?: string | null
+          source_id?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
@@ -230,10 +270,19 @@ export type Database = {
           last_export?: string | null
           name?: string
           next_export?: string | null
+          source_id?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_exports_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "sources"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       schema_configs: {
         Row: {
@@ -276,6 +325,41 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "sources"
             referencedColumns: ["api_key"]
+          },
+        ]
+      }
+      source_alerts: {
+        Row: {
+          alert_type: string
+          created_at: string
+          id: string
+          last_alerted_at: string
+          source_id: string
+          user_id: string
+        }
+        Insert: {
+          alert_type?: string
+          created_at?: string
+          id?: string
+          last_alerted_at?: string
+          source_id: string
+          user_id: string
+        }
+        Update: {
+          alert_type?: string
+          created_at?: string
+          id?: string
+          last_alerted_at?: string
+          source_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "source_alerts_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "sources"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -323,22 +407,62 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      count_distinct_sources_for_user: {
-        Args: Record<PropertyKey, never>
-        Returns: number
+      count_distinct_sources_for_user: { Args: never; Returns: number }
+      generate_unique_api_key: { Args: never; Returns: string }
+      get_admin_daily_counts: {
+        Args: { p_days?: number }
+        Returns: {
+          day: string
+          entry_count: number
+        }[]
       }
-      generate_unique_api_key: {
-        Args: Record<PropertyKey, never>
-        Returns: string
+      get_admin_source_daily_counts: {
+        Args: { p_days?: number; p_source_id: string }
+        Returns: {
+          day: string
+          entry_count: number
+        }[]
       }
-      process_scheduled_exports: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
+      get_admin_user_usage: {
+        Args: never
+        Returns: {
+          earliest_entry: string
+          latest_entry: string
+          record_count: number
+          user_id: string
+        }[]
       }
-      trigger_daily_backups: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
+      get_daily_entry_counts: {
+        Args: { p_days?: number; p_user_id: string }
+        Returns: {
+          day: string
+          entry_count: number
+        }[]
       }
+      get_source_entry_counts: {
+        Args: { p_user_id: string }
+        Returns: {
+          entry_count: number
+          source_id: string
+          source_name: string
+        }[]
+      }
+      get_source_record_counts: {
+        Args: { p_user_id: string }
+        Returns: {
+          record_count: number
+          source_id: string
+        }[]
+      }
+      get_source_record_counts_admin: {
+        Args: never
+        Returns: {
+          record_count: number
+          source_id: string
+        }[]
+      }
+      process_scheduled_exports: { Args: never; Returns: undefined }
+      trigger_daily_backups: { Args: never; Returns: undefined }
       update_source_schema: {
         Args: { p_api_key: string; p_schema: Json }
         Returns: undefined

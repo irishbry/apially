@@ -1,0 +1,1 @@
+ALTER TABLE public.scheduled_exports ADD COLUMN source_id uuid REFERENCES public.sources(id) ON DELETE SET NULL;

@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -26,41 +27,75 @@ import { useToast } from "@/hooks/use-toast";
 import { BackupLogsService, BackupLog } from "@/services/BackupLogsService";
 import { useAuth } from "@/hooks/useAuth";
 
+// Module-level cache so logs persist across remounts/tab switches/navigations
+let cachedLogs: BackupLog[] | null = null;
+let cachedAt = 0;
+const CACHE_TTL_MS = 60_000; // 1 minute — background refresh after this
+
 const BackupLogs: React.FC = () => {
-  const [logs, setLogs] = useState<BackupLog[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [logs, setLogs] = useState<BackupLog[]>(cachedLogs ?? []);
+  // Only show the spinner if we have nothing cached yet
+  const [isLoading, setIsLoading] = useState(cachedLogs === null);
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
   const [isDownloadingId, setIsDownloadingId] = useState<string | null>(null);
+  const [selectedSource, setSelectedSource] = useState<string>('all');
   const { toast } = useToast();
   const { user } = useAuth();
 
-  useEffect(() => {
-    if (user) {
-      loadBackupLogs();
-      
-      // Subscribe to real-time updates
-      const unsubscribe = BackupLogsService.subscribeToBackupLogs((updatedLogs) => {
-        setLogs(updatedLogs);
-      });
+  // Extract source name from backup file name pattern: backup_YYYY-MM-DD_SourceName.csv
+  const extractSourceName = (fileName: string): string => {
+    const match = fileName.match(/(?:manual_)?backup_\d{4}-\d{2}-\d{2}_(.+)\.\w+$/);
+    return match ? match[1].replace(/_/g, ' ') : 'Unknown';
+  };
 
-      return unsubscribe;
+  const sourceNames = useMemo(() => {
+    const names = new Set(logs.map(log => extractSourceName(log.file_name)));
+    return Array.from(names).sort();
+  }, [logs]);
+
+  const filteredLogs = useMemo(() => {
+    if (selectedSource === 'all') return logs;
+    return logs.filter(log => extractSourceName(log.file_name) === selectedSource);
+  }, [logs, selectedSource]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const isStale = Date.now() - cachedAt > CACHE_TTL_MS;
+    // Fetch only if no cache or cache is stale; otherwise reuse cached data
+    if (cachedLogs === null || isStale) {
+      loadBackupLogs(cachedLogs !== null);
     }
+
+    // Subscribe to real-time updates so the cache stays fresh in the background
+    const unsubscribe = BackupLogsService.subscribeToBackupLogs((updatedLogs) => {
+      cachedLogs = updatedLogs;
+      cachedAt = Date.now();
+      setLogs(updatedLogs);
+    });
+
+    return unsubscribe;
   }, [user]);
 
-  const loadBackupLogs = async () => {
+  // background = true means we already have cached data shown, just refresh silently
+  const loadBackupLogs = async (background = false) => {
     try {
-      setIsLoading(true);
+      if (!background) setIsLoading(true);
       const backupLogs = await BackupLogsService.getBackupLogs();
+      cachedLogs = backupLogs;
+      cachedAt = Date.now();
       setLogs(backupLogs);
     } catch (error) {
       console.error('Error loading backup logs:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load backup logs",
-        variant: "destructive",
-      });
+      if (!background) {
+        toast({
+          title: "Error",
+          description: "Failed to load backup logs",
+          variant: "destructive",
+        });
+      }
     } finally {
-      setIsLoading(false);
+      if (!background) setIsLoading(false);
     }
   };
 
@@ -72,7 +107,7 @@ const BackupLogs: React.FC = () => {
         title: "Success",
         description: "Backup log deleted successfully",
       });
-      await loadBackupLogs();
+      await loadBackupLogs(true);
     } catch (error) {
       console.error('Error deleting backup log:', error);
       toast({
@@ -297,8 +332,21 @@ const BackupLogs: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="flex items-center justify-between text-sm text-slate-600">
-              <span>{logs.length} backup log{logs.length !== 1 ? 's' : ''} found</span>
+            {sourceNames.length > 1 && (
+              <Tabs value={selectedSource} onValueChange={setSelectedSource}>
+                <TabsList className="flex-wrap h-auto gap-1">
+                  <TabsTrigger value="all">All Sources</TabsTrigger>
+                  {sourceNames.map(name => (
+                    <TabsTrigger key={name} value={name}>
+                      {name}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+            )}
+
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <span>{filteredLogs.length} backup log{filteredLogs.length !== 1 ? 's' : ''} found{selectedSource !== 'all' ? ` for ${selectedSource}` : ''}</span>
             </div>
 
             <Table>
@@ -315,7 +363,7 @@ const BackupLogs: React.FC = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {logs.map((log) => (
+                {filteredLogs.map((log) => (
                   <TableRow key={log.id}>
                     <TableCell>
                       <div className="flex items-center gap-2">

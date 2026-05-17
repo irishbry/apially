@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_data_entries_user_source_created ON public.data_entries (user_id, source_id, created_at DESC);

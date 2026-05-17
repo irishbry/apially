@@ -81,3 +81,12 @@ verify_jwt = false
 
 [functions.dropbox-backup]
 verify_jwt = false
+
+[functions.cleanup-old-data]
+verify_jwt = false
+
+[functions.admin-data]
+verify_jwt = false
+
+[functions.source-health-check]
+verify_jwt = false

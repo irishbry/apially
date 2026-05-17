@@ -142,12 +142,13 @@ serve(async (req) => {
       }
     });
 
-    // Validate the API key against sources table and get the source information
+    // Validate the API key against sources table and get the source information.
+    // Note: we accept data even when the source is paused (active=false) — paused
+    // entries are flagged in metadata so they are excluded from the feed and backups.
     const { data: source, error: sourceError } = await supabase
       .from('sources')
-      .select('id, name, user_id')
+      .select('id, name, user_id, active')
       .eq('api_key', apiKey)
-      .eq('active', true)
       .single();
 
     if (sourceError || !source) {
@@ -155,13 +156,15 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false,
-          message: 'Invalid or inactive API key',
+          message: 'Invalid API key',
           code: 'AUTH_FAILED',
-          details: sourceError ? sourceError.message : 'No active source found with this API key' 
+          details: sourceError ? sourceError.message : 'No source found with this API key' 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
       );
     }
+
+    const isPaused = source.active === false;
 
     // Parse the request body
     const body = await req.json().catch(() => null);
@@ -177,36 +180,41 @@ serve(async (req) => {
     }
 
     // Check for duplicate email within the last 24 hours
+    // Optimized: filter by source_id too and use metadata->>email filter to avoid scanning all rows
     if (body.email) {
       const twentyFourHoursAgo = new Date();
       twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
       
-      const { data: existingEntries, error: duplicateCheckError } = await supabase
-        .from('data_entries')
-        .select('id, timestamp, metadata')
-        .eq('user_id', source.user_id)
-        .gte('timestamp', twentyFourHoursAgo.toISOString());
-      
-      if (duplicateCheckError) {
-        console.error('Duplicate check error:', duplicateCheckError);
-      } else if (existingEntries && existingEntries.length > 0) {
-        // Check if any existing entry has the same email in metadata
-        for (const entry of existingEntries) {
-          if (entry.metadata && entry.metadata.email === body.email) {
-            return new Response(
-              JSON.stringify({ 
-                success: false,
-                message: 'Duplicate email detected. This email was already submitted within the last 24 hours.',
-                code: 'DUPLICATE_EMAIL',
-                details: {
-                  email: body.email,
-                  previousSubmission: entry.timestamp
-                }
-              }),
-              { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 409 }
-            );
-          }
+      try {
+        const { data: existingEntries, error: duplicateCheckError } = await supabase
+          .from('data_entries')
+          .select('id, timestamp')
+          .eq('user_id', source.user_id)
+          .eq('source_id', source.id)
+          .gte('timestamp', twentyFourHoursAgo.toISOString())
+          .filter('metadata->>email', 'eq', body.email)
+          .limit(1);
+        
+        if (duplicateCheckError) {
+          // Log but don't block - duplicate check is non-critical
+          console.error('Duplicate check error:', duplicateCheckError);
+        } else if (existingEntries && existingEntries.length > 0) {
+          return new Response(
+            JSON.stringify({ 
+              success: false,
+              message: 'Duplicate email detected. This email was already submitted within the last 24 hours.',
+              code: 'DUPLICATE_EMAIL',
+              details: {
+                email: body.email,
+                previousSubmission: existingEntries[0].timestamp
+              }
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 409 }
+          );
         }
+      } catch (dupError) {
+        // Don't let duplicate check failures block data ingestion
+        console.error('Duplicate check exception (non-blocking):', dupError);
       }
     }
 
@@ -240,7 +248,8 @@ serve(async (req) => {
       receivedAt: now,
       timestamp: body.timestamp || now,
       clientIp: req.headers.get('x-forwarded-for') || 'unknown',
-      ...(originalId && { original_id: originalId })
+      ...(originalId && { original_id: originalId }),
+      ...(isPaused && { paused: true, paused_at: now })
     };
 
     // Generate a filename with timestamp and ID
@@ -299,7 +308,8 @@ serve(async (req) => {
       );
     }
 
-    // Update source statistics - increment data_count by 1
+    // Update source statistics - update last_active
+    // (data_count is no longer relied upon; real counts come from get_source_record_counts RPC)
     const { error: updateError } = await supabase
       .from('sources')
       .update({

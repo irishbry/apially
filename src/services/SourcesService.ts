@@ -24,84 +24,105 @@ export const SourcesService = {
   
   getSourcesStats: async () => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return { totalSources: 0, activeSources: 0, totalDataPoints: 0 };
+
       const { data: sources, error: sourcesError } = await supabase
         .from('sources')
-        .select('*');
+        .select('*')
+        .eq('user_id', user.id);
       
       if (sourcesError) {
         console.error('Error getting sources:', sourcesError);
-        return {
-          totalSources: 0,
-          activeSources: 0,
-          totalDataPoints: 0
-        };
+        return { totalSources: 0, activeSources: 0, totalDataPoints: 0 };
       }
       
       const totalSources = sources.length;
       const activeSources = sources.filter(s => s.active).length;
-      const totalDataPoints = sources.reduce((sum, source) => sum + (source.data_count || 0), 0);
+
+      // Get actual record counts via RPC
+      const { data: counts } = await supabase.rpc('get_source_record_counts', { p_user_id: user.id });
+      const totalDataPoints = (counts || []).reduce((sum: number, r: any) => sum + Number(r.record_count), 0);
       
-      return {
-        totalSources,
-        activeSources,
-        totalDataPoints
-      };
+      return { totalSources, activeSources, totalDataPoints };
     } catch (error) {
       console.error('Error in getSourcesStats:', error);
-      return {
-        totalSources: 0,
-        activeSources: 0,
-        totalDataPoints: 0
-      };
+      return { totalSources: 0, activeSources: 0, totalDataPoints: 0 };
     }
   },
   
   getApiUsageBySource: async (): Promise<ApiUsageBySource[]> => {
     try {
-      const { data: entries, error: entriesError } = await supabase
-        .from('data_entries')
-        .select('source_id')
-        .not('source_id', 'is', null);
-        
-      if (entriesError) {
-        console.error('Error fetching API usage by source:', entriesError);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+
+      const { data, error } = await supabase.rpc('get_source_entry_counts', {
+        p_user_id: user.id,
+      });
+
+      if (error) {
+        console.error('Error fetching API usage by source:', error);
         return [];
       }
-      
-      const { data: sources, error: sourcesError } = await supabase
-        .from('sources')
-        .select('id, name');
-        
-      if (sourcesError) {
-        console.error('Error fetching sources for API usage:', sourcesError);
-        return [];
-      }
-      
-      const sourceMap: Record<string, string> = {};
-      sources.forEach(source => {
-        sourceMap[source.id] = source.name;
-      });
-      
-      const countBySource: Record<string, number> = {};
-      entries.forEach(entry => {
-        if (entry.source_id) {
-          countBySource[entry.source_id] = (countBySource[entry.source_id] || 0) + 1;
-        }
-      });
-      
-      const totalCount = entries.length;
-      
-      const result: ApiUsageBySource[] = Object.keys(countBySource).map(sourceId => ({
-        source: sourceMap[sourceId] || 'Unknown',
-        count: countBySource[sourceId],
-        percentage: Math.round((countBySource[sourceId] / totalCount) * 100)
+
+      const rows = data || [];
+      const totalCount = rows.reduce((sum: number, r: any) => sum + Number(r.entry_count), 0);
+
+      return rows.map((row: any) => ({
+        source: row.source_name,
+        count: Number(row.entry_count),
+        percentage: totalCount > 0 ? Math.round((Number(row.entry_count) / totalCount) * 100) : 0,
       }));
-      
-      result.sort((a, b) => b.count - a.count);
-      
-      return result;
     } catch (error) {
       console.error('Error in getApiUsageBySource:', error);
+      return [];
+    }
+  },
+
+  getApiUsageBySourceForPeriod: async (days: number, offset: number = 0): Promise<ApiUsageBySource[]> => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+
+      const now = new Date();
+      const endDate = new Date(now);
+      endDate.setDate(endDate.getDate() - offset);
+      const startDate = new Date(endDate);
+      startDate.setDate(startDate.getDate() - days);
+
+      const { data, error } = await supabase
+        .from('data_entries')
+        .select('source_id, sources!inner(name)')
+        .eq('user_id', user.id)
+        .not('source_id', 'is', null)
+        .gte('created_at', startDate.toISOString())
+        .lte('created_at', endDate.toISOString());
+
+      if (error) {
+        console.error('Error fetching usage by source for period:', error);
+        return [];
+      }
+
+      const countMap = new Map<string, { name: string; count: number }>();
+      for (const row of data || []) {
+        const sid = row.source_id!;
+        const name = (row as any).sources?.name || 'Unknown';
+        const existing = countMap.get(sid);
+        if (existing) {
+          existing.count++;
+        } else {
+          countMap.set(sid, { name, count: 1 });
+        }
+      }
+
+      const totalCount = Array.from(countMap.values()).reduce((s, v) => s + v.count, 0);
+      return Array.from(countMap.values()).map(v => ({
+        source: v.name,
+        count: v.count,
+        percentage: totalCount > 0 ? Math.round((v.count / totalCount) * 100) : 0,
+      }));
+    } catch (error) {
+      console.error('Error in getApiUsageBySourceForPeriod:', error);
       return [];
     }
   },

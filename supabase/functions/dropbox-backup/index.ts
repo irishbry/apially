@@ -437,18 +437,23 @@ async function createBackupForUser(
     console.log(`Dropbox config - Path: ${dropboxPath}, Token present: ${!!dropboxToken}`);
     
     // Log backup attempt first using PST date
+    let attemptId: string | null = null;
     try {
       const PST_TIMEZONE = 'America/Los_Angeles';
       const nowPST = toZonedTime(new Date(), PST_TIMEZONE);
       const pstDateString = format(nowPST, 'yyyy-MM-dd');
       
-      await supabase
+      const { data: attemptData } = await supabase
         .from('backup_attempts')
         .insert({
           user_id: userId,
           attempt_date: pstDateString,
           status: 'attempting'
-        });
+        })
+        .select('id')
+        .single();
+      
+      attemptId = attemptData?.id || null;
     } catch (logError) {
       console.warn('Failed to log backup attempt:', logError);
     }
@@ -476,29 +481,6 @@ async function createBackupForUser(
     console.log(`Filtering data for PST date range: ${format(previousDayPST, 'yyyy-MM-dd')} PST`);
     console.log(`UTC range: ${startOfDayUTC.toISOString()} to ${endOfDayUTC.toISOString()}`);
     
-    // Get data from the previous day in PST timezone
-    const { data: userData, error: userError } = await supabase
-      .from('data_entries')
-      .select('*')
-      .eq('user_id', userId)
-      .gte('created_at', startOfDayUTC.toISOString())
-      .lte('created_at', endOfDayUTC.toISOString())
-      .order('created_at', { ascending: false });
-
-    if (userError) {
-      console.error(`Error fetching data for user ${userId}:`, userError);
-      return { success: false, error: 'Failed to fetch user data' };
-    }
-
-    console.log(`Query returned ${userData?.length || 0} entries for user ${userId} in PST date range`);
-
-    if (!userData || userData.length === 0) {
-      console.log(`No data found for user ${userId} in the previous PST day`);
-      return { success: true, fileName: '', path: '', backedUpCount: 0 };
-    }
-
-    console.log(`Found ${userData.length} entries to backup for user ${userId} from previous PST day`);
-
     // Get user's sources
     const { data: sourcesData } = await supabase
       .from('sources')
@@ -507,26 +489,97 @@ async function createBackupForUser(
 
     const sources = sourcesData || [];
 
+    // Step 1: Get distinct source_ids for this user + date range (small query)
+    const PAGE_SIZE = 1000;
+    const { data: sourceIdRows, error: sourceIdError } = await supabase
+      .from('data_entries')
+      .select('source_id')
+      .eq('user_id', userId)
+      .gte('created_at', startOfDayUTC.toISOString())
+      .lte('created_at', endOfDayUTC.toISOString())
+      .not('source_id', 'is', null)
+      // Skip entries that were ingested while their source was paused
+      .or('metadata->>paused.is.null,metadata->>paused.neq.true');
+
+    // Helper to finalize the attempt row on early returns
+    const finalizeAttempt = async (status: string, errorMsg: string | null = null) => {
+      if (!attemptId) return;
+      try {
+        await supabase
+          .from('backup_attempts')
+          .update({ status, error_message: errorMsg })
+          .eq('id', attemptId);
+      } catch (e) {
+        console.warn('Failed to finalize backup attempt:', e);
+      }
+    };
+
+    if (sourceIdError) {
+      console.error(`Error fetching source_ids for user ${userId}:`, sourceIdError);
+      await finalizeAttempt('failed', 'Failed to fetch source IDs');
+      return { success: false, error: 'Failed to fetch source IDs' };
+    }
+
+    const uniqueSourceIds = [...new Set(sourceIdRows?.map(r => r.source_id).filter(Boolean))];
+    console.log(`Found ${uniqueSourceIds.length} distinct sources for user ${userId} in date range`);
+
+    if (uniqueSourceIds.length === 0) {
+      console.log(`No data found for user ${userId} in the previous PST day`);
+      await finalizeAttempt('success', 'No data to back up for this day');
+      return { success: true, fileName: '', path: '', backedUpCount: 0 };
+    }
+
+    // Step 2: For each source, fetch ALL entries with pagination
+    const dataBySource = new Map<string, DataEntry[]>();
+    for (const sourceId of uniqueSourceIds) {
+      const allEntries: DataEntry[] = [];
+      let offset = 0;
+      while (true) {
+        const { data: page, error: pageError } = await supabase
+          .from('data_entries')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('source_id', sourceId)
+          .gte('created_at', startOfDayUTC.toISOString())
+          .lte('created_at', endOfDayUTC.toISOString())
+          // Skip entries that were ingested while their source was paused
+          .or('metadata->>paused.is.null,metadata->>paused.neq.true')
+          .order('created_at', { ascending: false })
+          .range(offset, offset + PAGE_SIZE - 1);
+
+        if (pageError) {
+          console.error(`Error fetching page at offset ${offset} for source ${sourceId}:`, pageError);
+          break;
+        }
+        if (!page || page.length === 0) break;
+        allEntries.push(...page);
+        console.log(`Fetched ${page.length} entries at offset ${offset} for source ${sourceId}`);
+        if (page.length < PAGE_SIZE) break;
+        offset += PAGE_SIZE;
+      }
+      if (allEntries.length > 0) {
+        dataBySource.set(sourceId, allEntries);
+      }
+    }
+
+    const totalEntries = Array.from(dataBySource.values()).reduce((sum, arr) => sum + arr.length, 0);
+    console.log(`Fetched ${totalEntries} total entries across ${dataBySource.size} sources (paginated)`);
+
+    if (dataBySource.size === 0) {
+      console.log(`No data entries found after paginated fetch for user ${userId}`);
+      await finalizeAttempt('success', 'No data to back up for this day');
+      return { success: true, fileName: '', path: '', backedUpCount: 0 };
+    }
+
     // Test Dropbox connection first
     console.log('Testing Dropbox connection before upload...');
     const connectionValid = await testDropboxConnectionInternal(dropboxPath, dropboxToken);
     if (!connectionValid) {
       console.error('Dropbox connection test failed before upload');
+      await finalizeAttempt('failed', 'Dropbox connection failed');
       return { success: false, error: 'Dropbox connection failed' };
     }
     console.log('Dropbox connection test passed');
-
-    // Group data by source_id
-    const dataBySource = new Map<string, DataEntry[]>();
-    userData.forEach(entry => {
-      const sourceId = entry.source_id || 'unknown';
-      if (!dataBySource.has(sourceId)) {
-        dataBySource.set(sourceId, []);
-      }
-      dataBySource.get(sourceId)!.push(entry);
-    });
-
-    console.log(`Data grouped into ${dataBySource.size} sources for separate backup files`);
 
     let totalBackedUpCount = 0;
     const backupResults: Array<{
@@ -694,23 +747,37 @@ async function createBackupForUser(
       }
     }
 
-    // Log overall attempt result
+    // Log overall attempt result - UPDATE the existing attempt record
     const successfulBackups = backupResults.filter(r => r.success).length;
     const failedBackups = backupResults.filter(r => !r.success).length;
 
     try {
-      const PST_TIMEZONE = 'America/Los_Angeles';
-      const nowPST = toZonedTime(new Date(), PST_TIMEZONE);
-      const pstDateString = format(nowPST, 'yyyy-MM-dd');
+      const finalStatus = successfulBackups > 0 ? 'success' : 'failed';
+      const errorMsg = failedBackups > 0 ? `${failedBackups} source backups failed` : null;
       
-      await supabase
-        .from('backup_attempts')
-        .insert({
-          user_id: userId,
-          attempt_date: pstDateString,
-          status: successfulBackups > 0 ? 'success' : 'failed',
-          error_message: failedBackups > 0 ? `${failedBackups} source backups failed` : undefined
-        });
+      if (attemptId) {
+        await supabase
+          .from('backup_attempts')
+          .update({
+            status: finalStatus,
+            error_message: errorMsg
+          })
+          .eq('id', attemptId);
+      } else {
+        // Fallback: insert if we don't have the attempt ID
+        const PST_TIMEZONE = 'America/Los_Angeles';
+        const nowPST = toZonedTime(new Date(), PST_TIMEZONE);
+        const pstDateString = format(nowPST, 'yyyy-MM-dd');
+        
+        await supabase
+          .from('backup_attempts')
+          .insert({
+            user_id: userId,
+            attempt_date: pstDateString,
+            status: finalStatus,
+            error_message: errorMsg
+          });
+      }
     } catch (logError) {
       console.warn('Failed to log backup attempt result:', logError);
     }
@@ -735,20 +802,28 @@ async function createBackupForUser(
   } catch (error) {
     console.error(`Error creating backup for user ${userId}:`, error);
     
-    // Log failed attempt using PST date
+    // Log failed attempt - UPDATE existing or insert new
     try {
-      const PST_TIMEZONE = 'America/Los_Angeles';
-      const nowPST = toZonedTime(new Date(), PST_TIMEZONE);
-      const pstDateString = format(nowPST, 'yyyy-MM-dd');
-      
-      await supabase
-        .from('backup_attempts')
-        .insert({
-          user_id: userId,
-          attempt_date: pstDateString,
-          status: 'failed',
-          error_message: error instanceof Error ? error.message : 'Unknown error occurred'
-        });
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
+      if (attemptId) {
+        await supabase
+          .from('backup_attempts')
+          .update({ status: 'failed', error_message: errorMsg })
+          .eq('id', attemptId);
+      } else {
+        const PST_TIMEZONE = 'America/Los_Angeles';
+        const nowPST = toZonedTime(new Date(), PST_TIMEZONE);
+        const pstDateString = format(nowPST, 'yyyy-MM-dd');
+        
+        await supabase
+          .from('backup_attempts')
+          .insert({
+            user_id: userId,
+            attempt_date: pstDateString,
+            status: 'failed',
+            error_message: errorMsg
+          });
+      }
     } catch (logError) {
       console.warn('Failed to log backup failure:', logError);
     }
@@ -962,29 +1037,38 @@ function generateDataExplorerCSV(data: DataEntry[], sources: Source[]): string {
     return source ? source.name : `Unknown (${sourceId.substring(0, 8)}...)`;
   };
 
-  // Get columns that match exactly what's shown in the Data Explorer table
+  // Preferred column order
+  const preferredOrder = [
+    'source', 'created_at', 'fname', 'phone', 'lname', 'address', 'city', 'state', 'zip', 'email', 'ip', 'jornaya', 'trusted_form_url'
+  ];
+
   const getColumns = () => {
     if (data.length === 0) return ['No Data'];
     
-    const columns = new Set<string>();
+    const allKeys = new Set<string>();
+    allKeys.add('source');
+    allKeys.add('created_at');
     
-    // Always include source and created_at columns first (matches Data Explorer)
-    columns.add('source');
-    columns.add('created_at');
-    
-    // Extract metadata fields from all entries, excluding clientIp and receivedAt
     data.forEach(entry => {
       if (entry && entry.metadata && typeof entry.metadata === 'object') {
         Object.keys(entry.metadata).forEach(key => {
-          // Exclude clientIp and receivedAt from columns (matches Data Explorer)
           if (key !== 'clientIp' && key !== 'receivedAt') {
-            columns.add(key);
+            allKeys.add(key);
           }
         });
       }
     });
     
-    return Array.from(columns);
+    // Sort: preferred columns first in order, then remaining alphabetically
+    const allKeysArray = Array.from(allKeys);
+    const ordered: string[] = [];
+    for (const col of preferredOrder) {
+      if (allKeysArray.includes(col)) ordered.push(col);
+    }
+    for (const col of allKeysArray) {
+      if (!ordered.includes(col)) ordered.push(col);
+    }
+    return ordered;
   };
 
   const columns = getColumns();
@@ -993,7 +1077,7 @@ function generateDataExplorerCSV(data: DataEntry[], sources: Source[]): string {
   const getDisplayName = (column: string): string => {
     const displayNames: Record<string, string> = {
       'source': 'Source',
-      'created_at': 'Date/Time'
+      'created_at': 'Date'
     };
     return displayNames[column] || column;
   };
@@ -1019,7 +1103,11 @@ function generateDataExplorerCSV(data: DataEntry[], sources: Source[]): string {
     if (key === 'source') return getSourceName(value);
     if (key === 'created_at') {
       try {
-        return new Date(value).toLocaleString();
+        const d = new Date(value);
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        return `${mm}/${dd}/${yyyy}`;
       } catch (e) {
         return value;
       }

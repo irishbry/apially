@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckCircle, Clock, Database, Send, X } from "lucide-react";
+import { CheckCircle, Database, Send, X } from "lucide-react";
 import { ApiService, DataEntry, Source } from "@/services/ApiService";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -105,10 +105,6 @@ const ControlPanel: React.FC = () => {
     }
   };
 
-  const triggerExport = () => {
-    ApiService.exportToCsv();
-  };
-
   const clearAllData = () => {
     ApiService.clearData();
   };
@@ -189,15 +185,6 @@ const ControlPanel: React.FC = () => {
           <div className="space-y-2">
             <h3 className="text-sm font-medium">Manual Operations</h3>
             <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                onClick={triggerExport}
-                className="hover-lift"
-              >
-                <Clock className="mr-2 h-4 w-4" />
-                Trigger CSV Export Now
-              </Button>
-              
               <Button
                 variant="outline"
                 onClick={clearAllData}
