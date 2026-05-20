@@ -7,16 +7,26 @@ export const DataService = {
     const { limit = 1000, offset = 0, includeCount = false, sourceId } = options;
     
     try {
+      // Get paused source IDs (sources table is tiny). Entries from these are hidden from the feed.
+      const { data: pausedSources } = await supabase
+        .from('sources')
+        .select('id')
+        .eq('active', false);
+      const pausedIds = (pausedSources || []).map(s => s.id);
+
       let query = supabase
         .from('data_entries')
         .select('*', { count: includeCount ? 'exact' : undefined })
-        .order('created_at', { ascending: false })
-        // Exclude entries that were ingested while their source was paused
-        .or('metadata->>paused.is.null,metadata->>paused.neq.true');
+        .order('created_at', { ascending: false });
+
+      if (pausedIds.length > 0) {
+        query = query.not('source_id', 'in', `(${pausedIds.join(',')})`);
+      }
 
       if (sourceId) {
         query = query.eq('source_id', sourceId);
       }
+
 
       if (limit > 0) {
         query = query.limit(limit);
