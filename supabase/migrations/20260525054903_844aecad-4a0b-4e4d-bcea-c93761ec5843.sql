@@ -1,0 +1,1 @@
+UPDATE public.sources SET name = 'QualifiedSolarSurvey' WHERE id = 'd4cb27a9-21f4-4c6f-a4bf-7a9492199a84';
