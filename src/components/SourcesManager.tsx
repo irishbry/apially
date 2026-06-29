@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Plus, Trash2, Eye, EyeOff, Copy, CheckCircle, Database, Pause, Play } from "lucide-react";
+import { Plus, Trash2, Eye, EyeOff, Copy, CheckCircle, Database, Pause, Play, FileDown } from "lucide-react";
+import { generateIntegrationPdf } from "@/utils/integrationDocPdf";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Source, DataSchema } from "@/types/api.types";
@@ -485,6 +486,24 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                           <Copy className="h-3 w-3" />
                         </Button>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            const schema = await ConfigService.getSchema(source.api_key);
+                            generateIntegrationPdf(source.name, source.api_key || '', schema);
+                            toast({ title: "PDF generated", description: `Integration spec for ${source.name} downloaded.` });
+                          } catch (err) {
+                            console.error(err);
+                            toast({ title: "Error", description: "Failed to generate PDF", variant: "destructive" });
+                          }
+                        }}
+                        title="Download integration spec PDF"
+                      >
+                        <FileDown className="h-4 w-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"
