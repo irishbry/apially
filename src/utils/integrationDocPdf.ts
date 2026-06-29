@@ -30,43 +30,110 @@ export const generateIntegrationPdf = (
   sourceName: string,
   apiKey: string,
   schema?: DataSchema,
-  companyName = 'RVNU'
+  companyName = 'ApiAlly'
 ) => {
   const doc = new jsPDF({ unit: 'pt', format: 'letter' });
   const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 50;
+  const contentWidth = pageWidth - margin * 2;
   let y = margin;
 
   const fields = Object.keys(schema?.fieldTypes || {});
   const required = new Set(schema?.requiredFields || []);
+  const hasRequired = required.size > 0;
 
-  // Title
+  const ensureSpace = (needed: number) => {
+    if (y + needed > pageHeight - margin) {
+      doc.addPage();
+      y = margin;
+    }
+  };
+
+  const heading = (text: string, size = 14, gap = 10) => {
+    ensureSpace(size + gap + 4);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(size);
+    doc.setTextColor(0);
+    doc.text(text, margin, y);
+    y += size + gap;
+  };
+
+  const subheading = (text: string) => {
+    ensureSpace(20);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text(text, margin, y);
+    y += 14;
+  };
+
+  const paragraph = (text: string) => {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(40);
+    const lines = doc.splitTextToSize(text, contentWidth);
+    ensureSpace(lines.length * 13 + 4);
+    doc.text(lines, margin, y);
+    y += lines.length * 13 + 6;
+    doc.setTextColor(0);
+  };
+
+  const codeBlock = (code: string) => {
+    doc.setFont('courier', 'normal');
+    doc.setFontSize(9);
+    const lines = doc.splitTextToSize(code, contentWidth - 16);
+    const blockHeight = lines.length * 11 + 16;
+    ensureSpace(blockHeight + 4);
+    doc.setFillColor(245, 246, 248);
+    doc.setDrawColor(220);
+    doc.roundedRect(margin, y, contentWidth, blockHeight, 4, 4, 'FD');
+    doc.setTextColor(20);
+    doc.text(lines, margin + 8, y + 14);
+    y += blockHeight + 10;
+    doc.setTextColor(0);
+  };
+
+  const divider = () => {
+    ensureSpace(14);
+    doc.setDrawColor(220);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 14;
+  };
+
+  // ===== Title =====
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(18);
-  doc.text(`${companyName} Live Posting API – Buyer Integration Specs`, margin, y);
+  doc.text(`${sourceName} Live Posting API`, margin, y);
   y += 22;
+  doc.setFontSize(13);
+  doc.setTextColor(80);
+  doc.text('Buyer Integration Specifications', margin, y);
+  y += 18;
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
-  doc.setTextColor(110);
-  doc.text(`Version 1.0  •  Last Updated: ${new Date().toLocaleDateString()}`, margin, y);
-  y += 14;
+  doc.setFontSize(9);
+  doc.setTextColor(120);
+  doc.text(`Version 1.0   •   Last Updated: ${new Date().toLocaleDateString()}`, margin, y);
+  y += 12;
   doc.text('Audience: Approved Buyers & Technical Integration Teams', margin, y);
-  y += 22;
+  y += 20;
   doc.setTextColor(0);
 
-  // Configuration Table
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  doc.text('Integration Configuration', margin, y);
-  y += 6;
+  // ===== 1. Overview =====
+  heading('1. Overview');
+  paragraph(
+    `This document outlines the technical specifications required for buyers to post live lead data to ${companyName} via a secure REST API. The endpoint supports both single-record and batch submissions in JSON format and is designed for real-time ingestion. All submissions must be authenticated using the API key provided below.`
+  );
 
+  // ===== 2. Integration Configuration =====
+  heading('2. Integration Configuration');
   autoTable(doc, {
-    startY: y + 4,
+    startY: y,
     head: [['Setting', 'Value']],
     body: [
       ['Company Name', companyName],
-      ['Data Partner Name', sourceName],
+      ['Data Partner / Source Name', sourceName],
       ['API Endpoint', ENDPOINT],
+      ['HTTP Method', 'POST'],
       ['API Key', apiKey],
     ],
     theme: 'grid',
@@ -74,100 +141,143 @@ export const generateIntegrationPdf = (
     styles: { fontSize: 10, cellPadding: 6 },
     margin: { left: margin, right: margin },
   });
-  y = (doc as any).lastAutoTable.finalY + 20;
+  y = (doc as any).lastAutoTable.finalY + 16;
 
-  // Sections
-  const addSection = (title: string, body: string) => {
-    if (y > 700) { doc.addPage(); y = margin; }
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(13);
-    doc.text(title, margin, y);
-    y += 14;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    const lines = doc.splitTextToSize(body, pageWidth - margin * 2);
-    doc.text(lines, margin, y);
-    y += lines.length * 12 + 10;
-  };
+  // ===== 3. Authentication =====
+  heading('3. Authentication');
+  paragraph('All requests must include a valid API key in the request headers:');
+  codeBlock(`X-API-Key: ${apiKey}`);
+  paragraph('Requests with missing, invalid, or inactive API keys will be rejected with HTTP 403.');
 
-  addSection('1. Overview',
-    `This document outlines the technical specifications required for buyers to post live lead data to ${companyName} via a secure REST API. The endpoint supports both single-record and batch submissions in JSON format and is designed for real-time ingestion. All submissions must be authenticated using the API key provided above.`
-  );
+  // ===== 4. Required Headers =====
+  heading('4. Required Headers');
+  codeBlock(`Content-Type: application/json\nX-API-Key: ${apiKey}`);
 
-  addSection('2. API Endpoint', `Base URL: ${ENDPOINT}\nHTTP Method: POST`);
-  addSection('3. Authentication',
-    'All requests must include a valid API key in the request headers:\n\nX-API-Key: <your-api-key>\n\nRequests with missing, invalid, or inactive API keys will be rejected.'
-  );
-  addSection('4. Headers',
-    'All requests must include the following headers:\n\nContent-Type: application/json\nX-API-Key: <your-api-key>'
-  );
+  // ===== 5. Request Format =====
+  heading('5. Request Format');
 
-  // Example cURL with schema fields
+  // Build example object using exact schema fields
+  const orderedFields = fields.length ? fields : ['email', 'fname', 'lname', 'phone'];
   const exampleObj: Record<string, string> = {};
-  (fields.length ? fields : ['email', 'fname', 'lname', 'phone']).forEach(f => {
-    exampleObj[f] = `example-${f}`;
+  orderedFields.forEach(f => { exampleObj[f] = `example-${f}`; });
+
+  subheading('5.1 Single Record Submission');
+  paragraph('Example cURL');
+  const curl = `curl -X POST ${ENDPOINT} \\\n  -H "Content-Type: application/json" \\\n  -H "X-API-Key: ${apiKey}" \\\n  -d '${JSON.stringify(exampleObj, null, 2).split('\n').join('\n  ')}'`;
+  codeBlock(curl);
+
+  subheading('5.2 Batch Submission');
+  paragraph('The endpoint also supports batch submissions by posting an array of objects.');
+  const f1 = orderedFields[0] || 'email';
+  const f2 = orderedFields[1] || orderedFields[0] || 'phone';
+  const batchExample = `[\n  { "${f1}": "example-${f1}-1", "${f2}": "example-${f2}-1" },\n  { "${f1}": "example-${f1}-2", "${f2}": "example-${f2}-2" }\n]`;
+  codeBlock(batchExample);
+
+  // ===== 6. JSON Schema =====
+  heading('6. JSON Schema');
+  const schemaObj: Record<string, string> = {};
+  orderedFields.forEach(f => {
+    schemaObj[f] = schema?.fieldTypes[f] || 'string';
   });
-  const curl = `curl -X POST ${ENDPOINT} \\\n -H "Content-Type: application/json" \\\n -H "X-API-Key: ${apiKey}" \\\n -d '${JSON.stringify(exampleObj, null, 2)}'`;
-
-  if (y > 600) { doc.addPage(); y = margin; }
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  doc.text('5. Request Format – Single Record', margin, y);
-  y += 14;
-  doc.setFont('courier', 'normal');
-  doc.setFontSize(9);
-  const curlLines = doc.splitTextToSize(curl, pageWidth - margin * 2);
-  if (y + curlLines.length * 11 > 740) { doc.addPage(); y = margin; }
-  doc.text(curlLines, margin, y);
-  y += curlLines.length * 11 + 16;
-
-  // Field table
-  if (fields.length > 0) {
-    if (y > 600) { doc.addPage(); y = margin; }
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(13);
-    doc.text('6. Field Specifications', margin, y);
-    y += 6;
-    autoTable(doc, {
-      startY: y + 4,
-      head: [['Field Name', 'Type', 'Required', 'Description']],
-      body: fields.map(f => [
-        f,
-        schema?.fieldTypes[f] || 'string',
-        required.has(f) ? 'Yes' : 'No',
-        friendlyDescription(f),
-      ]),
-      theme: 'grid',
-      headStyles: { fillColor: [40, 40, 40] },
-      styles: { fontSize: 10, cellPadding: 5 },
-      margin: { left: margin, right: margin },
-    });
-    y = (doc as any).lastAutoTable.finalY + 20;
+  codeBlock(JSON.stringify(schemaObj, null, 2));
+  if (!hasRequired) {
+    paragraph('Note: No fields are currently required. However, Buyers are expected to send the most complete and accurate data available.');
+  } else {
+    paragraph(`Note: The following fields are required: ${[...required].join(', ')}. Buyers are expected to send the most complete and accurate data available.`);
   }
 
-  addSection('7. Batch Submission',
-    'The endpoint also supports batch submissions by posting a JSON array of objects with the same field structure as a single record.'
-  );
+  // ===== 7. Field Definitions =====
+  heading('7. Field Definitions');
+  const fieldRows = orderedFields.map(f => [
+    f,
+    schema?.fieldTypes[f] || 'string',
+    hasRequired ? (required.has(f) ? 'Yes' : 'No') : '—',
+    friendlyDescription(f),
+  ]);
+  autoTable(doc, {
+    startY: y,
+    head: [['Field Name', 'Type', 'Required', 'Description']],
+    body: fieldRows,
+    theme: 'grid',
+    headStyles: { fillColor: [40, 40, 40] },
+    styles: { fontSize: 10, cellPadding: 5 },
+    columnStyles: {
+      0: { cellWidth: 110, font: 'courier' },
+      1: { cellWidth: 60 },
+      2: { cellWidth: 60 },
+    },
+    margin: { left: margin, right: margin },
+  });
+  y = (doc as any).lastAutoTable.finalY + 16;
 
-  addSection('8. Responses',
-    'Success (HTTP 200):\n{ "success": true, "message": "Data received successfully", "data": { "id": "...", "sourceId": "..." } }\n\nBatch Success (HTTP 200):\n{ "success": true, "message": "Batch data received successfully", "data": { "receivedCount": N, "failedCount": 0, "entries": [...] } }'
-  );
+  // ===== 8. Responses =====
+  heading('8. Responses');
 
-  addSection('9. Error Handling',
-    'Authentication Error (HTTP 403):\n{ "success": false, "message": "Invalid API key or inactive source", "code": "AUTH_FAILED" }\n\nValidation Error (HTTP 400):\n{ "success": false, "message": "Data validation failed", "code": "VALIDATION_ERROR", "errors": ["..."] }'
-  );
+  subheading('8.1 Success – Single Record');
+  paragraph('HTTP 200 OK');
+  const singleResp = {
+    success: true,
+    message: 'Data received successfully',
+    data: {
+      id: 'entry-1770762223-123',
+      sourceId: 'source-123',
+      ...exampleObj,
+    },
+  };
+  codeBlock(JSON.stringify(singleResp, null, 2));
 
-  addSection('10. Rate Limits',
-    'Limit: 1,000 requests per hour per API key. Exceeding the limit returns HTTP 429. Implement retry logic with exponential backoff.'
-  );
+  subheading('8.2 Success – Batch Submission');
+  paragraph('HTTP 200 OK');
+  const batchResp = {
+    success: true,
+    message: 'Batch data received successfully',
+    data: {
+      receivedCount: 2,
+      failedCount: 0,
+      entries: [
+        { id: 'entry-1770762223-123', sourceId: 'source-123' },
+        { id: 'entry-1770762223-124', sourceId: 'source-123' },
+      ],
+    },
+  };
+  codeBlock(JSON.stringify(batchResp, null, 2));
 
-  addSection('11. Best Practices',
+  subheading('8.3 Authentication Error');
+  paragraph('HTTP 403 Forbidden');
+  codeBlock(JSON.stringify({
+    success: false,
+    message: 'Invalid API key or inactive source',
+    code: 'AUTH_FAILED',
+  }, null, 2));
+
+  subheading('8.4 Validation Error');
+  paragraph('HTTP 400 Bad Request');
+  codeBlock(JSON.stringify({
+    success: false,
+    message: 'Data validation failed',
+    code: 'VALIDATION_ERROR',
+    errors: ['Missing required field: email'],
+  }, null, 2));
+
+  // ===== 9. Rate Limits =====
+  heading('9. Rate Limits');
+  paragraph('Limit: 1,000 requests per hour per API key. Exceeding the limit returns HTTP 429. Implement retry logic with exponential backoff.');
+
+  // ===== 10. Best Practices =====
+  heading('10. Best Practices');
+  paragraph(
     '• Send leads in real time whenever possible\n• Ensure consent artifacts (Jornaya / TrustedForm) are accurate and unmodified\n• Do not resend the same lead unless explicitly instructed\n• Contact us before scaling volume or changing payload structure'
   );
 
-  addSection('12. Support',
-    `For API access, whitelisting, or technical questions, please contact your ${companyName} account representative.`
-  );
+  // ===== 11. Support =====
+  heading('11. Support');
+  paragraph(`For API access, whitelisting, or technical questions, please contact your ${companyName} account representative.`);
+
+  divider();
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(8);
+  doc.setTextColor(140);
+  doc.text(`Generated by ${companyName} • ${new Date().toISOString()}`, margin, y);
 
   doc.save(`${sourceName.replace(/[^a-z0-9]/gi, '_')}_Integration_Specs.pdf`);
 };
