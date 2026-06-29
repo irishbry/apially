@@ -235,8 +235,8 @@ export const generateIntegrationPdf = (
       receivedCount: 2,
       failedCount: 0,
       entries: [
-        { id: 'entry-1770762223-123', sourceId: 'source-123' },
-        { id: 'entry-1770762223-124', sourceId: 'source-123' },
+        { id: 'entry-1770762223-123', sourceId: 'source-123', ...exampleObj },
+        { id: 'entry-1770762223-124', sourceId: 'source-123', ...exampleObj },
       ],
     },
   };
