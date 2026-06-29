@@ -7,41 +7,22 @@ export const DataService = {
     const { limit = 1000, offset = 0, includeCount = false, sourceId } = options;
     
     try {
-      // Only show entries from active (non-paused) sources. Sources table is tiny.
-      const { data: activeSources } = await supabase
-        .from('sources')
-        .select('id')
-        .eq('active', true);
-      const activeIds = (activeSources || []).map(s => s.id);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
 
-      if (activeIds.length === 0) {
-        return [];
-      }
-
-      let query = supabase
-        .from('data_entries')
-        .select('*', { count: includeCount ? 'exact' : undefined })
-        .order('created_at', { ascending: false })
-        .in('source_id', sourceId ? [sourceId] : activeIds);
-
-
-
-      if (limit > 0) {
-        query = query.limit(limit);
-      }
-      
-      if (offset > 0) {
-        query = query.range(offset, offset + limit - 1);
-      }
-
-      const { data, error, count } = await query;
+      const { data, error } = await supabase.rpc('get_latest_active_data_entries', {
+        p_user_id: user.id,
+        p_limit: limit,
+        p_offset: offset,
+        p_source_id: sourceId || null,
+      });
       
       if (error) {
         console.error('Error fetching data:', error);
         return [];
       }
       
-      const mappedData = data.map(item => {
+      const mappedData = (data || []).map(item => {
         let parsedMetadata: Record<string, any> | null = null;
         
         if (item.metadata) {
@@ -75,9 +56,9 @@ export const DataService = {
         } as DataEntry;
       });
 
-      // Store count for pagination
-      if (includeCount && count !== null) {
-        (mappedData as any).totalCount = count;
+      if (includeCount) {
+        const totalCount = await DataService.getDataCount({ sourceId });
+        (mappedData as any).totalCount = totalCount;
       }
 
       return mappedData;
@@ -90,22 +71,20 @@ export const DataService = {
   getDataCount: async (options: { sourceId?: string } = {}): Promise<number> => {
     const { sourceId } = options;
     try {
-      let query = supabase
-        .from('data_entries')
-        .select('*', { count: 'exact', head: true });
-      
-      if (sourceId) {
-        query = query.eq('source_id', sourceId);
-      }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return 0;
 
-      const { count, error } = await query;
+      const { data, error } = await supabase.rpc('get_active_data_entries_count', {
+        p_user_id: user.id,
+        p_source_id: sourceId || null,
+      });
       
       if (error) {
         console.error('Error fetching data count:', error);
         return 0;
       }
       
-      return count || 0;
+      return Number(data || 0);
     } catch (error) {
       console.error('Error in getDataCount:', error);
       return 0;
@@ -119,24 +98,29 @@ export const DataService = {
     backedUpDropbox: number;
   }> => {
     try {
-      // Get total count, latest timestamp, and backed up count in parallel
-      const [countResult, latestResult, backedUpResult, uniqueSourcesResult] = await Promise.all([
-        supabase.from('data_entries').select('*', { count: 'exact', head: true }),
-        supabase.from('data_entries').select('timestamp').order('created_at', { ascending: false }).limit(1),
-        supabase.from('data_entries').select('*', { count: 'exact', head: true }).eq('backed_up_dropbox', true),
-        supabase.rpc('count_distinct_sources_for_user')
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return { totalCount: 0, uniqueSources: 0, lastReceived: 'No data', backedUpDropbox: 0 };
+
+      // Use RPCs scoped to the signed-in user and active sources so large tables do not time out.
+      const [countResult, latestResult, sourcesResult] = await Promise.all([
+        supabase.rpc('get_active_data_entries_count', { p_user_id: user.id, p_source_id: null }),
+        supabase.rpc('get_latest_active_data_entries', { p_user_id: user.id, p_limit: 1, p_offset: 0, p_source_id: null }),
+        supabase.from('sources').select('id').eq('user_id', user.id).eq('active', true),
       ]);
 
-      const totalCount = countResult.count || 0;
-      const lastReceived = latestResult.data?.[0]?.timestamp || 'No data';
-      const backedUpDropbox = backedUpResult.count || 0;
-      const uniqueSources = uniqueSourcesResult.data || 0;
+      if (countResult.error) console.error('Error fetching active data count:', countResult.error);
+      if (latestResult.error) console.error('Error fetching latest data entry:', latestResult.error);
+      if (sourcesResult.error) console.error('Error fetching active sources:', sourcesResult.error);
+
+      const totalCount = Number(countResult.data || 0);
+      const lastReceived = latestResult.data?.[0]?.timestamp || latestResult.data?.[0]?.created_at || 'No data';
+      const uniqueSources = sourcesResult.data?.length || 0;
 
       return {
         totalCount,
         uniqueSources,
         lastReceived,
-        backedUpDropbox
+        backedUpDropbox: 0
       };
     } catch (error) {
       console.error('Error in getDataStats:', error);
