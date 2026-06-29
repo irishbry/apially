@@ -409,6 +409,10 @@ export type Database = {
     Functions: {
       count_distinct_sources_for_user: { Args: never; Returns: number }
       generate_unique_api_key: { Args: never; Returns: string }
+      get_active_data_entries_count: {
+        Args: { p_source_id?: string; p_user_id: string }
+        Returns: number
+      }
       get_admin_daily_counts: {
         Args: { p_days?: number }
         Returns: {
@@ -438,6 +442,35 @@ export type Database = {
           day: string
           entry_count: number
         }[]
+      }
+      get_latest_active_data_entries: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_source_id?: string
+          p_user_id: string
+        }
+        Returns: {
+          backed_up_dropbox: boolean | null
+          backed_up_email: boolean | null
+          created_at: string
+          file_name: string
+          file_path: string
+          id: string
+          last_dropbox_backup: string | null
+          last_email_backup: string | null
+          metadata: Json | null
+          sensor_id: string | null
+          source_id: string | null
+          timestamp: string
+          user_id: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "data_entries"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       get_source_entry_counts: {
         Args: { p_user_id: string }
