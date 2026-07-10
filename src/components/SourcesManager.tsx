@@ -38,6 +38,9 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [currentSchema, setCurrentSchema] = useState<DataSchema | undefined>(undefined);
   const [schemaRefreshKey, setSchemaRefreshKey] = useState(0);
+  const [renameSource, setRenameSource] = useState<SourceWithRecords | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [isRenaming, setIsRenaming] = useState(false);
   const { toast } = useToast();
 
   const form = useForm<CreateSourceForm>({
