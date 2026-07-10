@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Plus, Trash2, Eye, EyeOff, Copy, CheckCircle, Database, Pause, Play, FileDown } from "lucide-react";
+import { Plus, Trash2, Eye, EyeOff, Copy, CheckCircle, Database, Pause, Play, FileDown, Pencil } from "lucide-react";
 import { generateIntegrationPdf } from "@/utils/integrationDocPdf";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -38,6 +38,9 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [currentSchema, setCurrentSchema] = useState<DataSchema | undefined>(undefined);
   const [schemaRefreshKey, setSchemaRefreshKey] = useState(0);
+  const [renameSource, setRenameSource] = useState<SourceWithRecords | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [isRenaming, setIsRenaming] = useState(false);
   const { toast } = useToast();
 
   const form = useForm<CreateSourceForm>({
@@ -303,6 +306,38 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
     }
   };
 
+  const submitRename = async () => {
+    if (!renameSource) return;
+    const newName = renameValue.trim();
+    if (!newName) {
+      toast({ title: "Error", description: "Name cannot be empty", variant: "destructive" });
+      return;
+    }
+    if (newName === renameSource.name) {
+      setRenameSource(null);
+      return;
+    }
+    setIsRenaming(true);
+    try {
+      const { error } = await supabase
+        .from('sources')
+        .update({ name: newName })
+        .eq('id', renameSource.id);
+      if (error) {
+        toast({ title: "Error", description: "Failed to rename source", variant: "destructive" });
+        return;
+      }
+      toast({
+        title: "Source renamed",
+        description: `Renamed to "${newName}". Future backup files will use the new name.`,
+      });
+      setRenameSource(null);
+      await loadSources();
+    } finally {
+      setIsRenaming(false);
+    }
+  };
+
   const toggleApiKeyVisibility = (sourceId: string) => {
     setShowApiKey(prev => ({
       ...prev,
@@ -489,6 +524,18 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                       <Button
                         variant="ghost"
                         size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRenameValue(source.name);
+                          setRenameSource(source);
+                        }}
+                        title="Rename source"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={async (e) => {
                           e.stopPropagation();
                           try {
@@ -558,6 +605,33 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
           <ApiDocumentation selectedApiKey={selectedApiKey} />
         </TabsContent>
       </Tabs>
+
+      <Dialog open={!!renameSource} onOpenChange={(open) => !open && setRenameSource(null)}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Rename Source</DialogTitle>
+            <DialogDescription>
+              Update the display name for this source. Future backup files and exports will use the new name; previously generated backup files keep their original filename.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <label className="text-sm font-medium">Source name</label>
+            <Input
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              placeholder="Source name"
+              autoFocus
+              onKeyDown={(e) => { if (e.key === 'Enter') submitRename(); }}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameSource(null)} disabled={isRenaming}>Cancel</Button>
+            <Button onClick={submitRename} disabled={isRenaming}>
+              {isRenaming ? 'Saving...' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
