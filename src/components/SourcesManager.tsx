@@ -524,6 +524,18 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                       <Button
                         variant="ghost"
                         size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRenameValue(source.name);
+                          setRenameSource(source);
+                        }}
+                        title="Rename source"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={async (e) => {
                           e.stopPropagation();
                           try {
