@@ -306,6 +306,38 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
     }
   };
 
+  const submitRename = async () => {
+    if (!renameSource) return;
+    const newName = renameValue.trim();
+    if (!newName) {
+      toast({ title: "Error", description: "Name cannot be empty", variant: "destructive" });
+      return;
+    }
+    if (newName === renameSource.name) {
+      setRenameSource(null);
+      return;
+    }
+    setIsRenaming(true);
+    try {
+      const { error } = await supabase
+        .from('sources')
+        .update({ name: newName })
+        .eq('id', renameSource.id);
+      if (error) {
+        toast({ title: "Error", description: "Failed to rename source", variant: "destructive" });
+        return;
+      }
+      toast({
+        title: "Source renamed",
+        description: `Renamed to "${newName}". Future backup files will use the new name.`,
+      });
+      setRenameSource(null);
+      await loadSources();
+    } finally {
+      setIsRenaming(false);
+    }
+  };
+
   const toggleApiKeyVisibility = (sourceId: string) => {
     setShowApiKey(prev => ({
       ...prev,
