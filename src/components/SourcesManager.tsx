@@ -605,6 +605,33 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
           <ApiDocumentation selectedApiKey={selectedApiKey} />
         </TabsContent>
       </Tabs>
+
+      <Dialog open={!!renameSource} onOpenChange={(open) => !open && setRenameSource(null)}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Rename Source</DialogTitle>
+            <DialogDescription>
+              Update the display name for this source. Future backup files and exports will use the new name; previously generated backup files keep their original filename.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <label className="text-sm font-medium">Source name</label>
+            <Input
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              placeholder="Source name"
+              autoFocus
+              onKeyDown={(e) => { if (e.key === 'Enter') submitRename(); }}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameSource(null)} disabled={isRenaming}>Cancel</Button>
+            <Button onClick={submitRename} disabled={isRenaming}>
+              {isRenaming ? 'Saving...' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
