@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Plus, Trash2, Eye, EyeOff, Copy, CheckCircle, Database, Pause, Play, FileDown, Pencil } from "lucide-react";
+import { Plus, Trash2, Eye, EyeOff, Copy, CheckCircle, Database, Pause, Play, FileDown, Pencil, Files } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { generateIntegrationPdf } from "@/utils/integrationDocPdf";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,6 +28,7 @@ interface SourcesManagerProps {
 
 interface SourceWithRecords extends Source {
   recordCount: number;
+  parent_id?: string | null;
 }
 
 const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
@@ -40,7 +42,11 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
   const [schemaRefreshKey, setSchemaRefreshKey] = useState(0);
   const [renameSource, setRenameSource] = useState<SourceWithRecords | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const [renameParentId, setRenameParentId] = useState<string | null>(null);
   const [isRenaming, setIsRenaming] = useState(false);
+  const [duplicateSource, setDuplicateSource] = useState<SourceWithRecords | null>(null);
+  const [duplicateName, setDuplicateName] = useState('');
+  const [isDuplicating, setIsDuplicating] = useState(false);
   const { toast } = useToast();
 
   const form = useForm<CreateSourceForm>({
@@ -313,28 +319,90 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
       toast({ title: "Error", description: "Name cannot be empty", variant: "destructive" });
       return;
     }
-    if (newName === renameSource.name) {
-      setRenameSource(null);
-      return;
-    }
     setIsRenaming(true);
     try {
+      const updates: any = { name: newName, parent_id: renameParentId };
       const { error } = await supabase
         .from('sources')
-        .update({ name: newName })
+        .update(updates)
         .eq('id', renameSource.id);
       if (error) {
-        toast({ title: "Error", description: "Failed to rename source", variant: "destructive" });
+        toast({ title: "Error", description: "Failed to update source", variant: "destructive" });
         return;
       }
       toast({
-        title: "Source renamed",
-        description: `Renamed to "${newName}". Future backup files will use the new name.`,
+        title: "Source updated",
+        description: `Saved changes to "${newName}".`,
       });
       setRenameSource(null);
       await loadSources();
     } finally {
       setIsRenaming(false);
+    }
+  };
+
+  const submitDuplicate = async () => {
+    if (!duplicateSource) return;
+    const newName = duplicateName.trim();
+    if (!newName) {
+      toast({ title: "Error", description: "Name cannot be empty", variant: "destructive" });
+      return;
+    }
+    setIsDuplicating(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) {
+        toast({ title: "Error", description: "You must be logged in", variant: "destructive" });
+        return;
+      }
+
+      const { data: apiKeyData, error: apiKeyError } = await supabase.rpc('generate_unique_api_key');
+      if (apiKeyError || !apiKeyData) {
+        toast({ title: "Error", description: "Failed to generate API key", variant: "destructive" });
+        return;
+      }
+      const newApiKey = apiKeyData as string;
+
+      // Load original schema (from schema_configs, fall back to sources.schema)
+      const originalSchema = await ConfigService.getSchema(duplicateSource.api_key);
+
+      const insertPayload: any = {
+        name: newName,
+        api_key: newApiKey,
+        user_id: session.user.id,
+        active: true,
+        data_count: 0,
+        schema: originalSchema as any,
+        parent_id: (duplicateSource as any).parent_id ?? null,
+      };
+
+      const { error: insertError } = await supabase
+        .from('sources')
+        .insert(insertPayload);
+      if (insertError) {
+        console.error('Duplicate insert error:', insertError);
+        toast({ title: "Error", description: "Failed to create duplicate source", variant: "destructive" });
+        return;
+      }
+
+      // Copy schema_configs entry
+      if (originalSchema && (Object.keys(originalSchema.fieldTypes || {}).length > 0 || (originalSchema.requiredFields || []).length > 0)) {
+        await ConfigService.setSchema(originalSchema, newApiKey);
+      }
+
+      toast({
+        title: "Source duplicated",
+        description: `Created "${newName}" with a new API key and the same schema.`,
+      });
+      setDuplicateSource(null);
+      setDuplicateName('');
+      await loadSources();
+      setSelectedApiKey(newApiKey);
+    } catch (err) {
+      console.error('Error duplicating source:', err);
+      toast({ title: "Error", description: "An unexpected error occurred", variant: "destructive" });
+    } finally {
+      setIsDuplicating(false);
     }
   };
 
@@ -459,13 +527,25 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
               <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full"></div>
             </div>
           ) : sources.length > 0 ? (
-            <div className="space-y-4">
-              {sources.map((source) => (
-                <div 
-                  key={source.id} 
-                  className={`p-4 border rounded-lg transition-all cursor-pointer ${
-                    selectedApiKey === source.api_key 
-                      ? 'border-primary bg-primary/5' 
+            (() => {
+              const parents = sources.filter(s => !(s as any).parent_id);
+              const orphans = sources.filter(s => (s as any).parent_id && !sources.some(p => p.id === (s as any).parent_id));
+              const topLevel = [...parents, ...orphans];
+              const childrenByParent = new Map<string, SourceWithRecords[]>();
+              for (const s of sources) {
+                const pid = (s as any).parent_id;
+                if (pid && sources.some(p => p.id === pid)) {
+                  if (!childrenByParent.has(pid)) childrenByParent.set(pid, []);
+                  childrenByParent.get(pid)!.push(s);
+                }
+              }
+
+              const renderRow = (source: SourceWithRecords, isChild = false) => (
+                <div
+                  key={source.id}
+                  className={`p-4 border rounded-lg transition-all cursor-pointer ${isChild ? 'ml-8 border-l-4 border-l-primary/40' : ''} ${
+                    selectedApiKey === source.api_key
+                      ? 'border-primary bg-primary/5'
                       : 'border-border hover:border-primary/50'
                   }`}
                   onClick={() => handleApiKeySelect(source.api_key || '')}
@@ -476,7 +556,10 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                         <CheckCircle className="h-5 w-5 text-primary" />
                       )}
                       <div>
-                        <h3 className="font-medium">{source.name}</h3>
+                        <h3 className="font-medium">
+                          {source.name}
+                          {isChild && <span className="ml-2 text-xs font-normal text-muted-foreground">subsource</span>}
+                        </h3>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
                           <div className="flex items-center gap-1">
                             <Database className="h-3 w-3" />
@@ -493,8 +576,8 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                       <div className="flex items-center gap-1 text-xs bg-secondary px-2 py-1 rounded">
                         <span>API Key:</span>
                         <code className="bg-background px-1">
-                          {showApiKey[source.id] 
-                            ? source.api_key 
+                          {showApiKey[source.id]
+                            ? source.api_key
                             : `${source.api_key?.substring(0, 8)}...`
                           }
                         </code>
@@ -527,11 +610,24 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                         onClick={(e) => {
                           e.stopPropagation();
                           setRenameValue(source.name);
+                          setRenameParentId((source as any).parent_id ?? null);
                           setRenameSource(source);
                         }}
-                        title="Rename source"
+                        title="Edit source (name & parent)"
                       >
                         <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDuplicateName(`${source.name} (copy)`);
+                          setDuplicateSource(source);
+                        }}
+                        title="Duplicate source (new API key, same schema)"
+                      >
+                        <Files className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
@@ -578,8 +674,19 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
+              );
+
+              return (
+                <div className="space-y-4">
+                  {topLevel.map(parent => (
+                    <div key={parent.id} className="space-y-2">
+                      {renderRow(parent, false)}
+                      {(childrenByParent.get(parent.id) || []).map(child => renderRow(child, true))}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()
           ) : (
             <div className="text-center py-8 text-muted-foreground">
               <Plus className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -609,25 +716,77 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
       <Dialog open={!!renameSource} onOpenChange={(open) => !open && setRenameSource(null)}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Rename Source</DialogTitle>
+            <DialogTitle>Edit Source</DialogTitle>
             <DialogDescription>
-              Update the display name for this source. Future backup files and exports will use the new name; previously generated backup files keep their original filename.
+              Update the display name and optional parent source. Future backup files and exports use the new name; previously generated backup files keep their original filename. The API key does not change.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2 py-2">
-            <label className="text-sm font-medium">Source name</label>
-            <Input
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              placeholder="Source name"
-              autoFocus
-              onKeyDown={(e) => { if (e.key === 'Enter') submitRename(); }}
-            />
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Source name</label>
+              <Input
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                placeholder="Source name"
+                autoFocus
+                onKeyDown={(e) => { if (e.key === 'Enter') submitRename(); }}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Parent source (optional)</label>
+              <Select
+                value={renameParentId ?? 'none'}
+                onValueChange={(v) => setRenameParentId(v === 'none' ? null : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="No parent" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No parent (top-level source)</SelectItem>
+                  {sources
+                    .filter(s => s.id !== renameSource?.id && !(s as any).parent_id)
+                    .map(s => (
+                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Grouping is display-only. API keys, data ingestion, and backups are unaffected.
+              </p>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRenameSource(null)} disabled={isRenaming}>Cancel</Button>
             <Button onClick={submitRename} disabled={isRenaming}>
               {isRenaming ? 'Saving...' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!duplicateSource} onOpenChange={(open) => { if (!open) { setDuplicateSource(null); setDuplicateName(''); } }}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Duplicate Source</DialogTitle>
+            <DialogDescription>
+              Create a new source with a brand-new API key. The schema (field types & required fields) from
+              {duplicateSource ? ` "${duplicateSource.name}"` : ''} will be copied. No data or exports are copied.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <label className="text-sm font-medium">New source name</label>
+            <Input
+              value={duplicateName}
+              onChange={(e) => setDuplicateName(e.target.value)}
+              placeholder="New source name"
+              autoFocus
+              onKeyDown={(e) => { if (e.key === 'Enter') submitDuplicate(); }}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDuplicateSource(null); setDuplicateName(''); }} disabled={isDuplicating}>Cancel</Button>
+            <Button onClick={submitDuplicate} disabled={isDuplicating}>
+              {isDuplicating ? 'Duplicating...' : 'Duplicate'}
             </Button>
           </DialogFooter>
         </DialogContent>

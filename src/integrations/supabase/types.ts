@@ -372,6 +372,7 @@ export type Database = {
           id: string
           last_active: string | null
           name: string
+          parent_id: string | null
           schema: Json | null
           url: string | null
           user_id: string
@@ -384,6 +385,7 @@ export type Database = {
           id?: string
           last_active?: string | null
           name: string
+          parent_id?: string | null
           schema?: Json | null
           url?: string | null
           user_id: string
@@ -396,11 +398,20 @@ export type Database = {
           id?: string
           last_active?: string | null
           name?: string
+          parent_id?: string | null
           schema?: Json | null
           url?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "sources_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "sources"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
