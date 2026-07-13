@@ -42,7 +42,11 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
   const [schemaRefreshKey, setSchemaRefreshKey] = useState(0);
   const [renameSource, setRenameSource] = useState<SourceWithRecords | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const [renameParentId, setRenameParentId] = useState<string | null>(null);
   const [isRenaming, setIsRenaming] = useState(false);
+  const [duplicateSource, setDuplicateSource] = useState<SourceWithRecords | null>(null);
+  const [duplicateName, setDuplicateName] = useState('');
+  const [isDuplicating, setIsDuplicating] = useState(false);
   const { toast } = useToast();
 
   const form = useForm<CreateSourceForm>({
