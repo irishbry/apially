@@ -527,13 +527,25 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
               <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full"></div>
             </div>
           ) : sources.length > 0 ? (
-            <div className="space-y-4">
-              {sources.map((source) => (
-                <div 
-                  key={source.id} 
-                  className={`p-4 border rounded-lg transition-all cursor-pointer ${
-                    selectedApiKey === source.api_key 
-                      ? 'border-primary bg-primary/5' 
+            (() => {
+              const parents = sources.filter(s => !(s as any).parent_id);
+              const orphans = sources.filter(s => (s as any).parent_id && !sources.some(p => p.id === (s as any).parent_id));
+              const topLevel = [...parents, ...orphans];
+              const childrenByParent = new Map<string, SourceWithRecords[]>();
+              for (const s of sources) {
+                const pid = (s as any).parent_id;
+                if (pid && sources.some(p => p.id === pid)) {
+                  if (!childrenByParent.has(pid)) childrenByParent.set(pid, []);
+                  childrenByParent.get(pid)!.push(s);
+                }
+              }
+
+              const renderRow = (source: SourceWithRecords, isChild = false) => (
+                <div
+                  key={source.id}
+                  className={`p-4 border rounded-lg transition-all cursor-pointer ${isChild ? 'ml-8 border-l-4 border-l-primary/40' : ''} ${
+                    selectedApiKey === source.api_key
+                      ? 'border-primary bg-primary/5'
                       : 'border-border hover:border-primary/50'
                   }`}
                   onClick={() => handleApiKeySelect(source.api_key || '')}
@@ -544,7 +556,10 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                         <CheckCircle className="h-5 w-5 text-primary" />
                       )}
                       <div>
-                        <h3 className="font-medium">{source.name}</h3>
+                        <h3 className="font-medium">
+                          {source.name}
+                          {isChild && <span className="ml-2 text-xs font-normal text-muted-foreground">subsource</span>}
+                        </h3>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
                           <div className="flex items-center gap-1">
                             <Database className="h-3 w-3" />
@@ -561,8 +576,8 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                       <div className="flex items-center gap-1 text-xs bg-secondary px-2 py-1 rounded">
                         <span>API Key:</span>
                         <code className="bg-background px-1">
-                          {showApiKey[source.id] 
-                            ? source.api_key 
+                          {showApiKey[source.id]
+                            ? source.api_key
                             : `${source.api_key?.substring(0, 8)}...`
                           }
                         </code>
@@ -595,11 +610,24 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                         onClick={(e) => {
                           e.stopPropagation();
                           setRenameValue(source.name);
+                          setRenameParentId((source as any).parent_id ?? null);
                           setRenameSource(source);
                         }}
-                        title="Rename source"
+                        title="Edit source (name & parent)"
                       >
                         <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDuplicateName(`${source.name} (copy)`);
+                          setDuplicateSource(source);
+                        }}
+                        title="Duplicate source (new API key, same schema)"
+                      >
+                        <Files className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
@@ -646,8 +674,19 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
+              );
+
+              return (
+                <div className="space-y-4">
+                  {topLevel.map(parent => (
+                    <div key={parent.id} className="space-y-2">
+                      {renderRow(parent, false)}
+                      {(childrenByParent.get(parent.id) || []).map(child => renderRow(child, true))}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()
           ) : (
             <div className="text-center py-8 text-muted-foreground">
               <Plus className="h-12 w-12 mx-auto mb-4 opacity-50" />
