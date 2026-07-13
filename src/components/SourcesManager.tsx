@@ -28,6 +28,7 @@ interface SourcesManagerProps {
 
 interface SourceWithRecords extends Source {
   recordCount: number;
+  parent_id?: string | null;
 }
 
 const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
