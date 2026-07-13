@@ -716,25 +716,77 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
       <Dialog open={!!renameSource} onOpenChange={(open) => !open && setRenameSource(null)}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Rename Source</DialogTitle>
+            <DialogTitle>Edit Source</DialogTitle>
             <DialogDescription>
-              Update the display name for this source. Future backup files and exports will use the new name; previously generated backup files keep their original filename.
+              Update the display name and optional parent source. Future backup files and exports use the new name; previously generated backup files keep their original filename. The API key does not change.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2 py-2">
-            <label className="text-sm font-medium">Source name</label>
-            <Input
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              placeholder="Source name"
-              autoFocus
-              onKeyDown={(e) => { if (e.key === 'Enter') submitRename(); }}
-            />
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Source name</label>
+              <Input
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                placeholder="Source name"
+                autoFocus
+                onKeyDown={(e) => { if (e.key === 'Enter') submitRename(); }}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Parent source (optional)</label>
+              <Select
+                value={renameParentId ?? 'none'}
+                onValueChange={(v) => setRenameParentId(v === 'none' ? null : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="No parent" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No parent (top-level source)</SelectItem>
+                  {sources
+                    .filter(s => s.id !== renameSource?.id && !(s as any).parent_id)
+                    .map(s => (
+                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Grouping is display-only. API keys, data ingestion, and backups are unaffected.
+              </p>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRenameSource(null)} disabled={isRenaming}>Cancel</Button>
             <Button onClick={submitRename} disabled={isRenaming}>
               {isRenaming ? 'Saving...' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!duplicateSource} onOpenChange={(open) => { if (!open) { setDuplicateSource(null); setDuplicateName(''); } }}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Duplicate Source</DialogTitle>
+            <DialogDescription>
+              Create a new source with a brand-new API key. The schema (field types & required fields) from
+              {duplicateSource ? ` "${duplicateSource.name}"` : ''} will be copied. No data or exports are copied.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <label className="text-sm font-medium">New source name</label>
+            <Input
+              value={duplicateName}
+              onChange={(e) => setDuplicateName(e.target.value)}
+              placeholder="New source name"
+              autoFocus
+              onKeyDown={(e) => { if (e.key === 'Enter') submitDuplicate(); }}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setDuplicateSource(null); setDuplicateName(''); }} disabled={isDuplicating}>Cancel</Button>
+            <Button onClick={submitDuplicate} disabled={isDuplicating}>
+              {isDuplicating ? 'Duplicating...' : 'Duplicate'}
             </Button>
           </DialogFooter>
         </DialogContent>
