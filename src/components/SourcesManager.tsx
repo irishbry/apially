@@ -319,28 +319,90 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
       toast({ title: "Error", description: "Name cannot be empty", variant: "destructive" });
       return;
     }
-    if (newName === renameSource.name) {
-      setRenameSource(null);
-      return;
-    }
     setIsRenaming(true);
     try {
+      const updates: any = { name: newName, parent_id: renameParentId };
       const { error } = await supabase
         .from('sources')
-        .update({ name: newName })
+        .update(updates)
         .eq('id', renameSource.id);
       if (error) {
-        toast({ title: "Error", description: "Failed to rename source", variant: "destructive" });
+        toast({ title: "Error", description: "Failed to update source", variant: "destructive" });
         return;
       }
       toast({
-        title: "Source renamed",
-        description: `Renamed to "${newName}". Future backup files will use the new name.`,
+        title: "Source updated",
+        description: `Saved changes to "${newName}".`,
       });
       setRenameSource(null);
       await loadSources();
     } finally {
       setIsRenaming(false);
+    }
+  };
+
+  const submitDuplicate = async () => {
+    if (!duplicateSource) return;
+    const newName = duplicateName.trim();
+    if (!newName) {
+      toast({ title: "Error", description: "Name cannot be empty", variant: "destructive" });
+      return;
+    }
+    setIsDuplicating(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) {
+        toast({ title: "Error", description: "You must be logged in", variant: "destructive" });
+        return;
+      }
+
+      const { data: apiKeyData, error: apiKeyError } = await supabase.rpc('generate_unique_api_key');
+      if (apiKeyError || !apiKeyData) {
+        toast({ title: "Error", description: "Failed to generate API key", variant: "destructive" });
+        return;
+      }
+      const newApiKey = apiKeyData as string;
+
+      // Load original schema (from schema_configs, fall back to sources.schema)
+      const originalSchema = await ConfigService.getSchema(duplicateSource.api_key);
+
+      const insertPayload: any = {
+        name: newName,
+        api_key: newApiKey,
+        user_id: session.user.id,
+        active: true,
+        data_count: 0,
+        schema: originalSchema as any,
+        parent_id: (duplicateSource as any).parent_id ?? null,
+      };
+
+      const { error: insertError } = await supabase
+        .from('sources')
+        .insert(insertPayload);
+      if (insertError) {
+        console.error('Duplicate insert error:', insertError);
+        toast({ title: "Error", description: "Failed to create duplicate source", variant: "destructive" });
+        return;
+      }
+
+      // Copy schema_configs entry
+      if (originalSchema && (Object.keys(originalSchema.fieldTypes || {}).length > 0 || (originalSchema.requiredFields || []).length > 0)) {
+        await ConfigService.setSchema(originalSchema, newApiKey);
+      }
+
+      toast({
+        title: "Source duplicated",
+        description: `Created "${newName}" with a new API key and the same schema.`,
+      });
+      setDuplicateSource(null);
+      setDuplicateName('');
+      await loadSources();
+      setSelectedApiKey(newApiKey);
+    } catch (err) {
+      console.error('Error duplicating source:', err);
+      toast({ title: "Error", description: "An unexpected error occurred", variant: "destructive" });
+    } finally {
+      setIsDuplicating(false);
     }
   };
 
