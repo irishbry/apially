@@ -57,49 +57,36 @@ function chunkArray<T>(array: T[], chunkSize: number): T[][] {
 
 // Helper function to update records in chunks
 async function updateRecordsInChunks(entryIds: string[], userId: string): Promise<{ success: boolean; updatedCount: number }> {
-  const chunks = chunkArray(entryIds, 100);
+  const chunks = chunkArray(entryIds, 1000);
   let totalUpdated = 0;
-  
+
   console.log(`Processing ${chunks.length} chunks of records for user ${userId}`);
-  
-  // Calculate PST date for last_dropbox_backup
+
   const PST_TIMEZONE = 'America/Los_Angeles';
   const nowPST = toZonedTime(new Date(), PST_TIMEZONE);
   const pstDateString = format(nowPST, 'yyyy-MM-dd');
-  
+
   for (let i = 0; i < chunks.length; i++) {
     const chunk = chunks[i];
-    console.log(`Processing chunk ${i + 1}/${chunks.length} with ${chunk.length} records`);
-    
     try {
-      const { error: updateError, data: updateData } = await supabase
+      const { error: updateError } = await supabase
         .from('data_entries')
         .update({
           backed_up_dropbox: true,
-          last_dropbox_backup: pstDateString
+          last_dropbox_backup: pstDateString,
         })
-        .in('id', chunk)
-        .select('id, backed_up_dropbox, last_dropbox_backup');
+        .in('id', chunk);
 
       if (updateError) {
         console.error(`Error updating chunk ${i + 1}:`, updateError);
-        // Continue with other chunks even if one fails
       } else {
-        const chunkUpdated = updateData?.length || 0;
-        totalUpdated += chunkUpdated;
-        console.log(`Chunk ${i + 1} updated ${chunkUpdated} records successfully`);
-      }
-      
-      // Add a small delay between chunks to avoid overwhelming the database
-      if (i < chunks.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        totalUpdated += chunk.length;
       }
     } catch (error) {
       console.error(`Error processing chunk ${i + 1}:`, error);
-      // Continue with other chunks
     }
   }
-  
+
   console.log(`Total records updated across all chunks: ${totalUpdated} out of ${entryIds.length}`);
   return { success: totalUpdated > 0, updatedCount: totalUpdated };
 }
