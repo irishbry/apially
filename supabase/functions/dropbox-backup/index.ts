@@ -569,6 +569,7 @@ async function createBackupForUser(
     console.log('Dropbox connection test passed');
 
     let totalBackedUpCount = 0;
+    const pendingIdsToMark: string[] = [];
     const backupResults: Array<{
       sourceId: string;
       success: boolean;
