@@ -99,7 +99,7 @@ const handler = async (req: Request): Promise<Response> => {
   console.log('Starting Dropbox backup process...');
 
   try {
-    const { userId, format: exportFormat = 'csv', dropboxPath, dropboxToken, action = 'backup' } = await req.json();
+    const { userId, format: exportFormat = 'csv', dropboxPath, dropboxToken, action = 'backup', sourceId, pstDate } = await req.json();
 
     // Handle different actions
     if (action === 'test_connection') {
@@ -108,6 +108,16 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (action === 'scheduled_backup') {
       return await processScheduledBackups();
+    }
+
+    if (action === 'recreate_backup') {
+      if (!userId || !sourceId || !pstDate) {
+        return new Response(JSON.stringify({ error: 'userId, sourceId, and pstDate are required' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      return await processRecreateBackup(userId, sourceId, pstDate, exportFormat);
     }
 
     // Individual backup - userId is optional now
