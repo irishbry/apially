@@ -298,6 +298,148 @@ async function processIndividualBackup(
   }
 }
 
+async function processRecreateBackup(
+  userId: string,
+  sourceId: string,
+  pstDate: string,
+  exportFormat: string
+): Promise<Response> {
+  try {
+    console.log(`Recreating backup for user ${userId}, source ${sourceId}, PST date ${pstDate}`);
+
+    const PST_TIMEZONE = 'America/Los_Angeles';
+    const [y, m, d] = pstDate.split('-').map(Number);
+    const startOfDayPST = new Date(y, m - 1, d, 0, 0, 0, 0);
+    const endOfDayPST = new Date(y, m - 1, d, 23, 59, 59, 999);
+    const startUTC = fromZonedTime(startOfDayPST, PST_TIMEZONE);
+    const endUTC = fromZonedTime(endOfDayPST, PST_TIMEZONE);
+
+    // Fetch source metadata + full user sources list (needed by CSV generator)
+    const { data: sourcesData } = await supabase
+      .from('sources')
+      .select('*')
+      .eq('user_id', userId);
+    const sources = sourcesData || [];
+    const source = sources.find(s => s.id === sourceId);
+    if (!source) {
+      return new Response(JSON.stringify({ error: 'Source not found for this user' }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Paginated fetch of all entries for this source in the PST day
+    const PAGE_SIZE = 1000;
+    const allEntries: DataEntry[] = [];
+    let offset = 0;
+    while (true) {
+      const { data: page, error: pageError } = await supabase
+        .from('data_entries')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('source_id', sourceId)
+        .gte('created_at', startUTC.toISOString())
+        .lte('created_at', endUTC.toISOString())
+        .or('metadata->>paused.is.null,metadata->>paused.neq.true')
+        .order('created_at', { ascending: false })
+        .range(offset, offset + PAGE_SIZE - 1);
+
+      if (pageError) {
+        console.error('Fetch page error:', pageError);
+        break;
+      }
+      if (!page || page.length === 0) break;
+      allEntries.push(...(page as DataEntry[]));
+      if (page.length < PAGE_SIZE) break;
+      offset += PAGE_SIZE;
+    }
+
+    if (allEntries.length === 0) {
+      return new Response(JSON.stringify({ success: false, error: 'No data found for this source on this date' }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const safeName = source.name.replace(/[^a-zA-Z0-9]/g, '_');
+    const fileName = `backup_${pstDate}_${safeName}.${exportFormat}`;
+    const backupContent = exportFormat === 'json'
+      ? generateDataExplorerJSON(allEntries, sources as Source[])
+      : generateDataExplorerCSV(allEntries, sources as Source[]);
+    const fileSize = new Blob([backupContent]).size;
+
+    // Insert backup log
+    const { data: backupLog } = await supabase
+      .from('backup_logs')
+      .insert({
+        user_id: userId,
+        file_name: fileName,
+        file_path: fileName,
+        record_count: allEntries.length,
+        backup_type: 'scheduled',
+        format: exportFormat,
+        status: 'processing',
+        file_size: fileSize,
+      })
+      .select()
+      .single();
+
+    // Upload to Supabase Storage
+    const storageResult = await uploadToSupabaseStorage(fileName, backupContent, userId);
+
+    // Upload to Dropbox if config present
+    let dropboxUrl: string | null = null;
+    const { data: config } = await supabase
+      .from('dropbox_configs')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (config) {
+      const validConfig = await ensureValidAccessToken(config as DropboxConfig);
+      if (validConfig) {
+        const dbxResult = await uploadToDropbox(
+          validConfig.dropbox_token,
+          validConfig.dropbox_path,
+          fileName,
+          backupContent
+        );
+        if (dbxResult.success) dropboxUrl = dbxResult.dropboxUrl || null;
+      }
+    }
+
+    // Finalize log
+    if (backupLog) {
+      await supabase
+        .from('backup_logs')
+        .update({
+          status: storageResult.success || dropboxUrl ? 'completed' : 'failed',
+          storage_path: storageResult.path || null,
+          dropbox_url: dropboxUrl,
+        })
+        .eq('id', backupLog.id);
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        fileName,
+        recordCount: allEntries.length,
+        storagePath: storageResult.path,
+        dropboxUrl,
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    console.error('processRecreateBackup error:', error);
+    return new Response(
+      JSON.stringify({ success: false, error: error instanceof Error ? error.message : 'Unknown error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+}
+
 async function processScheduledBackups(): Promise<Response> {
   try {
     console.log('Processing scheduled backups for all users...');
