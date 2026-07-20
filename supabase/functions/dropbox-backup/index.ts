@@ -57,49 +57,36 @@ function chunkArray<T>(array: T[], chunkSize: number): T[][] {
 
 // Helper function to update records in chunks
 async function updateRecordsInChunks(entryIds: string[], userId: string): Promise<{ success: boolean; updatedCount: number }> {
-  const chunks = chunkArray(entryIds, 100);
+  const chunks = chunkArray(entryIds, 1000);
   let totalUpdated = 0;
-  
+
   console.log(`Processing ${chunks.length} chunks of records for user ${userId}`);
-  
-  // Calculate PST date for last_dropbox_backup
+
   const PST_TIMEZONE = 'America/Los_Angeles';
   const nowPST = toZonedTime(new Date(), PST_TIMEZONE);
   const pstDateString = format(nowPST, 'yyyy-MM-dd');
-  
+
   for (let i = 0; i < chunks.length; i++) {
     const chunk = chunks[i];
-    console.log(`Processing chunk ${i + 1}/${chunks.length} with ${chunk.length} records`);
-    
     try {
-      const { error: updateError, data: updateData } = await supabase
+      const { error: updateError } = await supabase
         .from('data_entries')
         .update({
           backed_up_dropbox: true,
-          last_dropbox_backup: pstDateString
+          last_dropbox_backup: pstDateString,
         })
-        .in('id', chunk)
-        .select('id, backed_up_dropbox, last_dropbox_backup');
+        .in('id', chunk);
 
       if (updateError) {
         console.error(`Error updating chunk ${i + 1}:`, updateError);
-        // Continue with other chunks even if one fails
       } else {
-        const chunkUpdated = updateData?.length || 0;
-        totalUpdated += chunkUpdated;
-        console.log(`Chunk ${i + 1} updated ${chunkUpdated} records successfully`);
-      }
-      
-      // Add a small delay between chunks to avoid overwhelming the database
-      if (i < chunks.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        totalUpdated += chunk.length;
       }
     } catch (error) {
       console.error(`Error processing chunk ${i + 1}:`, error);
-      // Continue with other chunks
     }
   }
-  
+
   console.log(`Total records updated across all chunks: ${totalUpdated} out of ${entryIds.length}`);
   return { success: totalUpdated > 0, updatedCount: totalUpdated };
 }
@@ -582,6 +569,7 @@ async function createBackupForUser(
     console.log('Dropbox connection test passed');
 
     let totalBackedUpCount = 0;
+    const pendingIdsToMark: string[] = [];
     const backupResults: Array<{
       sourceId: string;
       success: boolean;
@@ -683,19 +671,14 @@ async function createBackupForUser(
         // If at least one upload succeeded for this source
         if (storagePath || dropboxUrl) {
           console.log(`At least one upload succeeded for source ${sourceId}. Storage: ${!!storagePath}, Dropbox: ${!!dropboxUrl}`);
-          
-          // Mark entries as backed up to Dropbox using chunked updates
+
+          // Collect entry IDs for post-finalize marking (do NOT mark inline;
+          // marking large sets can exceed the edge function wall clock and
+          // prevent the backup_attempts row from being finalized).
           const entryIds = sourceData.map(entry => entry.id);
-          console.log(`Marking ${entryIds.length} entries as backed up to Dropbox for source ${sourceId}`);
-          
-          const updateResult = await updateRecordsInChunks(entryIds, userId);
-          
-          if (updateResult.success) {
-            totalBackedUpCount += updateResult.updatedCount;
-            console.log(`Successfully updated ${updateResult.updatedCount} entries for source ${sourceId}`);
-          } else {
-            console.error(`Failed to update records for source ${sourceId}`);
-          }
+          pendingIdsToMark.push(...entryIds);
+          totalBackedUpCount += entryIds.length;
+          console.log(`Queued ${entryIds.length} entries to mark for source ${sourceId}`);
 
           // Update backup log with success status and URLs
           if (backupLogId) {
@@ -781,6 +764,18 @@ async function createBackupForUser(
     } catch (logError) {
       console.warn('Failed to log backup attempt result:', logError);
     }
+
+    // Mark records AFTER finalizing the attempt so a long-running update
+    // loop can't leave the attempt row stuck in 'attempting'.
+    if (pendingIdsToMark.length > 0) {
+      console.log(`Marking ${pendingIdsToMark.length} entries as backed up (post-finalize)`);
+      try {
+        await updateRecordsInChunks(pendingIdsToMark, userId);
+      } catch (markErr) {
+        console.error('Post-finalize record marking failed:', markErr);
+      }
+    }
+
 
     // Return consolidated results
     if (successfulBackups > 0) {

@@ -1,0 +1,1 @@
+UPDATE public.backup_attempts SET status = 'success', error_message = 'Auto-resolved: backup files completed but attempt row was not finalized due to prior wall-clock timeout during post-upload record marking.' WHERE status = 'attempting';
