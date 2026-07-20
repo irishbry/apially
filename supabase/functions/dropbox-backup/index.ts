@@ -765,6 +765,18 @@ async function createBackupForUser(
       console.warn('Failed to log backup attempt result:', logError);
     }
 
+    // Mark records AFTER finalizing the attempt so a long-running update
+    // loop can't leave the attempt row stuck in 'attempting'.
+    if (pendingIdsToMark.length > 0) {
+      console.log(`Marking ${pendingIdsToMark.length} entries as backed up (post-finalize)`);
+      try {
+        await updateRecordsInChunks(pendingIdsToMark, userId);
+      } catch (markErr) {
+        console.error('Post-finalize record marking failed:', markErr);
+      }
+    }
+
+
     // Return consolidated results
     if (successfulBackups > 0) {
       console.log(`Backup completed: ${successfulBackups} sources successful, ${failedBackups} failed, ${totalBackedUpCount} total entries backed up`);
