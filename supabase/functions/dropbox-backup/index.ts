@@ -670,19 +670,14 @@ async function createBackupForUser(
         // If at least one upload succeeded for this source
         if (storagePath || dropboxUrl) {
           console.log(`At least one upload succeeded for source ${sourceId}. Storage: ${!!storagePath}, Dropbox: ${!!dropboxUrl}`);
-          
-          // Mark entries as backed up to Dropbox using chunked updates
+
+          // Collect entry IDs for post-finalize marking (do NOT mark inline;
+          // marking large sets can exceed the edge function wall clock and
+          // prevent the backup_attempts row from being finalized).
           const entryIds = sourceData.map(entry => entry.id);
-          console.log(`Marking ${entryIds.length} entries as backed up to Dropbox for source ${sourceId}`);
-          
-          const updateResult = await updateRecordsInChunks(entryIds, userId);
-          
-          if (updateResult.success) {
-            totalBackedUpCount += updateResult.updatedCount;
-            console.log(`Successfully updated ${updateResult.updatedCount} entries for source ${sourceId}`);
-          } else {
-            console.error(`Failed to update records for source ${sourceId}`);
-          }
+          pendingIdsToMark.push(...entryIds);
+          totalBackedUpCount += entryIds.length;
+          console.log(`Queued ${entryIds.length} entries to mark for source ${sourceId}`);
 
           // Update backup log with success status and URLs
           if (backupLogId) {
