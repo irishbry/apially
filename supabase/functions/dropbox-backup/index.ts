@@ -476,17 +476,11 @@ async function createBackupForUser(
 
     const sources = sourcesData || [];
 
-    // Step 1: Get distinct source_ids for this user + date range (small query)
+    // Step 1: Determine which sources to back up.
+    // Use the already-fetched sources list (all user sources) instead of a
+    // capped select on data_entries — that select hit the default 1000-row
+    // limit on high-volume days and silently dropped some source_ids.
     const PAGE_SIZE = 1000;
-    const { data: sourceIdRows, error: sourceIdError } = await supabase
-      .from('data_entries')
-      .select('source_id')
-      .eq('user_id', userId)
-      .gte('created_at', startOfDayUTC.toISOString())
-      .lte('created_at', endOfDayUTC.toISOString())
-      .not('source_id', 'is', null)
-      // Skip entries that were ingested while their source was paused
-      .or('metadata->>paused.is.null,metadata->>paused.neq.true');
 
     // Helper to finalize the attempt row on early returns
     const finalizeAttempt = async (status: string, errorMsg: string | null = null) => {
@@ -501,18 +495,12 @@ async function createBackupForUser(
       }
     };
 
-    if (sourceIdError) {
-      console.error(`Error fetching source_ids for user ${userId}:`, sourceIdError);
-      await finalizeAttempt('failed', 'Failed to fetch source IDs');
-      return { success: false, error: 'Failed to fetch source IDs' };
-    }
-
-    const uniqueSourceIds = [...new Set(sourceIdRows?.map(r => r.source_id).filter(Boolean))];
-    console.log(`Found ${uniqueSourceIds.length} distinct sources for user ${userId} in date range`);
+    const uniqueSourceIds = sources.map(s => s.id);
+    console.log(`Considering ${uniqueSourceIds.length} sources for user ${userId}`);
 
     if (uniqueSourceIds.length === 0) {
-      console.log(`No data found for user ${userId} in the previous PST day`);
-      await finalizeAttempt('success', 'No data to back up for this day');
+      console.log(`No sources found for user ${userId}`);
+      await finalizeAttempt('success', 'No sources configured');
       return { success: true, fileName: '', path: '', backedUpCount: 0 };
     }
 
