@@ -182,8 +182,10 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
   useEffect(() => {
     // Only fetch data if no prop data is provided
     if (!propData && !propSources) {
-      fetchPaginatedData(currentPage, itemsPerPage, selectedSource);
-      
+      if (!isSearchMode) {
+        fetchPaginatedData(currentPage, itemsPerPage, selectedSource);
+      }
+
       // Load sources
       const loadSources = async () => {
         try {
@@ -193,10 +195,78 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
           console.error('Error loading sources:', err);
         }
       };
-      
+
       loadSources();
     }
-  }, [propData, propSources, currentPage, itemsPerPage, selectedSource]);
+  }, [propData, propSources, currentPage, itemsPerPage, selectedSource, isSearchMode]);
+
+  // Debounce the raw search input so we don't hammer the RPC on every keystroke
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearchTerm(searchTerm.trim()), 400);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
+  // Determine whether we're in "search all history" mode
+  useEffect(() => {
+    const hasQuery = debouncedSearchTerm.length > 0;
+    const hasDates = !!searchFrom || !!searchTo;
+    setIsSearchMode(hasQuery || hasDates);
+  }, [debouncedSearchTerm, searchFrom, searchTo]);
+
+  // Reset to page 1 whenever a search input changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchTerm, searchFrom, searchTo]);
+
+  // Full-history server-side search
+  useEffect(() => {
+    if (propData) return;
+    if (!isSearchMode) return;
+
+    let cancelled = false;
+    const run = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const sourceId = selectedSource && selectedSource !== 'all' ? selectedSource : undefined;
+        const fromISO = searchFrom ? new Date(searchFrom + 'T00:00:00').toISOString() : undefined;
+        const toISO = searchTo ? new Date(searchTo + 'T23:59:59').toISOString() : undefined;
+        const offset = (currentPage - 1) * itemsPerPage;
+
+        const [rows, count] = await Promise.all([
+          ApiService.searchData({
+            query: debouncedSearchTerm,
+            sourceId,
+            from: fromISO,
+            to: toISO,
+            limit: itemsPerPage,
+            offset,
+          }),
+          currentPage === 1
+            ? ApiService.searchDataCount({ query: debouncedSearchTerm, sourceId, from: fromISO, to: toISO })
+            : Promise.resolve(searchTotalCount),
+        ]);
+
+        if (cancelled) return;
+        setInternalData(rows);
+        if (currentPage === 1) {
+          setSearchTotalCount(Number(count) || 0);
+          setTotalCount(Number(count) || 0);
+          setTotalPages(Math.ceil((Number(count) || 0) / itemsPerPage));
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Search failed:', err);
+          setError('Search failed. Try narrowing by source or date range.');
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [isSearchMode, debouncedSearchTerm, searchFrom, searchTo, selectedSource, currentPage, itemsPerPage, propData]);
+
 
   // Pass stats data to parent component
   useEffect(() => {
