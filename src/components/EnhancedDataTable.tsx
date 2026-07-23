@@ -747,26 +747,58 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
           <div className="relative flex-1">
             <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search across all columns..."
+              placeholder="Search all history (name, email, phone, any field)..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-8"
             />
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <Input
+              type="date"
+              value={searchFrom}
+              onChange={(e) => setSearchFrom(e.target.value)}
+              className="w-full sm:w-40"
+              title="From date"
+            />
+            <Input
+              type="date"
+              value={searchTo}
+              onChange={(e) => setSearchTo(e.target.value)}
+              className="w-full sm:w-40"
+              title="To date"
+            />
             <Select value={selectedSource} onValueChange={(val) => { setSelectedSource(val); setCurrentPage(1); }}>
               <SelectTrigger className="w-full sm:w-48">
                 <SelectValue placeholder="Filter by source" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Sources</SelectItem>
-                {sources.filter(source => source.active).map((source) => (
+                {sources.map((source) => (
                   <SelectItem key={source.id} value={source.id}>
-                    {source.name}
+                    {source.name}{!source.active ? ' (paused)' : ''}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {(searchTerm || searchFrom || searchTo) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setSearchTerm(''); setSearchFrom(''); setSearchTo(''); }}
+              >
+                Clear
+              </Button>
+            )}
+          </div>
+        </div>
+        {isSearchMode && (
+          <div className="text-xs text-muted-foreground mt-2">
+            Searching all history{debouncedSearchTerm ? ` for "${debouncedSearchTerm}"` : ''}
+            {searchFrom || searchTo ? ` (${searchFrom || 'start'} → ${searchTo || 'now'})` : ''}
+            {' '}— {searchTotalCount.toLocaleString()} match{searchTotalCount === 1 ? '' : 'es'}
+          </div>
+        )}
             
             <Popover>
               <PopoverTrigger asChild>
