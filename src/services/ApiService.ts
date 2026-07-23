@@ -13,9 +13,11 @@ export * from '@/types/api.types';
 // Create a unified API service that composes functionality from the other services
 export const ApiService = {
   // Data Service functions
-  getData: DataService.getData,
-  getDataCount: DataService.getDataCount,
-  getDataStats: DataService.getDataStats,
+ getData: DataService.getData,
+ getDataCount: DataService.getDataCount,
+ getDataStats: DataService.getDataStats,
+ searchData: DataService.searchData,
+ searchDataCount: DataService.searchDataCount,
   refreshData: DataService.refreshData,
   deleteDataEntry: DataService.deleteDataEntry,
   clearData: DataService.clearData,
