@@ -76,6 +76,13 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
 
+  // Full-history search state
+  const [searchFrom, setSearchFrom] = useState<string>('');
+  const [searchTo, setSearchTo] = useState<string>('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>('');
+  const [isSearchMode, setIsSearchMode] = useState<boolean>(false);
+  const [searchTotalCount, setSearchTotalCount] = useState<number>(0);
+
   // Use prop data if provided, otherwise use internal data from subscriptions
   const data = propData || internalData;
   const sources = propSources || internalSources;
@@ -175,8 +182,10 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
   useEffect(() => {
     // Only fetch data if no prop data is provided
     if (!propData && !propSources) {
-      fetchPaginatedData(currentPage, itemsPerPage, selectedSource);
-      
+      if (!isSearchMode) {
+        fetchPaginatedData(currentPage, itemsPerPage, selectedSource);
+      }
+
       // Load sources
       const loadSources = async () => {
         try {
@@ -186,10 +195,78 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
           console.error('Error loading sources:', err);
         }
       };
-      
+
       loadSources();
     }
-  }, [propData, propSources, currentPage, itemsPerPage, selectedSource]);
+  }, [propData, propSources, currentPage, itemsPerPage, selectedSource, isSearchMode]);
+
+  // Debounce the raw search input so we don't hammer the RPC on every keystroke
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearchTerm(searchTerm.trim()), 400);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
+  // Determine whether we're in "search all history" mode
+  useEffect(() => {
+    const hasQuery = debouncedSearchTerm.length > 0;
+    const hasDates = !!searchFrom || !!searchTo;
+    setIsSearchMode(hasQuery || hasDates);
+  }, [debouncedSearchTerm, searchFrom, searchTo]);
+
+  // Reset to page 1 whenever a search input changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchTerm, searchFrom, searchTo]);
+
+  // Full-history server-side search
+  useEffect(() => {
+    if (propData) return;
+    if (!isSearchMode) return;
+
+    let cancelled = false;
+    const run = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const sourceId = selectedSource && selectedSource !== 'all' ? selectedSource : undefined;
+        const fromISO = searchFrom ? new Date(searchFrom + 'T00:00:00').toISOString() : undefined;
+        const toISO = searchTo ? new Date(searchTo + 'T23:59:59').toISOString() : undefined;
+        const offset = (currentPage - 1) * itemsPerPage;
+
+        const [rows, count] = await Promise.all([
+          ApiService.searchData({
+            query: debouncedSearchTerm,
+            sourceId,
+            from: fromISO,
+            to: toISO,
+            limit: itemsPerPage,
+            offset,
+          }),
+          currentPage === 1
+            ? ApiService.searchDataCount({ query: debouncedSearchTerm, sourceId, from: fromISO, to: toISO })
+            : Promise.resolve(searchTotalCount),
+        ]);
+
+        if (cancelled) return;
+        setInternalData(rows);
+        if (currentPage === 1) {
+          setSearchTotalCount(Number(count) || 0);
+          setTotalCount(Number(count) || 0);
+          setTotalPages(Math.ceil((Number(count) || 0) / itemsPerPage));
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Search failed:', err);
+          setError('Search failed. Try narrowing by source or date range.');
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [isSearchMode, debouncedSearchTerm, searchFrom, searchTo, selectedSource, currentPage, itemsPerPage, propData]);
+
 
   // Pass stats data to parent component
   useEffect(() => {
@@ -250,29 +327,26 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
         });
       }
       
-      // Search term filtering with improved safety checks and proper source name searching
-      if (searchTerm && searchTerm.trim()) {
+      // Search term filtering (client-side only when NOT in server search mode)
+      if (!isSearchMode && searchTerm && searchTerm.trim()) {
         const term = searchTerm.toLowerCase().trim();
         filtered = filtered.filter(entry => {
           if (!entry) return false;
-          
           try {
-            // Search across all visible columns
             return visibleColumns && visibleColumns.length > 0 && visibleColumns.some(column => {
               try {
                 const searchableValue = getSearchableValue(entry, column);
                 return searchableValue.includes(term);
-              } catch (error) {
-                console.error('Error searching column:', column, error);
+              } catch {
                 return false;
               }
             });
-          } catch (error) {
-            console.error('Error during search filtering:', error);
+          } catch {
             return false;
           }
         });
       }
+
       
       // Sorting with safety checks
       if (sortConfig && sortConfig.key) {
@@ -673,26 +747,58 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
           <div className="relative flex-1">
             <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search across all columns..."
+              placeholder="Search all history (name, email, phone, any field)..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-8"
             />
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <Input
+              type="date"
+              value={searchFrom}
+              onChange={(e) => setSearchFrom(e.target.value)}
+              className="w-full sm:w-40"
+              title="From date"
+            />
+            <Input
+              type="date"
+              value={searchTo}
+              onChange={(e) => setSearchTo(e.target.value)}
+              className="w-full sm:w-40"
+              title="To date"
+            />
             <Select value={selectedSource} onValueChange={(val) => { setSelectedSource(val); setCurrentPage(1); }}>
               <SelectTrigger className="w-full sm:w-48">
                 <SelectValue placeholder="Filter by source" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Sources</SelectItem>
-                {sources.filter(source => source.active).map((source) => (
+                {sources.map((source) => (
                   <SelectItem key={source.id} value={source.id}>
-                    {source.name}
+                    {source.name}{!source.active ? ' (paused)' : ''}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {(searchTerm || searchFrom || searchTo) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setSearchTerm(''); setSearchFrom(''); setSearchTo(''); }}
+              >
+                Clear
+              </Button>
+            )}
+          </div>
+        </div>
+        {isSearchMode && (
+          <div className="text-xs text-muted-foreground mt-2">
+            Searching all history{debouncedSearchTerm ? ` for "${debouncedSearchTerm}"` : ''}
+            {searchFrom || searchTo ? ` (${searchFrom || 'start'} → ${searchTo || 'now'})` : ''}
+            {' '}— {searchTotalCount.toLocaleString()} match{searchTotalCount === 1 ? '' : 'es'}
+          </div>
+        )}
             
             <Popover>
               <PopoverTrigger asChild>
@@ -792,8 +898,6 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
                 </div>
               </PopoverContent>
             </Popover>
-          </div>
-        </div>
       </CardHeader>
       <CardContent className="p-0">
         <div className="rounded-md border">

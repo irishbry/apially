@@ -506,6 +506,48 @@ export type Database = {
         }[]
       }
       process_scheduled_exports: { Args: never; Returns: undefined }
+      search_data_entries: {
+        Args: {
+          p_from?: string
+          p_limit?: number
+          p_offset?: number
+          p_query?: string
+          p_source_id?: string
+          p_to?: string
+          p_user_id: string
+        }
+        Returns: {
+          backed_up_dropbox: boolean | null
+          backed_up_email: boolean | null
+          created_at: string
+          file_name: string
+          file_path: string
+          id: string
+          last_dropbox_backup: string | null
+          last_email_backup: string | null
+          metadata: Json | null
+          sensor_id: string | null
+          source_id: string | null
+          timestamp: string
+          user_id: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "data_entries"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      search_data_entries_count: {
+        Args: {
+          p_from?: string
+          p_query?: string
+          p_source_id?: string
+          p_to?: string
+          p_user_id: string
+        }
+        Returns: number
+      }
       trigger_daily_backups: { Args: never; Returns: undefined }
       update_source_schema: {
         Args: { p_api_key: string; p_schema: Json }

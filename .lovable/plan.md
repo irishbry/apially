@@ -1,55 +1,43 @@
 ## Goal
+Search inside record fields (email, phone, name, any metadata value) across every source and every date since inception — without timeouts, even against millions of rows.
 
-1. Add a "Duplicate" action for any source that mints a new API key, prompts for a new name, and copies the schema.
-2. Introduce optional parent/child grouping for sources without changing any existing API keys, endpoints, or backup behavior.
+## Approach
+Postgres can search JSONB fast if we give it the right index. We'll add a GIN trigram index over the flattened text of each `data_entries.metadata` row, expose a paginated search RPC, and add a search UI to the Data tab.
 
-## Part 1 — Duplicate source
+## Steps
 
-**UI (`src/components/SourcesManager.tsx`)**
-- Add a Copy icon button next to the existing rename/delete controls on each source row.
-- Opens a dialog prompting for the new source name (pre-filled as `"<original> (copy)"`).
-- On submit:
-  1. Generate a new API key via the existing `generate_unique_api_key` RPC.
-  2. Insert a new row into `sources` with the new name + new key, `active = true`, same `user_id`.
-  3. Read the original's `schema_configs` row (if any) and insert a new `schema_configs` row for the new API key with identical `field_types` and `required_fields`.
-  4. Also copy the legacy `sources.schema` JSON for backward compatibility.
-  5. Toast success, refresh list.
+### 1. Database (migration)
+- Enable `pg_trgm` extension.
+- Add generated column `metadata_text text` on `data_entries` = lowercased concatenation of all metadata values (via an immutable helper function).
+- Create GIN trigram index on `metadata_text`.
+- Create RPC `search_data_entries(p_user_id, p_query, p_source_id, p_from, p_to, p_limit, p_offset)`:
+  - Filters by `user_id` (auth-scoped), optional `source_id`, optional date range on `created_at`.
+  - Matches `metadata_text ILIKE '%query%'` (uses trigram index).
+  - Returns rows ordered by `created_at desc`, plus a companion count RPC.
+- Grant execute to `authenticated`.
 
-Nothing else is copied (no scheduled exports, alerts, or data entries).
+Backfilling the generated column on a large table takes time but runs once; the migration will handle it.
 
-## Part 2 — Optional parent grouping (non-breaking)
+### 2. Service layer
+- Add `DataService.searchData({ query, sourceId, from, to, limit, offset })` calling the new RPC.
+- Add `DataService.searchDataCount(...)` for pagination totals.
 
-**Schema change (migration)**
-- Add nullable `parent_id uuid` to `public.sources`, referencing `public.sources(id) ON DELETE SET NULL`.
-- Add index on `parent_id`.
-- No changes to `api_key`, RLS, grants, or any existing rows. Every current source stays exactly as it is.
+### 3. UI — Data tab (`EnhancedDataTable`)
+- Add a search bar with:
+  - Text input (debounced 400ms)
+  - Source dropdown (all active + inactive)
+  - Date range (from / to), defaulting to empty = all time
+  - Clear button
+- When query is empty → current "latest 100 active" behavior stays.
+- When query is present → switch to search RPC results with server-side pagination (Prev/Next, 100/page).
+- Show result count and matched field highlights inline.
 
-**UI**
-- In `SourcesManager.tsx`, add an optional "Parent source" selector in the source edit/rename dialog (dropdown of the user's other sources, plus "None").
-- Display grouping in the list: parent sources render normally; sources with a `parent_id` render nested/indented under their parent. Sources without a parent still render as top-level rows exactly like today.
+## Technical notes
+- Trigram GIN handles `ILIKE '%x%'` efficiently, unlike btree — this is what makes "search anything, anywhere" fast on multi-million-row tables.
+- All filtering is server-side; the browser only ever holds one page.
+- Search is scoped to `auth.uid()` inside the RPC (SECURITY DEFINER), so RLS-equivalent isolation is preserved.
+- Existing Data tab default view (latest active) is unchanged when no query is entered — no regression risk.
 
-**What is intentionally NOT changed**
-- API keys remain 1:1 with sources; every existing key keeps working unchanged.
-- `data-receiver` edge function: no change. Each subsource still uses its own API key and writes to its own `source_id`.
-- Backups: no change. One file per source (per API key), as today. Parent grouping is UI-only.
-- Analytics RPCs, scheduled exports, alerts, schema validation: no change.
-
-## Technical details
-
-**Files touched**
-- `supabase/migrations/<new>.sql` — `ALTER TABLE public.sources ADD COLUMN parent_id uuid REFERENCES public.sources(id) ON DELETE SET NULL;` + index.
-- `src/components/SourcesManager.tsx` — duplicate button + dialog, parent selector, nested rendering.
-- `src/services/SourcesService.ts` — optional helper `duplicateSource(sourceId, newName)`.
-- `src/integrations/supabase/types.ts` — regenerated after migration approval.
-
-**Duplicate flow SQL (client-side, via supabase-js)**
-```
-newKey  = rpc('generate_unique_api_key')
-insert into sources (name, api_key, active, user_id, parent_id) values (...)
-select field_types, required_fields from schema_configs where api_key = <old>
-insert into schema_configs (name, description, api_key, field_types, required_fields, user_id)
-```
-
-**Nesting rendering**
-- Group in-memory: `parents = sources.filter(s => !s.parent_id)`, `childrenByParent = groupBy(sources.filter(s => s.parent_id), 'parent_id')`.
-- Render children indented under their parent; orphaned children (parent deleted) fall back to top-level.
+## Out of scope
+- Aggregations / drill-down dashboards
+- Cross-field structured queries (e.g. `email=x AND state=y`) — can be added later on top of the same index

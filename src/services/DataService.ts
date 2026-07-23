@@ -90,6 +90,90 @@ export const DataService = {
       return 0;
     }
   },
+
+  searchData: async (options: {
+    query?: string;
+    sourceId?: string;
+    from?: string;
+    to?: string;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<DataEntry[]> => {
+    const { query, sourceId, from, to, limit = 100, offset = 0 } = options;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+
+      const { data, error } = await supabase.rpc('search_data_entries', {
+        p_user_id: user.id,
+        p_query: query || null,
+        p_source_id: sourceId || null,
+        p_from: from || null,
+        p_to: to || null,
+        p_limit: limit,
+        p_offset: offset,
+      });
+
+      if (error) {
+        console.error('Error searching data:', error);
+        return [];
+      }
+
+      return (data || []).map((item: any) => {
+        let parsedMetadata: Record<string, any> | null = null;
+        if (item.metadata) {
+          if (typeof item.metadata === 'string') {
+            try { parsedMetadata = JSON.parse(item.metadata); }
+            catch { parsedMetadata = { raw: item.metadata }; }
+          } else if (typeof item.metadata === 'object') {
+            parsedMetadata = item.metadata as Record<string, any>;
+          }
+        }
+        return {
+          ...item,
+          sourceId: item.source_id,
+          userId: item.user_id,
+          sensorId: item.sensor_id,
+          fileName: item.file_name,
+          filePath: item.file_path,
+          metadata: parsedMetadata,
+        } as DataEntry;
+      });
+    } catch (err) {
+      console.error('Error in searchData:', err);
+      return [];
+    }
+  },
+
+  searchDataCount: async (options: {
+    query?: string;
+    sourceId?: string;
+    from?: string;
+    to?: string;
+  } = {}): Promise<number> => {
+    const { query, sourceId, from, to } = options;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return 0;
+
+      const { data, error } = await supabase.rpc('search_data_entries_count', {
+        p_user_id: user.id,
+        p_query: query || null,
+        p_source_id: sourceId || null,
+        p_from: from || null,
+        p_to: to || null,
+      });
+      if (error) {
+        console.error('Error counting search:', error);
+        return 0;
+      }
+      return Number(data || 0);
+    } catch (err) {
+      console.error('Error in searchDataCount:', err);
+      return 0;
+    }
+  },
+  
   
   getDataStats: async (): Promise<{
     totalCount: number;
