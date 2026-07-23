@@ -505,6 +505,7 @@ export type Database = {
           source_id: string
         }[]
       }
+      is_admin: { Args: { p_user_id: string }; Returns: boolean }
       process_scheduled_exports: { Args: never; Returns: undefined }
       search_data_entries: {
         Args: {
