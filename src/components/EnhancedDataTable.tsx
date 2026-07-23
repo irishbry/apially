@@ -898,8 +898,6 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
                 </div>
               </PopoverContent>
             </Popover>
-          </div>
-        </div>
       </CardHeader>
       <CardContent className="p-0">
         <div className="rounded-md border">
