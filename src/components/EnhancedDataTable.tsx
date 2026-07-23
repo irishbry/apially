@@ -327,29 +327,26 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
         });
       }
       
-      // Search term filtering with improved safety checks and proper source name searching
-      if (searchTerm && searchTerm.trim()) {
+      // Search term filtering (client-side only when NOT in server search mode)
+      if (!isSearchMode && searchTerm && searchTerm.trim()) {
         const term = searchTerm.toLowerCase().trim();
         filtered = filtered.filter(entry => {
           if (!entry) return false;
-          
           try {
-            // Search across all visible columns
             return visibleColumns && visibleColumns.length > 0 && visibleColumns.some(column => {
               try {
                 const searchableValue = getSearchableValue(entry, column);
                 return searchableValue.includes(term);
-              } catch (error) {
-                console.error('Error searching column:', column, error);
+              } catch {
                 return false;
               }
             });
-          } catch (error) {
-            console.error('Error during search filtering:', error);
+          } catch {
             return false;
           }
         });
       }
+
       
       // Sorting with safety checks
       if (sortConfig && sortConfig.key) {
