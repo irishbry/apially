@@ -83,8 +83,9 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
   const [isSearchMode, setIsSearchMode] = useState<boolean>(false);
   const [searchTotalCount, setSearchTotalCount] = useState<number>(0);
 
-  // Use prop data if provided, otherwise use internal data from subscriptions
-  const data = propData || internalData;
+  // Full-history search must always render the server/RPC result set, not any parent-provided snapshot.
+  const usingServerData = !propData || isSearchMode;
+  const data = usingServerData ? internalData : propData;
   const sources = propSources || internalSources;
 
   // Helper function to get source name
@@ -220,7 +221,6 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
 
   // Full-history server-side search
   useEffect(() => {
-    if (propData) return;
     if (!isSearchMode) return;
 
     let cancelled = false;
@@ -265,7 +265,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
     };
     run();
     return () => { cancelled = true; };
-  }, [isSearchMode, debouncedSearchTerm, searchFrom, searchTo, selectedSource, currentPage, itemsPerPage, propData]);
+  }, [isSearchMode, debouncedSearchTerm, searchFrom, searchTo, selectedSource, currentPage, itemsPerPage]);
 
 
   // Pass stats data to parent component
@@ -300,8 +300,8 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
     try {
       let filtered = [...data];
       
-      // Source filtering with safety checks
-      if (selectedSource && selectedSource !== 'all') {
+      // Source filtering with safety checks. Server search already applies this filter in the RPC.
+      if (!isSearchMode && selectedSource && selectedSource !== 'all') {
         filtered = filtered.filter(entry => {
           if (!entry) return false;
           const entrySourceId = entry.sourceId || entry.source_id;
@@ -388,11 +388,11 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
       console.error('Error in filteredData calculation:', error);
       return [];
     }
-  }, [data, searchTerm, selectedSource, sortConfig, activeFilters, visibleColumns, sources]);
+  }, [data, searchTerm, selectedSource, sortConfig, activeFilters, visibleColumns, sources, isSearchMode]);
 
   // For server-side pagination, don't slice the data - it's already paginated
   const paginatedData = useMemo(() => {
-    if (propData) {
+    if (!usingServerData) {
       // If using prop data, apply client-side pagination
       const startIndex = (currentPage - 1) * itemsPerPage;
       const endIndex = startIndex + itemsPerPage;
@@ -401,11 +401,11 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
       // If using server-side data, return filtered data as-is (already paginated)
       return filteredData;
     }
-  }, [filteredData, currentPage, itemsPerPage, propData]);
+  }, [filteredData, currentPage, itemsPerPage, usingServerData]);
 
   // Update total pages based on data source
   useEffect(() => {
-    if (propData) {
+    if (!usingServerData) {
       // Client-side pagination
       const calculatedTotalPages = Math.ceil(filteredData.length / itemsPerPage);
       setTotalPages(calculatedTotalPages);
@@ -413,7 +413,7 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
       // Server-side pagination - use totalCount from server
       setTotalPages(Math.ceil(totalCount / itemsPerPage));
     }
-  }, [filteredData.length, itemsPerPage, propData, totalCount]);
+  }, [filteredData.length, itemsPerPage, usingServerData, totalCount]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
