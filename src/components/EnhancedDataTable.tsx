@@ -76,6 +76,13 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
 
+  // Full-history search state
+  const [searchFrom, setSearchFrom] = useState<string>('');
+  const [searchTo, setSearchTo] = useState<string>('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>('');
+  const [isSearchMode, setIsSearchMode] = useState<boolean>(false);
+  const [searchTotalCount, setSearchTotalCount] = useState<number>(0);
+
   // Use prop data if provided, otherwise use internal data from subscriptions
   const data = propData || internalData;
   const sources = propSources || internalSources;
