@@ -185,11 +185,12 @@ export const DataService = {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return { totalCount: 0, uniqueSources: 0, lastReceived: 'No data', backedUpDropbox: 0 };
 
-      // Use RPCs scoped to the signed-in user and active sources so large tables do not time out.
+      // Use RPCs scoped to active sources so large tables do not time out.
+      // Data and sources are shared across all authenticated users.
       const [countResult, latestResult, sourcesResult] = await Promise.all([
         supabase.rpc('get_active_data_entries_count', { p_user_id: user.id, p_source_id: null }),
         supabase.rpc('get_latest_active_data_entries', { p_user_id: user.id, p_limit: 1, p_offset: 0, p_source_id: null }),
-        supabase.from('sources').select('id').eq('user_id', user.id).eq('active', true),
+        supabase.from('sources').select('id').eq('active', true),
       ]);
 
       if (countResult.error) console.error('Error fetching active data count:', countResult.error);

@@ -111,14 +111,14 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
         return;
       }
 
-      // Fetch sources and record counts in parallel
+      // Fetch sources and record counts in parallel.
+      // Sources are shared across all authenticated users, so there is no user filter here.
       const [sourcesResult, countsResult] = await Promise.all([
         supabase
           .from('sources')
           .select('*')
-          .eq('user_id', session.user.id)
           .order('created_at', { ascending: false }),
-        supabase.rpc('get_source_record_counts', { p_user_id: session.user.id }),
+        supabase.rpc('get_source_record_counts_admin'),
       ]);
 
       if (sourcesResult.error) {

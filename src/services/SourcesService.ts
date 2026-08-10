@@ -24,14 +24,11 @@ export const SourcesService = {
   
   getSourcesStats: async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return { totalSources: 0, activeSources: 0, totalDataPoints: 0 };
-
+      // Sources are shared across all authenticated users
       const { data: sources, error: sourcesError } = await supabase
         .from('sources')
-        .select('*')
-        .eq('user_id', user.id);
-      
+        .select('*');
+
       if (sourcesError) {
         console.error('Error getting sources:', sourcesError);
         return { totalSources: 0, activeSources: 0, totalDataPoints: 0 };
@@ -41,7 +38,7 @@ export const SourcesService = {
       const activeSources = sources.filter(s => s.active).length;
 
       // Get actual record counts via RPC
-      const { data: counts } = await supabase.rpc('get_source_record_counts', { p_user_id: user.id });
+      const { data: counts } = await supabase.rpc('get_source_record_counts_admin');
       const totalDataPoints = (counts || []).reduce((sum: number, r: any) => sum + Number(r.record_count), 0);
       
       return { totalSources, activeSources, totalDataPoints };
@@ -53,12 +50,7 @@ export const SourcesService = {
   
   getApiUsageBySource: async (): Promise<ApiUsageBySource[]> => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-
-      const { data, error } = await supabase.rpc('get_source_entry_counts', {
-        p_user_id: user.id,
-      });
+      const { data, error } = await supabase.rpc('get_source_entry_counts_admin');
 
       if (error) {
         console.error('Error fetching API usage by source:', error);
@@ -81,9 +73,6 @@ export const SourcesService = {
 
   getApiUsageBySourceForPeriod: async (days: number, offset: number = 0): Promise<ApiUsageBySource[]> => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-
       const now = new Date();
       const endDate = new Date(now);
       endDate.setDate(endDate.getDate() - offset);
@@ -93,7 +82,6 @@ export const SourcesService = {
       const { data, error } = await supabase
         .from('data_entries')
         .select('source_id, sources!inner(name)')
-        .eq('user_id', user.id)
         .not('source_id', 'is', null)
         .gte('created_at', startDate.toISOString())
         .lte('created_at', endDate.toISOString());
