@@ -6,11 +6,8 @@ import { ApiRequestService } from './ApiRequestService';
 export const AnalyticsService = {
   getApiUsageByDay: async (days: number = 30): Promise<ApiUsageByDay[]> => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-
-      const { data, error } = await supabase.rpc('get_daily_entry_counts', {
-        p_user_id: user.id,
+      // Daily counts cover every source, since data is shared across all users
+      const { data, error } = await supabase.rpc('get_admin_daily_counts', {
         p_days: days,
       });
 

@@ -88,10 +88,10 @@ const ApiDocumentation: React.FC<ApiDocumentationProps> = ({ selectedApiKey }) =
     if (!user) return;
     
     try {
+      // Falls back to any active source, since sources are shared across all users
       const { data, error } = await supabase
         .from('sources')
         .select('api_key')
-        .eq('user_id', user.id)
         .eq('active', true)
         .limit(1)
         .maybeSingle();
