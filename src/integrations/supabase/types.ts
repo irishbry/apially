@@ -418,7 +418,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      count_distinct_sources_admin: { Args: never; Returns: number }
       count_distinct_sources_for_user: { Args: never; Returns: number }
       generate_unique_api_key: { Args: never; Returns: string }
       get_active_data_entries_count: {
@@ -486,14 +485,6 @@ export type Database = {
       }
       get_source_entry_counts: {
         Args: { p_user_id: string }
-        Returns: {
-          entry_count: number
-          source_id: string
-          source_name: string
-        }[]
-      }
-      get_source_entry_counts_admin: {
-        Args: never
         Returns: {
           entry_count: number
           source_id: string
