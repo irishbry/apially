@@ -50,7 +50,10 @@ export const SourcesService = {
   
   getApiUsageBySource: async (): Promise<ApiUsageBySource[]> => {
     try {
-      const { data, error } = await supabase.rpc('get_source_entry_counts_admin');
+      const { data, error } = await supabase.rpc('get_source_entry_counts_admin' as any) as {
+        data: { source_id: string; source_name: string; entry_count: number }[] | null;
+        error: any;
+      };
 
       if (error) {
         console.error('Error fetching API usage by source:', error);
@@ -58,9 +61,9 @@ export const SourcesService = {
       }
 
       const rows = data || [];
-      const totalCount = rows.reduce((sum: number, r: any) => sum + Number(r.entry_count), 0);
+      const totalCount = rows.reduce((sum: number, r) => sum + Number(r.entry_count), 0);
 
-      return rows.map((row: any) => ({
+      return rows.map((row) => ({
         source: row.source_name,
         count: Number(row.entry_count),
         percentage: totalCount > 0 ? Math.round((Number(row.entry_count) / totalCount) * 100) : 0,
