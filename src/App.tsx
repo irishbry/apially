@@ -12,6 +12,7 @@ import Signup from "./pages/Signup";
 import AuthCallback from "./pages/AuthCallback";
 import SmtpTest from "./pages/SmtpTest";
 import AdminPage from "./pages/AdminPage";
+import V2Dashboard from "./pages/V2Dashboard";
 
 // Initialize notification listeners
 import NotificationService from "./services/NotificationService";
@@ -39,6 +40,7 @@ const App = () => (
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/smtp-test" element={<SmtpTest />} />
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/v2" element={<V2Dashboard />} />
         {/* Handle 404 errors */}
         <Route path="/404" element={<NotFound />} />
         {/* Redirect all other routes to the 404 page instead of rendering it directly */}
