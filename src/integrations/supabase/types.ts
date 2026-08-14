@@ -363,6 +363,32 @@ export type Database = {
           },
         ]
       }
+      source_record_counts: {
+        Row: {
+          record_count: number
+          source_id: string
+          updated_at: string
+        }
+        Insert: {
+          record_count?: number
+          source_id: string
+          updated_at?: string
+        }
+        Update: {
+          record_count?: number
+          source_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "source_record_counts_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: true
+            referencedRelation: "sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sources: {
         Row: {
           active: boolean
