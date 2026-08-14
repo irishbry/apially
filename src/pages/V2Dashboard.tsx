@@ -129,15 +129,16 @@ const V2Dashboard = () => {
     try {
       const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const { count } = await supabase
-        .from("api_logs")
+        .from("backup_attempts")
         .select("id", { count: "exact", head: true })
-        .gte("timestamp", since)
-        .neq("status", "success");
+        .gte("created_at", since)
+        .eq("status", "failed");
       setFailedEvents(count || 0);
     } catch {
       setFailedEvents(0);
     }
   };
+
 
   const load = async () => {
     setLoading(true);
