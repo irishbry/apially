@@ -774,9 +774,9 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Sources</SelectItem>
-                {sources.map((source) => (
+                {sources.filter((source) => source.active).map((source) => (
                   <SelectItem key={source.id} value={source.id}>
-                    {source.name}{!source.active ? ' (paused)' : ''}
+                    {source.name}
                   </SelectItem>
                 ))}
               </SelectContent>
