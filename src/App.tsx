@@ -12,6 +12,7 @@ import Signup from "./pages/Signup";
 import AuthCallback from "./pages/AuthCallback";
 import SmtpTest from "./pages/SmtpTest";
 import AdminPage from "./pages/AdminPage";
+import V2Dashboard from "./pages/V2Dashboard";
 
 // Initialize notification listeners
 import NotificationService from "./services/NotificationService";
