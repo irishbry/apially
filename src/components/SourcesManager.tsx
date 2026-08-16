@@ -16,6 +16,7 @@ import ApiDocumentation from './ApiDocumentation';
 import { ConfigService } from '@/services/ConfigService';
 import { useForm } from 'react-hook-form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface CreateSourceForm {
   name: string;
@@ -47,6 +48,8 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
   const [duplicateSource, setDuplicateSource] = useState<SourceWithRecords | null>(null);
   const [duplicateName, setDuplicateName] = useState('');
   const [isDuplicating, setIsDuplicating] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
 
   const form = useForm<CreateSourceForm>({
@@ -241,18 +244,45 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
     }
   };
 
-  const deleteSource = async (sourceId: string, sourceName: string) => {
-    try {
-      const { error } = await supabase
-        .from('sources')
-        .delete()
-        .eq('id', sourceId);
+  const removeSources = async (ids: string[]): Promise<{ deleted: string[]; failed: { id: string; reason: string }[] }> => {
+    // Preferred path: admin edge function (bypasses RLS + cleans dependent rows)
+    const { data, error } = await supabase.functions.invoke('admin-data', {
+      body: { action: 'delete_sources', source_ids: ids },
+    });
 
-      if (error) {
-        console.error('Error deleting source:', error);
+    if (!error && data && Array.isArray(data.deleted)) {
+      return { deleted: data.deleted, failed: data.failed || [] };
+    }
+
+    // Fallback for non-admin users: direct delete of their own sources
+    const deleted: string[] = [];
+    const failed: { id: string; reason: string }[] = [];
+    for (const id of ids) {
+      const { error: delError } = await supabase.from('sources').delete().eq('id', id);
+      if (delError) {
+        failed.push({ id, reason: delError.message });
+        continue;
+      }
+      const { data: still } = await supabase.from('sources').select('id').eq('id', id).maybeSingle();
+      if (still) {
+        failed.push({ id, reason: 'Not permitted to delete this source' });
+      } else {
+        deleted.push(id);
+      }
+    }
+    return { deleted, failed };
+  };
+
+  const deleteSource = async (sourceId: string, sourceName: string) => {
+    if (!window.confirm(`Delete source "${sourceName}" and all of its stored records? This cannot be undone.`)) return;
+    setIsDeleting(true);
+    try {
+      const { deleted, failed } = await removeSources([sourceId]);
+
+      if (deleted.length === 0) {
         toast({
           title: "Error",
-          description: "Failed to delete source",
+          description: failed[0]?.reason || "Failed to delete source",
           variant: "destructive",
         });
         return;
@@ -263,8 +293,9 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
         description: `Source "${sourceName}" deleted successfully`,
       });
 
+      setSelectedIds(prev => prev.filter(id => id !== sourceId));
       loadSources(); // Reload sources
-      
+
       // Clear selected API key if the deleted source was selected
       if (selectedApiKey && sources.find(s => s.id === sourceId)?.api_key === selectedApiKey) {
         const remainingSources = sources.filter(s => s.id !== sourceId);
@@ -278,8 +309,52 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
         description: "An unexpected error occurred",
         variant: "destructive",
       });
+    } finally {
+      setIsDeleting(false);
     }
   };
+
+  const deleteSelectedSources = async () => {
+    if (selectedIds.length === 0) return;
+    if (!window.confirm(`Delete ${selectedIds.length} source(s) and all of their stored records? This cannot be undone.`)) return;
+    setIsDeleting(true);
+    try {
+      const { deleted, failed } = await removeSources(selectedIds);
+
+      if (deleted.length > 0) {
+        toast({
+          title: "Sources deleted",
+          description: `${deleted.length} source(s) deleted successfully.`,
+        });
+      }
+      if (failed.length > 0) {
+        toast({
+          title: `${failed.length} source(s) not deleted`,
+          description: failed[0].reason,
+          variant: "destructive",
+        });
+      }
+
+      setSelectedIds(prev => prev.filter(id => !deleted.includes(id)));
+      loadSources();
+    } catch (error) {
+      console.error('Error in deleteSelectedSources:', error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const toggleSelected = (sourceId: string) => {
+    setSelectedIds(prev =>
+      prev.includes(sourceId) ? prev.filter(id => id !== sourceId) : [...prev, sourceId]
+    );
+  };
+
 
   const togglePauseSource = async (sourceId: string, sourceName: string, currentlyActive: boolean) => {
     try {
@@ -522,6 +597,41 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {!isLoading && sources.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4 p-3 border rounded-lg bg-muted/40">
+              <div className="flex items-center gap-3">
+                <Checkbox
+                  checked={selectedIds.length === sources.length && sources.length > 0}
+                  onCheckedChange={(checked) =>
+                    setSelectedIds(checked ? sources.map(s => s.id) : [])
+                  }
+                  aria-label="Select all sources"
+                />
+                <span className="text-sm text-muted-foreground">
+                  {selectedIds.length > 0
+                    ? `${selectedIds.length} selected`
+                    : 'Select sources for bulk actions'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                {selectedIds.length > 0 && (
+                  <Button variant="outline" size="sm" onClick={() => setSelectedIds([])} disabled={isDeleting}>
+                    Clear
+                  </Button>
+                )}
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={deleteSelectedSources}
+                  disabled={selectedIds.length === 0 || isDeleting}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  {isDeleting ? 'Deleting...' : `Delete selected${selectedIds.length ? ` (${selectedIds.length})` : ''}`}
+                </Button>
+              </div>
+            </div>
+          )}
+
           {isLoading ? (
             <div className="flex justify-center p-6">
               <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full"></div>
@@ -552,9 +662,16 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
+                      <Checkbox
+                        checked={selectedIds.includes(source.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        onCheckedChange={() => toggleSelected(source.id)}
+                        aria-label={`Select ${source.name}`}
+                      />
                       {selectedApiKey === source.api_key && (
                         <CheckCircle className="h-5 w-5 text-primary" />
                       )}
+
                       <div>
                         <h3 className="font-medium">
                           {source.name}
