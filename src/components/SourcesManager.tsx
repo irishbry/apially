@@ -626,9 +626,16 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
+                      <Checkbox
+                        checked={selectedIds.includes(source.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        onCheckedChange={() => toggleSelected(source.id)}
+                        aria-label={`Select ${source.name}`}
+                      />
                       {selectedApiKey === source.api_key && (
                         <CheckCircle className="h-5 w-5 text-primary" />
                       )}
+
                       <div>
                         <h3 className="font-medium">
                           {source.name}
