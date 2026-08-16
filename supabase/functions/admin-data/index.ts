@@ -117,6 +117,88 @@ Deno.serve(async (req) => {
         );
       }
 
+      if (action === "delete_sources") {
+        const { source_ids } = body as { source_ids: string[] };
+        if (!Array.isArray(source_ids) || source_ids.length === 0) {
+          return new Response(
+            JSON.stringify({ error: "source_ids required" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const deleted: string[] = [];
+        const failed: { id: string; reason: string }[] = [];
+
+        for (const sourceId of source_ids) {
+          try {
+            const { data: src } = await adminClient
+              .from("sources")
+              .select("id, api_key")
+              .eq("id", sourceId)
+              .maybeSingle();
+
+            if (!src) {
+              failed.push({ id: sourceId, reason: "Source not found" });
+              continue;
+            }
+
+            // Detach subsources so they are not orphaned by the FK
+            await adminClient.from("sources").update({ parent_id: null }).eq("parent_id", sourceId);
+
+            // Remove dependent rows
+            await adminClient.from("source_alerts").delete().eq("source_id", sourceId);
+            await adminClient.from("source_record_counts").delete().eq("source_id", sourceId);
+            await adminClient.from("scheduled_exports").delete().eq("source_id", sourceId);
+            if (src.api_key) {
+              await adminClient.from("schema_configs").delete().eq("api_key", src.api_key);
+            }
+
+            // Delete data entries in batches so we never blow the statement timeout
+            let guard = 0;
+            while (guard < 200) {
+              const { data: batch, error: batchError } = await adminClient
+                .from("data_entries")
+                .select("id")
+                .eq("source_id", sourceId)
+                .limit(1000);
+              if (batchError) throw batchError;
+              if (!batch || batch.length === 0) break;
+              const { error: delError } = await adminClient
+                .from("data_entries")
+                .delete()
+                .in("id", batch.map((b: any) => b.id));
+              if (delError) throw delError;
+              guard++;
+            }
+
+            const { count: remaining } = await adminClient
+              .from("data_entries")
+              .select("*", { count: "exact", head: true })
+              .eq("source_id", sourceId);
+
+            if (remaining && remaining > 0) {
+              failed.push({
+                id: sourceId,
+                reason: `Too many records to delete in one pass (${remaining} left) — run delete again`,
+              });
+              continue;
+            }
+
+            const { error: srcError } = await adminClient.from("sources").delete().eq("id", sourceId);
+            if (srcError) throw srcError;
+            deleted.push(sourceId);
+          } catch (e) {
+            failed.push({ id: sourceId, reason: (e as Error).message });
+          }
+        }
+
+        return new Response(
+          JSON.stringify({ success: failed.length === 0, deleted, failed }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+
       return new Response(
         JSON.stringify({ error: "Unknown action" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
