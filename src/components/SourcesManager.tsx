@@ -16,6 +16,7 @@ import ApiDocumentation from './ApiDocumentation';
 import { ConfigService } from '@/services/ConfigService';
 import { useForm } from 'react-hook-form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface CreateSourceForm {
   name: string;
