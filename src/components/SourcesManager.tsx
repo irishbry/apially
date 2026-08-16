@@ -597,6 +597,41 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {!isLoading && sources.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4 p-3 border rounded-lg bg-muted/40">
+              <div className="flex items-center gap-3">
+                <Checkbox
+                  checked={selectedIds.length === sources.length && sources.length > 0}
+                  onCheckedChange={(checked) =>
+                    setSelectedIds(checked ? sources.map(s => s.id) : [])
+                  }
+                  aria-label="Select all sources"
+                />
+                <span className="text-sm text-muted-foreground">
+                  {selectedIds.length > 0
+                    ? `${selectedIds.length} selected`
+                    : 'Select sources for bulk actions'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                {selectedIds.length > 0 && (
+                  <Button variant="outline" size="sm" onClick={() => setSelectedIds([])} disabled={isDeleting}>
+                    Clear
+                  </Button>
+                )}
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={deleteSelectedSources}
+                  disabled={selectedIds.length === 0 || isDeleting}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  {isDeleting ? 'Deleting...' : `Delete selected${selectedIds.length ? ` (${selectedIds.length})` : ''}`}
+                </Button>
+              </div>
+            </div>
+          )}
+
           {isLoading ? (
             <div className="flex justify-center p-6">
               <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full"></div>
