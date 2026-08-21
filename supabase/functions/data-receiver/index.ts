@@ -147,7 +147,7 @@ serve(async (req) => {
     // entries are flagged in metadata so they are excluded from the feed and backups.
     const { data: source, error: sourceError } = await supabase
       .from('sources')
-      .select('id, name, user_id, active')
+      .select('id, name, user_id, active, is_partner')
       .eq('api_key', apiKey)
       .single();
 
@@ -159,6 +159,18 @@ serve(async (req) => {
           message: 'Invalid API key',
           code: 'AUTH_FAILED',
           details: sourceError ? sourceError.message : 'No source found with this API key' 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
+      );
+    }
+
+    // Data partners are organizational containers only — they never accept data.
+    if ((source as any).is_partner === true) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: 'This key belongs to a data partner container and cannot receive data. Use one of its subsource API keys.',
+          code: 'PARTNER_SOURCE',
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
       );
