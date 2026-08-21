@@ -777,6 +777,7 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                           e.stopPropagation();
                           setRenameValue(source.name);
                           setRenameParentId((source as any).parent_id ?? null);
+                          setRenameIsPartner(!!(source as any).is_partner);
                           setRenameSource(source);
                         }}
                         title="Edit source (name & parent)"
