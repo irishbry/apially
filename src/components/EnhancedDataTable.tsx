@@ -778,15 +778,15 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
             <Button 
               size="sm"
               onClick={handleExportCSV}
-              disabled={isDownloading || filteredData.length === 0}
+              disabled={isDownloading || (totalCount === 0 && filteredData.length === 0)}
               className="hover-lift"
             >
               {isDownloading ? (
-                <>Downloading...</>
+                <>Preparing export...</>
               ) : (
                 <>
                   <Download className="h-4 w-4 mr-1" />
-                  Export CSV ({filteredData.length})
+                  Export CSV ({totalCount || filteredData.length})
                 </>
               )}
             </Button>
