@@ -915,7 +915,9 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                   {sources
                     .filter(s => s.id !== renameSource?.id && !(s as any).parent_id)
                     .map(s => (
-                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}{(s as any).is_partner ? ' (data partner)' : ''}
+                      </SelectItem>
                     ))}
                 </SelectContent>
               </Select>
