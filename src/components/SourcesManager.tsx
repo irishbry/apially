@@ -44,6 +44,7 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
   const [renameSource, setRenameSource] = useState<SourceWithRecords | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [renameParentId, setRenameParentId] = useState<string | null>(null);
+  const [renameIsPartner, setRenameIsPartner] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [duplicateSource, setDuplicateSource] = useState<SourceWithRecords | null>(null);
   const [duplicateName, setDuplicateName] = useState('');
@@ -403,7 +404,7 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
     }
     setIsRenaming(true);
     try {
-      const updates: any = { name: newName, parent_id: renameParentId };
+      const updates: any = { name: newName, parent_id: renameParentId, is_partner: renameIsPartner };
       const { error } = await supabase
         .from('sources')
         .update(updates)
@@ -776,6 +777,7 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                           e.stopPropagation();
                           setRenameValue(source.name);
                           setRenameParentId((source as any).parent_id ?? null);
+                          setRenameIsPartner(!!(source as any).is_partner);
                           setRenameSource(source);
                         }}
                         title="Edit source (name & parent)"
@@ -924,6 +926,21 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
               <p className="text-xs text-muted-foreground">
                 Grouping is display-only. API keys, data ingestion, and backups are unaffected.
               </p>
+            </div>
+            <div className="flex items-start gap-2 pt-1">
+              <Checkbox
+                id="edit-as-partner"
+                checked={renameIsPartner}
+                onCheckedChange={(v) => setRenameIsPartner(!!v)}
+              />
+              <div className="space-y-1">
+                <label htmlFor="edit-as-partner" className="text-sm font-medium leading-none cursor-pointer">
+                  Data partner (grouping only)
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  Turns this source into a grouping container: its API key stops accepting data and it shows rolled-up counts from its subsources. Existing records are kept.
+                </p>
+              </div>
             </div>
           </div>
           <DialogFooter>
