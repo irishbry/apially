@@ -44,6 +44,7 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
   const [renameSource, setRenameSource] = useState<SourceWithRecords | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [renameParentId, setRenameParentId] = useState<string | null>(null);
+  const [renameIsPartner, setRenameIsPartner] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [duplicateSource, setDuplicateSource] = useState<SourceWithRecords | null>(null);
   const [duplicateName, setDuplicateName] = useState('');
