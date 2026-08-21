@@ -672,15 +672,21 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                 }
               }
 
-              const renderRow = (source: SourceWithRecords, isChild = false) => (
+              const renderRow = (source: SourceWithRecords, isChild = false) => {
+                const isPartner = !!(source as any).is_partner;
+                const kids = childrenByParent.get(source.id) || [];
+                const rolledUp = kids.reduce((sum, k) => sum + (k.recordCount || 0), 0);
+                return (
                 <div
                   key={source.id}
-                  className={`p-4 border rounded-lg transition-all cursor-pointer ${isChild ? 'ml-8 border-l-4 border-l-primary/40' : ''} ${
-                    selectedApiKey === source.api_key
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-primary/50'
+                  className={`p-4 border rounded-lg transition-all ${isPartner ? '' : 'cursor-pointer'} ${isChild ? 'ml-8 border-l-4 border-l-primary/40' : ''} ${
+                    isPartner
+                      ? 'border-dashed bg-muted/30'
+                      : selectedApiKey === source.api_key
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-primary/50'
                   }`}
-                  onClick={() => handleApiKeySelect(source.api_key || '')}
+                  onClick={() => { if (!isPartner) handleApiKeySelect(source.api_key || ''); }}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -690,28 +696,47 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                         onCheckedChange={() => toggleSelected(source.id)}
                         aria-label={`Select ${source.name}`}
                       />
-                      {selectedApiKey === source.api_key && (
+                      {!isPartner && selectedApiKey === source.api_key && (
                         <CheckCircle className="h-5 w-5 text-primary" />
                       )}
 
                       <div>
                         <h3 className="font-medium">
                           {source.name}
-                          {isChild && <span className="ml-2 text-xs font-normal text-muted-foreground">subsource</span>}
+                          {isPartner && (
+                            <span className="ml-2 text-xs font-medium text-primary border border-primary/40 rounded px-1.5 py-0.5">
+                              Data partner
+                            </span>
+                          )}
+                          {!isPartner && isChild && <span className="ml-2 text-xs font-normal text-muted-foreground">subsource</span>}
                         </h3>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
                           <div className="flex items-center gap-1">
                             <Database className="h-3 w-3" />
-                            <span>{source.recordCount} records</span>
+                            <span>
+                              {isPartner
+                                ? `${rolledUp} records across ${kids.length} subsource${kids.length === 1 ? '' : 's'}`
+                                : `${source.recordCount} records`}
+                            </span>
                           </div>
-                          <span>•</span>
-                          <span className={source.active ? '' : 'font-medium text-foreground'}>
-                            {source.active ? 'Active' : 'Paused'}
-                          </span>
+                          {isPartner ? (
+                            <>
+                              <span>•</span>
+                              <span>Grouping only — no API key, receives no data</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>•</span>
+                              <span className={source.active ? '' : 'font-medium text-foreground'}>
+                                {source.active ? 'Active' : 'Paused'}
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      {!isPartner && (
                       <div className="flex items-center gap-1 text-xs bg-secondary px-2 py-1 rounded">
                         <span>API Key:</span>
                         <code className="bg-background px-1">
