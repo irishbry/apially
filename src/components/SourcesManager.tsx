@@ -768,6 +768,7 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                           <Copy className="h-3 w-3" />
                         </Button>
                       </div>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
