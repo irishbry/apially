@@ -466,34 +466,94 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
     return displayNames[column] || column;
   };
 
-  const handleExportCSV = () => {
+  // Apply the same client-side column filters / sorting used by the table
+  const applyLocalFilters = (rows: DataEntry[]): DataEntry[] => {
+    let out = [...rows];
+    if (activeFilters && activeFilters.length > 0) {
+      activeFilters.forEach(filter => {
+        if (filter && filter.enabled && filter.value && filter.value.trim()) {
+          out = out.filter(entry => {
+            try {
+              return getSearchableValue(entry, filter.key).includes(filter.value.toLowerCase().trim());
+            } catch {
+              return false;
+            }
+          });
+        }
+      });
+    }
+    return out;
+  };
+
+  // Fetch the FULL result set for the current query/date range/source — not just the visible page
+  const fetchAllForExport = async (): Promise<DataEntry[]> => {
+    const sourceId = selectedSource && selectedSource !== 'all' ? selectedSource : undefined;
+    const pageSize = 1000;
+    const maxRows = 100000;
+    const all: DataEntry[] = [];
+
+    if (isSearchMode) {
+      const fromISO = searchFrom ? new Date(searchFrom + 'T00:00:00').toISOString() : undefined;
+      const toISO = searchTo ? new Date(searchTo + 'T23:59:59').toISOString() : undefined;
+      for (let offset = 0; offset < maxRows; offset += pageSize) {
+        const rows = await ApiService.searchData({
+          query: debouncedSearchTerm,
+          sourceId,
+          from: fromISO,
+          to: toISO,
+          limit: pageSize,
+          offset,
+        });
+        all.push(...rows);
+        if (rows.length < pageSize) break;
+      }
+    } else {
+      for (let offset = 0; offset < maxRows; offset += pageSize) {
+        const rows = await ApiService.getData({ limit: pageSize, offset, sourceId });
+        all.push(...rows);
+        if (rows.length < pageSize) break;
+      }
+    }
+
+    return applyLocalFilters(all);
+  };
+
+  const handleExportCSV = async () => {
     try {
       setIsDownloading(true);
-      setTimeout(() => {
-        // Export all filtered data, not just current page
-        downloadCSV(
-          filteredData, 
-          visibleColumns, 
-          sources, 
-          getDisplayName, 
-          getValue, 
-          formatCellValue
-        );
-        setIsDownloading(false);
-        NotificationService.addNotification(
-          'CSV Export Complete', 
-          `Successfully exported ${filteredData.length} records to CSV with ${visibleColumns.length} columns.`,
-          'success'
-        );
-      }, 500);
-    } catch (err) {
-      setError('Error exporting data. Please ensure you are logged in.');
-      setIsDownloading(false);
+      setError(null);
+
+      const rows = await fetchAllForExport();
+
+      if (rows.length === 0) {
+        NotificationService.addNotification('Nothing to export', 'No records matched the current filters.', 'info');
+        return;
+      }
+
+      downloadCSV(
+        rows,
+        visibleColumns,
+        sources,
+        getDisplayName,
+        getValue,
+        formatCellValue
+      );
+
       NotificationService.addNotification(
-        'Export Failed', 
+        'CSV Export Complete',
+        `Successfully exported ${rows.length} records to CSV with ${visibleColumns.length} columns.`,
+        'success'
+      );
+    } catch (err) {
+      console.error('Export failed:', err);
+      setError('Error exporting data. Please ensure you are logged in.');
+      NotificationService.addNotification(
+        'Export Failed',
         'Failed to export data to CSV.',
         'error'
       );
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -718,15 +778,15 @@ const EnhancedDataTable: React.FC<EnhancedDataTableProps> = ({
             <Button 
               size="sm"
               onClick={handleExportCSV}
-              disabled={isDownloading || filteredData.length === 0}
+              disabled={isDownloading || (totalCount === 0 && filteredData.length === 0)}
               className="hover-lift"
             >
               {isDownloading ? (
-                <>Downloading...</>
+                <>Preparing export...</>
               ) : (
                 <>
                   <Download className="h-4 w-4 mr-1" />
-                  Export CSV ({filteredData.length})
+                  Export CSV ({totalCount || filteredData.length})
                 </>
               )}
             </Button>
