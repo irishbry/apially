@@ -577,6 +577,21 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                     </FormItem>
                   )}
                 />
+                <div className="flex items-start gap-3 rounded-lg border p-3">
+                  <Checkbox
+                    id="create-as-partner"
+                    checked={createAsPartner}
+                    onCheckedChange={(checked) => setCreateAsPartner(checked === true)}
+                  />
+                  <div className="space-y-1">
+                    <label htmlFor="create-as-partner" className="text-sm font-medium leading-none cursor-pointer">
+                      Data partner (grouping only)
+                    </label>
+                    <p className="text-xs text-muted-foreground">
+                      A partner never receives data and has no usable API key. Use it to bucket subsources underneath.
+                    </p>
+                  </div>
+                </div>
                 <DialogFooter>
                   <Button 
                     type="button" 
