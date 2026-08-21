@@ -781,6 +781,7 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
+                      {!isPartner && (<>
                       <Button
                         variant="ghost"
                         size="sm"
