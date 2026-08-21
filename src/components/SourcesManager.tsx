@@ -534,7 +534,7 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
             <DialogHeader>
               <DialogTitle>Create New Data Source</DialogTitle>
               <DialogDescription>
-                Enter details for your new data source. You'll get a unique API key for this source.
+                Enter details for your new data source. Regular sources get a unique API key; data partners are grouping-only containers.
               </DialogDescription>
             </DialogHeader>
             <Form {...form}>
