@@ -50,6 +50,7 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
   const [isDuplicating, setIsDuplicating] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [createAsPartner, setCreateAsPartner] = useState(false);
   const { toast } = useToast();
 
   const form = useForm<CreateSourceForm>({
@@ -202,8 +203,9 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
           api_key: apiKey,
           user_id: session.user.id,
           active: true,
-          data_count: 0
-        })
+          data_count: 0,
+          is_partner: createAsPartner,
+        } as any)
         .select()
         .single();
 
@@ -219,18 +221,23 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
 
       toast({
         title: "Success",
-        description: `Source "${formData.name}" created successfully`,
+        description: createAsPartner
+          ? `Data partner "${formData.name}" created. Assign sources to it as subsources.`
+          : `Source "${formData.name}" created successfully`,
       });
 
+      const wasPartner = createAsPartner;
       form.reset();
+      setCreateAsPartner(false);
       setIsCreateModalOpen(false);
       
       // Reload sources to get the updated list
       await loadSources();
       
-      // Immediately set the new API key as selected to trigger updates in documentation
-      console.log('Setting new API key as selected:', apiKey);
-      setSelectedApiKey(apiKey);
+      if (!wasPartner) {
+        // Immediately set the new API key as selected to trigger updates in documentation
+        setSelectedApiKey(apiKey);
+      }
 
     } catch (error) {
       console.error('Error in createSource:', error);
@@ -527,7 +534,7 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
             <DialogHeader>
               <DialogTitle>Create New Data Source</DialogTitle>
               <DialogDescription>
-                Enter details for your new data source. You'll get a unique API key for this source.
+                Enter details for your new data source. Regular sources get a unique API key; data partners are grouping-only containers.
               </DialogDescription>
             </DialogHeader>
             <Form {...form}>
@@ -570,6 +577,21 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                     </FormItem>
                   )}
                 />
+                <div className="flex items-start gap-3 rounded-lg border p-3">
+                  <Checkbox
+                    id="create-as-partner"
+                    checked={createAsPartner}
+                    onCheckedChange={(checked) => setCreateAsPartner(checked === true)}
+                  />
+                  <div className="space-y-1">
+                    <label htmlFor="create-as-partner" className="text-sm font-medium leading-none cursor-pointer">
+                      Data partner (grouping only)
+                    </label>
+                    <p className="text-xs text-muted-foreground">
+                      A partner never receives data and has no usable API key. Use it to bucket subsources underneath.
+                    </p>
+                  </div>
+                </div>
                 <DialogFooter>
                   <Button 
                     type="button" 
@@ -650,15 +672,21 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                 }
               }
 
-              const renderRow = (source: SourceWithRecords, isChild = false) => (
+              const renderRow = (source: SourceWithRecords, isChild = false) => {
+                const isPartner = !!(source as any).is_partner;
+                const kids = childrenByParent.get(source.id) || [];
+                const rolledUp = kids.reduce((sum, k) => sum + (k.recordCount || 0), 0);
+                return (
                 <div
                   key={source.id}
-                  className={`p-4 border rounded-lg transition-all cursor-pointer ${isChild ? 'ml-8 border-l-4 border-l-primary/40' : ''} ${
-                    selectedApiKey === source.api_key
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-primary/50'
+                  className={`p-4 border rounded-lg transition-all ${isPartner ? '' : 'cursor-pointer'} ${isChild ? 'ml-8 border-l-4 border-l-primary/40' : ''} ${
+                    isPartner
+                      ? 'border-dashed bg-muted/30'
+                      : selectedApiKey === source.api_key
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-primary/50'
                   }`}
-                  onClick={() => handleApiKeySelect(source.api_key || '')}
+                  onClick={() => { if (!isPartner) handleApiKeySelect(source.api_key || ''); }}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -668,28 +696,47 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                         onCheckedChange={() => toggleSelected(source.id)}
                         aria-label={`Select ${source.name}`}
                       />
-                      {selectedApiKey === source.api_key && (
+                      {!isPartner && selectedApiKey === source.api_key && (
                         <CheckCircle className="h-5 w-5 text-primary" />
                       )}
 
                       <div>
                         <h3 className="font-medium">
                           {source.name}
-                          {isChild && <span className="ml-2 text-xs font-normal text-muted-foreground">subsource</span>}
+                          {isPartner && (
+                            <span className="ml-2 text-xs font-medium text-primary border border-primary/40 rounded px-1.5 py-0.5">
+                              Data partner
+                            </span>
+                          )}
+                          {!isPartner && isChild && <span className="ml-2 text-xs font-normal text-muted-foreground">subsource</span>}
                         </h3>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
                           <div className="flex items-center gap-1">
                             <Database className="h-3 w-3" />
-                            <span>{source.recordCount} records</span>
+                            <span>
+                              {isPartner
+                                ? `${rolledUp} records across ${kids.length} subsource${kids.length === 1 ? '' : 's'}`
+                                : `${source.recordCount} records`}
+                            </span>
                           </div>
-                          <span>•</span>
-                          <span className={source.active ? '' : 'font-medium text-foreground'}>
-                            {source.active ? 'Active' : 'Paused'}
-                          </span>
+                          {isPartner ? (
+                            <>
+                              <span>•</span>
+                              <span>Grouping only — no API key, receives no data</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>•</span>
+                              <span className={source.active ? '' : 'font-medium text-foreground'}>
+                                {source.active ? 'Active' : 'Paused'}
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      {!isPartner && (
                       <div className="flex items-center gap-1 text-xs bg-secondary px-2 py-1 rounded">
                         <span>API Key:</span>
                         <code className="bg-background px-1">
@@ -721,6 +768,7 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                           <Copy className="h-3 w-3" />
                         </Button>
                       </div>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -734,6 +782,7 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
+                      {!isPartner && (<>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -777,6 +826,8 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                           ? <Pause className="h-4 w-4" />
                           : <Play className="h-4 w-4 text-primary" />}
                       </Button>
+                      </>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -791,7 +842,8 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                     </div>
                   </div>
                 </div>
-              );
+                );
+              };
 
               return (
                 <div className="space-y-4">
@@ -863,7 +915,9 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                   {sources
                     .filter(s => s.id !== renameSource?.id && !(s as any).parent_id)
                     .map(s => (
-                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}{(s as any).is_partner ? ' (data partner)' : ''}
+                      </SelectItem>
                     ))}
                 </SelectContent>
               </Select>

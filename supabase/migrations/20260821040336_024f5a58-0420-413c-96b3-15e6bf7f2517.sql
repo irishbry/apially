@@ -1,0 +1,1 @@
+ALTER TABLE public.sources ADD COLUMN IF NOT EXISTS is_partner boolean NOT NULL DEFAULT false;

@@ -396,6 +396,7 @@ export type Database = {
           created_at: string
           data_count: number
           id: string
+          is_partner: boolean
           last_active: string | null
           name: string
           parent_id: string | null
@@ -409,6 +410,7 @@ export type Database = {
           created_at?: string
           data_count?: number
           id?: string
+          is_partner?: boolean
           last_active?: string | null
           name: string
           parent_id?: string | null
@@ -422,6 +424,7 @@ export type Database = {
           created_at?: string
           data_count?: number
           id?: string
+          is_partner?: boolean
           last_active?: string | null
           name?: string
           parent_id?: string | null
