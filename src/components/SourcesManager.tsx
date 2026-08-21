@@ -221,18 +221,23 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
 
       toast({
         title: "Success",
-        description: `Source "${formData.name}" created successfully`,
+        description: createAsPartner
+          ? `Data partner "${formData.name}" created. Assign sources to it as subsources.`
+          : `Source "${formData.name}" created successfully`,
       });
 
+      const wasPartner = createAsPartner;
       form.reset();
+      setCreateAsPartner(false);
       setIsCreateModalOpen(false);
       
       // Reload sources to get the updated list
       await loadSources();
       
-      // Immediately set the new API key as selected to trigger updates in documentation
-      console.log('Setting new API key as selected:', apiKey);
-      setSelectedApiKey(apiKey);
+      if (!wasPartner) {
+        // Immediately set the new API key as selected to trigger updates in documentation
+        setSelectedApiKey(apiKey);
+      }
 
     } catch (error) {
       console.error('Error in createSource:', error);
