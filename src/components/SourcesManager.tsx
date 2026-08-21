@@ -824,6 +824,8 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                           ? <Pause className="h-4 w-4" />
                           : <Play className="h-4 w-4 text-primary" />}
                       </Button>
+                      </>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
