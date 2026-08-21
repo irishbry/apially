@@ -203,8 +203,9 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
           api_key: apiKey,
           user_id: session.user.id,
           active: true,
-          data_count: 0
-        })
+          data_count: 0,
+          is_partner: createAsPartner,
+        } as any)
         .select()
         .single();
 
