@@ -404,7 +404,7 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
     }
     setIsRenaming(true);
     try {
-      const updates: any = { name: newName, parent_id: renameParentId };
+      const updates: any = { name: newName, parent_id: renameParentId, is_partner: renameIsPartner };
       const { error } = await supabase
         .from('sources')
         .update(updates)
