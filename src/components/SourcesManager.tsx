@@ -842,7 +842,8 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                     </div>
                   </div>
                 </div>
-              );
+                );
+              };
 
               return (
                 <div className="space-y-4">
