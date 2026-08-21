@@ -50,6 +50,7 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
   const [isDuplicating, setIsDuplicating] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [createAsPartner, setCreateAsPartner] = useState(false);
   const { toast } = useToast();
 
   const form = useForm<CreateSourceForm>({
