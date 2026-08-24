@@ -13,8 +13,9 @@ const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
 
 // Initialize rate limiter
 const rateLimits = new Map<string, number[]>();
-const RATE_LIMIT = 5; // 5 requests
+const RATE_LIMIT = 600; // 600 requests per minute (supports bulk imports)
 const RATE_LIMIT_WINDOW = 60000; // 1 minute in milliseconds
+const MAX_BATCH_SIZE = 1000; // max records accepted in a single bulk request
 
 // Helper function to check rate limit
 function checkRateLimit(identifier: string): { allowed: boolean; retryAfter?: number } {
