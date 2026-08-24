@@ -192,6 +192,167 @@ serve(async (req) => {
       );
     }
 
+    // ---------------------------------------------------------------
+    // BULK MODE: accept an array of records in one request.
+    // Supported shapes: [ {...}, {...} ] | { records: [...] } | { data: [...] }
+    // ---------------------------------------------------------------
+    const batch: any[] | null = Array.isArray(body)
+      ? body
+      : Array.isArray((body as any).records)
+        ? (body as any).records
+        : Array.isArray((body as any).data)
+          ? (body as any).data
+          : null;
+
+    if (batch) {
+      if (batch.length === 0) {
+        return new Response(
+          JSON.stringify({ success: false, message: 'Empty batch', code: 'VALIDATION_ERROR' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        );
+      }
+      if (batch.length > MAX_BATCH_SIZE) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            message: `Batch too large. Maximum ${MAX_BATCH_SIZE} records per request. Split the payload into multiple requests.`,
+            code: 'BATCH_TOO_LARGE',
+            maxBatchSize: MAX_BATCH_SIZE,
+            received: batch.length,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 413 }
+        );
+      }
+
+      const nowIso = new Date().toISOString();
+      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+      // Emails present in this payload (used for duplicate detection)
+      const emails = Array.from(
+        new Set(
+          batch
+            .map((r) => (r && typeof r.email === 'string' ? r.email.trim().toLowerCase() : null))
+            .filter((e): e is string => !!e)
+        )
+      );
+
+      // Look up emails already received from this source in the last 24h
+      const existingEmails = new Set<string>();
+      if (emails.length > 0) {
+        const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        for (let i = 0; i < emails.length; i += 200) {
+          const chunk = emails.slice(i, i + 200);
+          const list = `(${chunk.map((e) => `"${e.replace(/"/g, '')}"`).join(',')})`;
+          const { data: dupes, error: dupErr } = await supabase
+            .from('data_entries')
+            .select('metadata')
+            .eq('user_id', source.user_id)
+            .eq('source_id', source.id)
+            .gte('timestamp', since)
+            .filter('metadata->>email', 'in', list);
+          if (dupErr) {
+            console.error('Bulk duplicate check error (non-blocking):', dupErr);
+            break;
+          }
+          for (const row of dupes || []) {
+            const e = (row as any)?.metadata?.email;
+            if (typeof e === 'string') existingEmails.add(e.trim().toLowerCase());
+          }
+        }
+      }
+
+      const seenInPayload = new Set<string>();
+      const rows: any[] = [];
+      const duplicates: string[] = [];
+
+      for (const record of batch) {
+        if (!record || typeof record !== 'object') continue;
+
+        const email = typeof record.email === 'string' ? record.email.trim().toLowerCase() : null;
+        if (email) {
+          if (existingEmails.has(email) || seenInPayload.has(email)) {
+            duplicates.push(email);
+            continue;
+          }
+          seenInPayload.add(email);
+        }
+
+        let entryId = crypto.randomUUID();
+        let originalId: string | null = null;
+        if (record.id) {
+          if (uuidRe.test(String(record.id))) entryId = String(record.id);
+          else originalId = String(record.id);
+        }
+
+        const enhanced = {
+          ...record,
+          id: entryId,
+          sourceId: source.id,
+          source_id: source.id,
+          userId: source.user_id,
+          user_id: source.user_id,
+          receivedAt: nowIso,
+          timestamp: record.timestamp || nowIso,
+          ...(originalId && { original_id: originalId }),
+          ...(isPaused && { paused: true, paused_at: nowIso }),
+        };
+
+        const {
+          sourceId: _s, source_id: _s2, id: _i,
+          sensorId, sensor_id,
+          timestamp: _t, userId: _u, user_id: _u2,
+          ...metadata
+        } = enhanced as any;
+
+        const fileName = `${nowIso.replace(/[:.]/g, '-')}_${entryId}.json`;
+        rows.push({
+          id: entryId,
+          source_id: source.id,
+          user_id: source.user_id,
+          file_name: fileName,
+          file_path: `${source.id}/bulk/${fileName}`,
+          timestamp: enhanced.timestamp,
+          sensor_id: sensorId || sensor_id || null,
+          metadata,
+        });
+      }
+
+      // Insert in chunks so a large batch never exceeds statement limits
+      let inserted = 0;
+      const errors: string[] = [];
+      for (let i = 0; i < rows.length; i += 250) {
+        const chunk = rows.slice(i, i + 250);
+        const { error: insErr } = await supabase.from('data_entries').insert(chunk);
+        if (insErr) {
+          console.error('Bulk insert error:', insErr);
+          errors.push(insErr.message);
+        } else {
+          inserted += chunk.length;
+        }
+      }
+
+      if (inserted > 0) {
+        await supabase.from('sources').update({ last_active: nowIso }).eq('id', source.id);
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: errors.length === 0,
+          message: `Bulk import processed: ${inserted} stored, ${duplicates.length} duplicates skipped${errors.length ? `, ${errors.length} chunk error(s)` : ''}`,
+          received: batch.length,
+          inserted,
+          duplicatesSkipped: duplicates.length,
+          errors: errors.slice(0, 5),
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: errors.length === 0 ? 200 : 207,
+        }
+      );
+    }
+
+
+
     // Check for duplicate email within the last 24 hours
     // Optimized: filter by source_id too and use metadata->>email filter to avoid scanning all rows
     if (body.email) {
