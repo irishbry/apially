@@ -21,7 +21,8 @@ import {
   Database,
   Calendar,
   FileText,
-  HardDrive
+  HardDrive,
+  AlertTriangle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { BackupLogsService, BackupLog } from "@/services/BackupLogsService";
