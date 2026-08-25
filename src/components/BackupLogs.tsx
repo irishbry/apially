@@ -21,11 +21,20 @@ import {
   Database,
   Calendar,
   FileText,
-  HardDrive
+  HardDrive,
+  AlertTriangle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { BackupLogsService, BackupLog } from "@/services/BackupLogsService";
 import { useAuth } from "@/hooks/useAuth";
+import BackupRunProgress, { deriveStatus, statusLabel } from "@/components/BackupRunProgress";
+
+// Extract source name from backup file name pattern: backup_YYYY-MM-DD_SourceName.csv
+const extractSourceName = (fileName: string): string => {
+  const match = fileName.match(/(?:manual_)?backup_\d{4}-\d{2}-\d{2}_(.+)\.\w+$/);
+  return match ? match[1].replace(/_/g, ' ') : 'Unknown';
+};
+
 
 // Module-level cache so logs persist across remounts/tab switches/navigations
 let cachedLogs: BackupLog[] | null = null;
@@ -42,11 +51,9 @@ const BackupLogs: React.FC = () => {
   const { toast } = useToast();
   const { user } = useAuth();
 
-  // Extract source name from backup file name pattern: backup_YYYY-MM-DD_SourceName.csv
-  const extractSourceName = (fileName: string): string => {
-    const match = fileName.match(/(?:manual_)?backup_\d{4}-\d{2}-\d{2}_(.+)\.\w+$/);
-    return match ? match[1].replace(/_/g, ' ') : 'Unknown';
-  };
+  // Ticks while a run is active so elapsed/timeout state stays accurate on screen
+  const [, setTick] = useState(0);
+
 
   const sourceNames = useMemo(() => {
     const names = new Set(logs.map(log => extractSourceName(log.file_name)));
@@ -76,6 +83,23 @@ const BackupLogs: React.FC = () => {
 
     return unsubscribe;
   }, [user]);
+
+  const hasRunningBackup = useMemo(
+    () => logs.some(log => log.status === 'processing'),
+    [logs]
+  );
+
+  // While a run is in flight, refresh + re-render so progress advances and a
+  // stalled run flips to "Timed out" without the user reloading the page.
+  useEffect(() => {
+    if (!user || !hasRunningBackup) return;
+    const interval = setInterval(() => {
+      setTick(t => t + 1);
+      loadBackupLogs(true);
+    }, 15_000);
+    return () => clearInterval(interval);
+  }, [user, hasRunningBackup]);
+
 
   // background = true means we already have cached data shown, just refresh silently
   const loadBackupLogs = async (background = false) => {
@@ -251,6 +275,8 @@ const BackupLogs: React.FC = () => {
         return <CheckCircle2 className="h-4 w-4 text-green-600" />;
       case 'failed':
         return <XCircle className="h-4 w-4 text-red-600" />;
+      case 'timed_out':
+        return <AlertTriangle className="h-4 w-4 text-red-600" />;
       case 'processing':
         return <Clock className="h-4 w-4 text-yellow-600" />;
       default:
@@ -262,15 +288,20 @@ const BackupLogs: React.FC = () => {
     const variants = {
       completed: 'default',
       failed: 'destructive',
+      timed_out: 'destructive',
       processing: 'secondary'
     } as const;
 
     return (
-      <Badge variant={variants[status as keyof typeof variants] || 'secondary'}>
-        {status}
+      <Badge
+        variant={variants[status as keyof typeof variants] || 'secondary'}
+        title={status === 'timed_out' ? 'The backup job stopped before finishing this file' : undefined}
+      >
+        {statusLabel[status as keyof typeof statusLabel] ?? status}
       </Badge>
     );
   };
+
 
   const formatFileSize = (bytes?: number) => {
     if (!bytes) return 'Unknown';
@@ -305,7 +336,10 @@ const BackupLogs: React.FC = () => {
   }
 
   return (
-    <Card className="w-full max-w-6xl mx-auto">
+    <div className="space-y-4">
+      <BackupRunProgress logs={logs} extractSourceName={extractSourceName} />
+      <Card className="w-full max-w-6xl mx-auto">
+
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-3 text-lg">
           <Database className="h-5 w-5 text-primary" />
@@ -367,10 +401,11 @@ const BackupLogs: React.FC = () => {
                   <TableRow key={log.id}>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        {getStatusIcon(log.status)}
-                        {getStatusBadge(log.status)}
+                        {getStatusIcon(deriveStatus(log))}
+                        {getStatusBadge(deriveStatus(log))}
                       </div>
                     </TableCell>
+
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <HardDrive className="h-4 w-4 text-slate-400" />
@@ -467,8 +502,10 @@ const BackupLogs: React.FC = () => {
           </div>
         )}
       </CardContent>
-    </Card>
+      </Card>
+    </div>
   );
+
 };
 
 export default BackupLogs;
