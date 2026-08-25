@@ -501,8 +501,10 @@ const BackupLogs: React.FC = () => {
           </div>
         )}
       </CardContent>
-    </Card>
+      </Card>
+    </div>
   );
+
 };
 
 export default BackupLogs;
