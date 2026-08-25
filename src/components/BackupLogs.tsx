@@ -336,7 +336,10 @@ const BackupLogs: React.FC = () => {
   }
 
   return (
-    <Card className="w-full max-w-6xl mx-auto">
+    <div className="space-y-4">
+      <BackupRunProgress logs={logs} extractSourceName={extractSourceName} />
+      <Card className="w-full max-w-6xl mx-auto">
+
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-3 text-lg">
           <Database className="h-5 w-5 text-primary" />
