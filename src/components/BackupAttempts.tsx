@@ -213,15 +213,55 @@ const BackupAttempts = () => {
                   </Badge>
                 )}
               </CardTitle>
-              <Button variant="ghost" size="sm" className="gap-1">
-                {open ? <>Hide <ChevronUp className="w-4 h-4" /></> : <>Show <ChevronDown className="w-4 h-4" /></>}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1"
+                  disabled={checking}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    runAlertCheck();
+                  }}
+                >
+                  {checking ? <Loader2 className="w-4 h-4 animate-spin" /> : <BellRing className="w-4 h-4" />}
+                  Check &amp; notify
+                </Button>
+                <Button variant="ghost" size="sm" className="gap-1">
+                  {open ? <>Hide <ChevronUp className="w-4 h-4" /></> : <>Show <ChevronDown className="w-4 h-4" /></>}
+                </Button>
+              </div>
             </div>
           </CardHeader>
         </CollapsibleTrigger>
 
         <CollapsibleContent>
           <CardContent>
+            <div className="mb-4 rounded-md border p-3">
+              <div className="flex items-center gap-2 mb-2 text-sm font-medium">
+                <BellRing className="w-4 h-4 text-muted-foreground" />
+                Recent backup alerts
+                <span className="text-xs text-muted-foreground font-normal">
+                  (auto-checked hourly, emailed to the source owner)
+                </span>
+              </div>
+              {alerts.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No backup alerts have been sent.</p>
+              ) : (
+                <ul className="space-y-1">
+                  {alerts.map((a) => (
+                    <li key={a.id} className="text-sm flex items-start gap-2">
+                      <AlertTriangle className="w-3.5 h-3.5 mt-0.5 text-destructive shrink-0" />
+                      <span className="text-muted-foreground">
+                        <span className="text-foreground">{a.details || a.alert_type}</span>{' '}
+                        — {new Date(a.last_alerted_at).toLocaleString()}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="grid grid-cols-4 w-full md:w-auto">
                 <TabsTrigger value="today">Today ({summary.today.length})</TabsTrigger>
