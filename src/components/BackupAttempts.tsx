@@ -69,6 +69,38 @@ const BackupAttempts = () => {
     }
   };
 
+  const fetchAlerts = async () => {
+    const { data, error } = await supabase
+      .from('backup_alerts')
+      .select('id, alert_type, details, last_alerted_at')
+      .order('last_alerted_at', { ascending: false })
+      .limit(10);
+    if (!error) setAlerts((data || []) as BackupAlert[]);
+  };
+
+  const runAlertCheck = async () => {
+    setChecking(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('backup-alert-check', { body: {} });
+      if (error) throw error;
+      const issues = data?.issues ?? 0;
+      const sent = data?.alerts_sent ?? 0;
+      if (issues === 0) {
+        toast.success('No failed or stuck backups detected');
+      } else {
+        toast.warning(`${issues} backup issue${issues > 1 ? 's' : ''} detected — ${sent} notification${sent === 1 ? '' : 's'} emailed`);
+      }
+      await Promise.all([fetchAttempts(), fetchAlerts()]);
+    } catch (e) {
+      console.error('Alert check failed:', e);
+      toast.error('Could not run the backup alert check');
+    } finally {
+      setChecking(false);
+    }
+  };
+
+
+
   const fetchEmails = async () => {
     try {
       const { data, error } = await supabase.functions.invoke('admin-data', { body: {} });
