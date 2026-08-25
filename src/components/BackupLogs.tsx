@@ -26,6 +26,14 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { BackupLogsService, BackupLog } from "@/services/BackupLogsService";
 import { useAuth } from "@/hooks/useAuth";
+import BackupRunProgress, { deriveStatus, statusLabel } from "@/components/BackupRunProgress";
+
+// Extract source name from backup file name pattern: backup_YYYY-MM-DD_SourceName.csv
+const extractSourceName = (fileName: string): string => {
+  const match = fileName.match(/(?:manual_)?backup_\d{4}-\d{2}-\d{2}_(.+)\.\w+$/);
+  return match ? match[1].replace(/_/g, ' ') : 'Unknown';
+};
+
 
 // Module-level cache so logs persist across remounts/tab switches/navigations
 let cachedLogs: BackupLog[] | null = null;
