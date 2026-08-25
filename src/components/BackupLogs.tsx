@@ -50,11 +50,9 @@ const BackupLogs: React.FC = () => {
   const { toast } = useToast();
   const { user } = useAuth();
 
-  // Extract source name from backup file name pattern: backup_YYYY-MM-DD_SourceName.csv
-  const extractSourceName = (fileName: string): string => {
-    const match = fileName.match(/(?:manual_)?backup_\d{4}-\d{2}-\d{2}_(.+)\.\w+$/);
-    return match ? match[1].replace(/_/g, ' ') : 'Unknown';
-  };
+  // Ticks while a run is active so elapsed/timeout state stays accurate on screen
+  const [, setTick] = useState(0);
+
 
   const sourceNames = useMemo(() => {
     const names = new Set(logs.map(log => extractSourceName(log.file_name)));
