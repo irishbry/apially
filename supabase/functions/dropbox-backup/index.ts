@@ -947,7 +947,11 @@ async function streamCsvBackupForSource(options: SourceBackupOptions): Promise<S
       if (page.length === 0) break;
       await upload.append(`\n${serializeCsvRows(page, orderedColumns, sourceNames)}`);
       console.log(`Streamed ${Math.min(offset + page.length, recordCount)}/${recordCount} rows for ${options.source.id}`);
+      // Heartbeat the log row so the UI can show live progress and can tell a
+      // still-running job apart from one that died mid-run (stale updated_at).
+      await updateBackupLog(backupLogId, { file_size: upload.byteCount });
       if (page.length < BACKUP_PAGE_SIZE) break;
+
     }
     await upload.finish();
 
