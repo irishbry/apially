@@ -17,6 +17,7 @@ import { ConfigService } from '@/services/ConfigService';
 import { useForm } from 'react-hook-form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
+import { BackupLogsService, BackupLog } from '@/services/BackupLogsService';
 
 interface CreateSourceForm {
   name: string;
@@ -52,6 +53,7 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
   const [createAsPartner, setCreateAsPartner] = useState(false);
+  const [latestBackups, setLatestBackups] = useState<Record<string, BackupLog>>({});
   const { toast } = useToast();
 
   const form = useForm<CreateSourceForm>({
@@ -118,12 +120,13 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
 
       // Fetch sources and record counts in parallel.
       // Sources are shared across all authenticated users, so there is no user filter here.
-      const [sourcesResult, countsResult] = await Promise.all([
+      const [sourcesResult, countsResult, backupLogs] = await Promise.all([
         supabase
           .from('sources')
           .select('*')
           .order('created_at', { ascending: false }),
         supabase.rpc('get_source_record_counts_admin'),
+        BackupLogsService.getBackupLogs(),
       ]);
 
       if (sourcesResult.error) {
@@ -146,6 +149,11 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
       }));
 
       setSources(sourcesWithRecords);
+      const latestBySource: Record<string, BackupLog> = {};
+      for (const log of backupLogs) {
+        if (log.source_id && !latestBySource[log.source_id]) latestBySource[log.source_id] = log;
+      }
+      setLatestBackups(latestBySource);
       
       if (sourcesWithRecords.length > 0 && !selectedApiKey) {
         setSelectedApiKey(sourcesWithRecords[0].api_key);
@@ -677,6 +685,7 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                 const isPartner = !!(source as any).is_partner;
                 const kids = childrenByParent.get(source.id) || [];
                 const rolledUp = kids.reduce((sum, k) => sum + (k.recordCount || 0), 0);
+                const latestBackup = latestBackups[source.id];
                 return (
                 <div
                   key={source.id}
@@ -730,6 +739,20 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                               <span>•</span>
                               <span className={source.active ? '' : 'font-medium text-foreground'}>
                                 {source.active ? 'Active' : 'Paused'}
+                              </span>
+                            </>
+                          )}
+                          {!isPartner && (
+                            <>
+                              <span>•</span>
+                              <span className={latestBackup?.status === 'failed' ? 'text-destructive font-medium' : ''}>
+                                {!latestBackup
+                                  ? 'No backup file produced yet'
+                                  : latestBackup.status === 'failed'
+                                    ? `Backup failed: ${latestBackup.error_message || 'The backup did not finish'}`
+                                    : latestBackup.status === 'processing'
+                                      ? 'Backup in progress'
+                                      : 'Latest backup completed'}
                               </span>
                             </>
                           )}

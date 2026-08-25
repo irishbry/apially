@@ -33,6 +33,8 @@ interface Source {
   id: string;
   name: string;
   user_id: string;
+  active?: boolean;
+  is_partner?: boolean;
 }
 
 interface DropboxConfig {
@@ -789,6 +791,7 @@ interface SourceBackupOptions {
   backupType: string;
   dropboxPath: string;
   dropboxToken: string;
+  backupLogId?: string | null;
 }
 
 interface SourceBackupResult {
@@ -829,10 +832,23 @@ async function createBackupLog(
   const normalizedPath = options.dropboxPath.endsWith('/')
     ? options.dropboxPath.slice(0, -1)
     : options.dropboxPath;
+  if (options.backupLogId) {
+    const { error } = await supabase.from('backup_logs').update({
+      file_name: fileName,
+      file_path: `${normalizedPath}/${fileName}`,
+      record_count: recordCount,
+      format: fileName.endsWith('.csv') ? 'csv' : 'json',
+      status: 'processing',
+      error_message: null,
+    }).eq('id', options.backupLogId);
+    if (error) console.error(`Unable to initialize backup log for ${options.source.id}:`, error);
+    return options.backupLogId;
+  }
   const { data, error } = await supabase
     .from('backup_logs')
     .insert({
       user_id: options.userId,
+      source_id: options.source.id,
       file_name: fileName,
       file_path: `${normalizedPath}/${fileName}`,
       record_count: recordCount,
