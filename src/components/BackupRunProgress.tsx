@@ -1,9 +1,14 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Progress } from "@/components/ui/progress";
-import { Activity, AlertTriangle, CheckCircle2, Loader2, XCircle } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Loader2, RefreshCw, XCircle } from "lucide-react";
 import { BackupLog, BackupSource } from "@/services/BackupLogsService";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 
 // A source whose log row hasn't been touched for this long is treated as timed out:
 // the edge function died mid-run and will never finalize the row itself.
@@ -46,6 +51,17 @@ const relativeTime = (iso: string) => {
   return `${Math.floor(hours / 24)}d ago`;
 };
 
+const getLosAngelesDate = (iso: string) => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date(iso));
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? '';
+  return `${value('year')}-${value('month')}-${value('day')}`;
+};
+
 interface Props {
   logs: BackupLog[];
   sources: BackupSource[];
@@ -57,6 +73,10 @@ interface Props {
  * mid-flight (edge function timeout) is visible instead of silently missing.
  */
 const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }) => {
+  const [open, setOpen] = useState(true);
+  const [retryingSourceId, setRetryingSourceId] = useState<string | null>(null);
+  const { user } = useAuth();
+  const { toast } = useToast();
   const { runLogs, counts, runStartedAt } = useMemo(() => {
     const now = Date.now();
     // The current "run" = the newest log plus everything within 6h of it.
@@ -75,6 +95,8 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }
     const runLogs = sources.map((source) => {
       const log = bySource.get(source.name);
       return {
+        sourceId: source.id,
+        sourceActive: source.active,
         sourceName: source.name,
         log,
         status: log ? deriveStatus(log, now) : 'failed' as DerivedStatus,
@@ -108,21 +130,60 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }
   const hasProblem = counts.failed > 0 || counts.timed_out > 0;
   const unhealthy = runLogs.filter((item) => item.status !== 'completed');
 
+  const retryBackup = async (sourceId: string, sourceName: string, log?: BackupLog) => {
+    if (!user || !runStartedAt) return;
+    setRetryingSourceId(sourceId);
+    try {
+      const { data, error } = await supabase.functions.invoke('dropbox-backup', {
+        body: {
+          action: 'recreate_backup',
+          userId: user.id,
+          sourceId,
+          pstDate: getLosAngelesDate(log?.created_at ?? runStartedAt),
+          format: log?.format ?? 'csv',
+        },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Backup retry failed');
+      toast({ title: 'Backup completed', description: `${sourceName} was backed up successfully.` });
+    } catch (error) {
+      console.error('Backup retry failed:', error);
+      toast({
+        title: 'Retry did not complete',
+        description: error instanceof Error ? error.message : `Could not retry ${sourceName}.`,
+        variant: 'destructive',
+      });
+    } finally {
+      setRetryingSourceId(null);
+    }
+  };
+
   return (
     <Card className="w-full max-w-6xl mx-auto">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-3 text-lg">
-          <Activity className="h-5 w-5 text-primary" />
-          Latest Backup Run
-        </CardTitle>
-        <CardDescription>
-          {runStartedAt
-            ? `Started ${relativeTime(runStartedAt)} · ${runLogs.length} source${runLogs.length !== 1 ? 's' : ''}`
-            : 'Per-source progress for the most recent backup run'}
-        </CardDescription>
-      </CardHeader>
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <CardHeader className="pb-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-3 text-lg">
+                <Activity className="h-5 w-5 text-primary" />
+                Latest Backup Run
+              </CardTitle>
+              <CardDescription>
+                {runStartedAt
+                  ? `Started ${relativeTime(runStartedAt)} · ${runLogs.length} source${runLogs.length !== 1 ? 's' : ''}`
+                  : 'Per-source progress for the most recent backup run'}
+              </CardDescription>
+            </div>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="shrink-0 gap-1" aria-label={open ? 'Minimize latest backup run' : 'Expand latest backup run'}>
+                {open ? <>Minimize <ChevronUp className="h-4 w-4" /></> : <>Show <ChevronDown className="h-4 w-4" /></>}
+              </Button>
+            </CollapsibleTrigger>
+          </div>
+        </CardHeader>
 
-      <CardContent className="space-y-4">
+        <CollapsibleContent>
+          <CardContent className="space-y-4">
         <div className="space-y-2">
           <Progress value={percent} />
           <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -159,7 +220,7 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }
 
         {unhealthy.length > 0 && (
           <div className="rounded-md border divide-y">
-            {unhealthy.map(({ sourceName, log, status, reason }) => (
+            {unhealthy.map(({ sourceId, sourceActive, sourceName, log, status, reason }) => (
               <div key={log?.id ?? sourceName} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
                 <div className="flex items-center gap-2 min-w-0">
                   {status === 'processing' && <Loader2 className="h-4 w-4 animate-spin text-yellow-600" />}
@@ -178,12 +239,28 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }
                   <Badge variant={status === 'processing' ? 'secondary' : 'destructive'}>
                     {statusLabel[status]}
                   </Badge>
+                  {sourceActive && status !== 'processing' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1"
+                      disabled={retryingSourceId !== null}
+                      onClick={() => retryBackup(sourceId, sourceName, log)}
+                    >
+                      {retryingSourceId === sourceId
+                        ? <Loader2 className="h-4 w-4 animate-spin" />
+                        : <RefreshCw className="h-4 w-4" />}
+                      Retry
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}
           </div>
         )}
-      </CardContent>
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
     </Card>
   );
 };
