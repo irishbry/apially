@@ -274,6 +274,8 @@ const BackupLogs: React.FC = () => {
         return <CheckCircle2 className="h-4 w-4 text-green-600" />;
       case 'failed':
         return <XCircle className="h-4 w-4 text-red-600" />;
+      case 'timed_out':
+        return <AlertTriangle className="h-4 w-4 text-red-600" />;
       case 'processing':
         return <Clock className="h-4 w-4 text-yellow-600" />;
       default:
@@ -285,15 +287,20 @@ const BackupLogs: React.FC = () => {
     const variants = {
       completed: 'default',
       failed: 'destructive',
+      timed_out: 'destructive',
       processing: 'secondary'
     } as const;
 
     return (
-      <Badge variant={variants[status as keyof typeof variants] || 'secondary'}>
-        {status}
+      <Badge
+        variant={variants[status as keyof typeof variants] || 'secondary'}
+        title={status === 'timed_out' ? 'The backup job stopped before finishing this file' : undefined}
+      >
+        {statusLabel[status as keyof typeof statusLabel] ?? status}
       </Badge>
     );
   };
+
 
   const formatFileSize = (bytes?: number) => {
     if (!bytes) return 'Unknown';
