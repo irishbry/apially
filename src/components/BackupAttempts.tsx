@@ -30,10 +30,14 @@ const BackupAttempts = () => {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('today');
+  const [alerts, setAlerts] = useState<BackupAlert[]>([]);
+  const [checking, setChecking] = useState(false);
 
   useEffect(() => {
     fetchAttempts();
+    fetchAlerts();
   }, []);
+
 
   useEffect(() => {
     if (isAdmin && attempts.length > 0 && Object.keys(emailMap).length === 0) {
