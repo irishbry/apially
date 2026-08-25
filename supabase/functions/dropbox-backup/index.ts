@@ -639,8 +639,6 @@ async function createBackupForUser(
     // Use the already-fetched sources list (all user sources) instead of a
     // capped select on data_entries — that select hit the default 1000-row
     // limit on high-volume days and silently dropped some source_ids.
-    const PAGE_SIZE = 1000;
-
     // Helper to finalize the attempt row on early returns
     const finalizeAttempt = async (status: string, errorMsg: string | null = null) => {
       if (!attemptId) return;
@@ -828,6 +826,253 @@ async function createBackupForUser(
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error occurred'
     };
+  }
+}
+
+interface SourceBackupOptions {
+  userId: string;
+  source: Source & { is_partner?: boolean };
+  sources: Source[];
+  startUtc: string;
+  endUtc: string;
+  dateString: string;
+  backupType: string;
+  dropboxPath: string;
+  dropboxToken: string;
+}
+
+interface SourceBackupResult {
+  success: boolean;
+  skipped?: boolean;
+  fileName?: string;
+  backupLogId?: string;
+  recordCount?: number;
+  error?: string;
+}
+
+const BACKUP_PAGE_SIZE = 1000;
+
+function sourceFileName(sourceName: string, dateString: string, backupType: string, extension: string): string {
+  const safeName = sourceName.replace(/[^a-zA-Z0-9]/g, '_');
+  const typePrefix = backupType === 'scheduled' ? 'backup' : 'manual_backup';
+  return `${typePrefix}_${dateString}_${safeName}.${extension}`;
+}
+
+function sourceEntriesQuery(options: SourceBackupOptions, select: string, offset: number) {
+  return supabase
+    .from('data_entries')
+    .select(select)
+    .eq('user_id', options.userId)
+    .eq('source_id', options.source.id)
+    .gte('created_at', options.startUtc)
+    .lte('created_at', options.endUtc)
+    .or('metadata->>paused.is.null,metadata->>paused.neq.true')
+    .order('created_at', { ascending: false })
+    .range(offset, offset + BACKUP_PAGE_SIZE - 1);
+}
+
+async function createBackupLog(
+  options: SourceBackupOptions,
+  fileName: string,
+  recordCount: number,
+): Promise<string | null> {
+  const normalizedPath = options.dropboxPath.endsWith('/')
+    ? options.dropboxPath.slice(0, -1)
+    : options.dropboxPath;
+  const { data, error } = await supabase
+    .from('backup_logs')
+    .insert({
+      user_id: options.userId,
+      file_name: fileName,
+      file_path: `${normalizedPath}/${fileName}`,
+      record_count: recordCount,
+      backup_type: options.backupType,
+      format: fileName.endsWith('.csv') ? 'csv' : 'json',
+      status: 'processing',
+      file_size: 0,
+    })
+    .select('id')
+    .single();
+  if (error) console.error(`Unable to create backup log for ${options.source.id}:`, error);
+  return data?.id ?? null;
+}
+
+async function updateBackupLog(
+  backupLogId: string | null,
+  values: Record<string, unknown>,
+): Promise<void> {
+  if (!backupLogId) return;
+  const { error } = await supabase.from('backup_logs').update(values).eq('id', backupLogId);
+  if (error) console.error(`Unable to update backup log ${backupLogId}:`, error);
+}
+
+async function getDropboxSharedLink(token: string, path: string): Promise<string | null> {
+  const response = await fetch('https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path, settings: { requested_visibility: 'public' } }),
+  });
+  if (response.ok) return (await response.json()).url ?? null;
+
+  // An overwritten file can already have a shared link; retrieve it rather than failing.
+  const existing = await fetch('https://api.dropboxapi.com/2/sharing/list_shared_links', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path, direct_only: true }),
+  });
+  if (!existing.ok) return null;
+  const result = await existing.json();
+  return result.links?.[0]?.url ?? null;
+}
+
+async function copyDropboxFileToStorage(
+  token: string,
+  dropboxFilePath: string,
+  userId: string,
+  fileName: string,
+): Promise<{ success: boolean; path?: string }> {
+  try {
+    const temporaryLinkResponse = await fetch('https://api.dropboxapi.com/2/files/get_temporary_link', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: dropboxFilePath }),
+    });
+    if (!temporaryLinkResponse.ok) throw new Error(await temporaryLinkResponse.text());
+    const { link } = await temporaryLinkResponse.json();
+    const downloadResponse = await fetch(link);
+    if (!downloadResponse.ok || !downloadResponse.body) throw new Error(`Dropbox download failed (${downloadResponse.status})`);
+
+    const storagePath = `${userId}/${fileName}`;
+    const storageResponse = await fetch(
+      `${Deno.env.get('SUPABASE_URL')}/storage/v1/object/backup-files/${encodeURIComponent(userId)}/${encodeURIComponent(fileName)}`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''}`,
+          apikey: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+          'Content-Type': 'text/csv',
+          'x-upsert': 'true',
+        },
+        body: downloadResponse.body,
+      },
+    );
+    if (!storageResponse.ok) throw new Error(await storageResponse.text());
+    return { success: true, path: storagePath };
+  } catch (error) {
+    console.error(`Streaming copy to Supabase Storage failed for ${fileName}:`, error);
+    return { success: false };
+  }
+}
+
+async function streamCsvBackupForSource(options: SourceBackupOptions): Promise<SourceBackupResult> {
+  const columns = new Set<string>();
+  let recordCount = 0;
+
+  // First bounded pass discovers every metadata key so the CSV schema remains
+  // identical for every page, even when a field first appears late in the day.
+  for (let offset = 0; ; offset += BACKUP_PAGE_SIZE) {
+    const { data, error } = await sourceEntriesQuery(options, 'id, metadata', offset);
+    if (error) throw new Error(`CSV schema fetch failed: ${error.message}`);
+    const page = (data ?? []) as DataEntry[];
+    if (page.length === 0) break;
+    addCsvColumns(columns, page);
+    recordCount += page.length;
+    if (page.length < BACKUP_PAGE_SIZE) break;
+  }
+  if (recordCount === 0) return { success: true, skipped: true, recordCount: 0 };
+
+  const fileName = sourceFileName(options.source.name, options.dateString, options.backupType, 'csv');
+  const backupLogId = await createBackupLog(options, fileName, recordCount);
+  const sourceNames = new Map(options.sources.map((source) => [source.id, source.name]));
+  const orderedColumns = orderCsvColumns(columns);
+  const upload = new DropboxUploadSession(options.dropboxToken, options.dropboxPath, fileName);
+
+  try {
+    await upload.start();
+    await upload.append(serializeCsvHeader(orderedColumns));
+    for (let offset = 0; ; offset += BACKUP_PAGE_SIZE) {
+      const { data, error } = await sourceEntriesQuery(options, '*', offset);
+      if (error) throw new Error(`CSV data fetch failed: ${error.message}`);
+      const page = (data ?? []) as DataEntry[];
+      if (page.length === 0) break;
+      await upload.append(`\n${serializeCsvRows(page, orderedColumns, sourceNames)}`);
+      console.log(`Streamed ${Math.min(offset + page.length, recordCount)}/${recordCount} rows for ${options.source.id}`);
+      if (page.length < BACKUP_PAGE_SIZE) break;
+    }
+    await upload.finish();
+
+    const [dropboxUrl, storageResult] = await Promise.all([
+      getDropboxSharedLink(options.dropboxToken, upload.fullPath),
+      copyDropboxFileToStorage(options.dropboxToken, upload.fullPath, options.userId, fileName),
+    ]);
+    await updateBackupLog(backupLogId, {
+      status: 'completed',
+      file_size: upload.byteCount,
+      storage_path: storageResult.path ?? null,
+      dropbox_url: dropboxUrl,
+    });
+    return { success: true, fileName, backupLogId: backupLogId ?? undefined, recordCount };
+  } catch (error) {
+    await updateBackupLog(backupLogId, { status: 'failed', file_size: upload.byteCount });
+    throw error;
+  }
+}
+
+async function createBufferedBackupForSource(
+  options: SourceBackupOptions & { exportFormat: string },
+): Promise<SourceBackupResult> {
+  const entries: DataEntry[] = [];
+  for (let offset = 0; ; offset += BACKUP_PAGE_SIZE) {
+    const { data, error } = await sourceEntriesQuery(options, '*', offset);
+    if (error) throw new Error(`JSON data fetch failed: ${error.message}`);
+    const page = (data ?? []) as DataEntry[];
+    if (page.length === 0) break;
+    entries.push(...page);
+    if (page.length < BACKUP_PAGE_SIZE) break;
+  }
+  if (entries.length === 0) return { success: true, skipped: true, recordCount: 0 };
+
+  const fileName = sourceFileName(options.source.name, options.dateString, options.backupType, options.exportFormat);
+  const content = generateDataExplorerJSON(entries, options.sources);
+  const backupLogId = await createBackupLog(options, fileName, entries.length);
+  const [storageResult, dropboxResult] = await Promise.all([
+    uploadToSupabaseStorage(fileName, content, options.userId),
+    uploadToDropbox(options.dropboxToken, options.dropboxPath, fileName, content),
+  ]);
+  const success = storageResult.success || dropboxResult.success;
+  await updateBackupLog(backupLogId, {
+    status: success ? 'completed' : 'failed',
+    file_size: new TextEncoder().encode(content).byteLength,
+    storage_path: storageResult.path ?? null,
+    dropbox_url: dropboxResult.dropboxUrl ?? null,
+  });
+  return { success, fileName, backupLogId: backupLogId ?? undefined, recordCount: entries.length };
+}
+
+async function markSourceEntriesBackedUp(
+  userId: string,
+  sourceId: string,
+  startUtc: string,
+  endUtc: string,
+): Promise<void> {
+  let offset = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from('data_entries')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('source_id', sourceId)
+      .gte('created_at', startUtc)
+      .lte('created_at', endUtc)
+      .or('metadata->>paused.is.null,metadata->>paused.neq.true')
+      .order('created_at', { ascending: false })
+      .range(offset, offset + BACKUP_PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+    const ids = (data ?? []).map((entry) => entry.id);
+    if (ids.length === 0) break;
+    await updateRecordsInChunks(ids, userId);
+    if (ids.length < BACKUP_PAGE_SIZE) break;
+    offset += BACKUP_PAGE_SIZE;
   }
 }
 
