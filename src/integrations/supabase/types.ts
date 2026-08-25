@@ -46,12 +46,14 @@ export type Database = {
           backup_type: string
           created_at: string
           dropbox_url: string | null
-          file_name: string
-          file_path: string
+          error_message: string | null
+          file_name: string | null
+          file_path: string | null
           file_size: number | null
           format: string
           id: string
           record_count: number
+          source_id: string | null
           status: string
           storage_path: string | null
           updated_at: string
@@ -61,12 +63,14 @@ export type Database = {
           backup_type?: string
           created_at?: string
           dropbox_url?: string | null
-          file_name: string
-          file_path: string
+          error_message?: string | null
+          file_name?: string | null
+          file_path?: string | null
           file_size?: number | null
           format?: string
           id?: string
           record_count?: number
+          source_id?: string | null
           status?: string
           storage_path?: string | null
           updated_at?: string
@@ -76,18 +80,28 @@ export type Database = {
           backup_type?: string
           created_at?: string
           dropbox_url?: string | null
-          file_name?: string
-          file_path?: string
+          error_message?: string | null
+          file_name?: string | null
+          file_path?: string | null
           file_size?: number | null
           format?: string
           id?: string
           record_count?: number
+          source_id?: string | null
           status?: string
           storage_path?: string | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "backup_logs_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "sources"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       data_entries: {
         Row: {

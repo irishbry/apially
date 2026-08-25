@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Activity, AlertTriangle, CheckCircle2, Loader2, XCircle } from "lucide-react";
-import { BackupLog } from "@/services/BackupLogsService";
+import { BackupLog, BackupSource } from "@/services/BackupLogsService";
 
 // A source whose log row hasn't been touched for this long is treated as timed out:
 // the edge function died mid-run and will never finalize the row itself.
@@ -48,14 +48,15 @@ const relativeTime = (iso: string) => {
 
 interface Props {
   logs: BackupLog[];
-  extractSourceName: (fileName: string) => string;
+  sources: BackupSource[];
+  extractSourceName: (fileName: string | null) => string;
 }
 
 /**
  * Shows the state of the most recent backup run per source, so a run that dies
  * mid-flight (edge function timeout) is visible instead of silently missing.
  */
-const BackupRunProgress: React.FC<Props> = ({ logs, extractSourceName }) => {
+const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }) => {
   const { runLogs, counts, runStartedAt } = useMemo(() => {
     const now = Date.now();
     // The current "run" = the newest log plus everything within 6h of it.
@@ -67,12 +68,23 @@ const BackupRunProgress: React.FC<Props> = ({ logs, extractSourceName }) => {
 
     // Keep only the latest attempt per source in this run.
     const bySource = new Map<string, BackupLog>();
-    inRun.forEach((log) => bySource.set(extractSourceName(log.file_name), log));
-    const runLogs = Array.from(bySource.entries()).map(([sourceName, log]) => ({
-      sourceName,
-      log,
-      status: deriveStatus(log, now),
-    }));
+    inRun.forEach((log) => {
+      const source = sources.find((item) => item.id === log.source_id);
+      bySource.set(source?.name ?? extractSourceName(log.file_name), log);
+    });
+    const runLogs = sources.map((source) => {
+      const log = bySource.get(source.name);
+      return {
+        sourceName: source.name,
+        log,
+        status: log ? deriveStatus(log, now) : 'failed' as DerivedStatus,
+        reason: log?.error_message || (!log
+          ? (source.active
+              ? 'No backup record was created. The run ended before this source started.'
+              : 'Source is paused, so its data is excluded from backups.')
+          : null),
+      };
+    });
 
     const counts = runLogs.reduce(
       (acc, item) => {
@@ -87,7 +99,7 @@ const BackupRunProgress: React.FC<Props> = ({ logs, extractSourceName }) => {
       counts,
       runStartedAt: inRun[0]?.created_at ?? null,
     };
-  }, [logs, extractSourceName]);
+  }, [logs, sources, extractSourceName]);
 
   if (runLogs.length === 0) return null;
 
@@ -147,19 +159,22 @@ const BackupRunProgress: React.FC<Props> = ({ logs, extractSourceName }) => {
 
         {unhealthy.length > 0 && (
           <div className="rounded-md border divide-y">
-            {unhealthy.map(({ sourceName, log, status }) => (
-              <div key={log.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
+            {unhealthy.map(({ sourceName, log, status, reason }) => (
+              <div key={log?.id ?? sourceName} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
                 <div className="flex items-center gap-2 min-w-0">
                   {status === 'processing' && <Loader2 className="h-4 w-4 animate-spin text-yellow-600" />}
                   {status === 'timed_out' && <AlertTriangle className="h-4 w-4 text-destructive" />}
                   {status === 'failed' && <XCircle className="h-4 w-4 text-destructive" />}
-                  <span className="font-medium truncate">{sourceName}</span>
+                  <div className="min-w-0">
+                    <span className="font-medium block truncate">{sourceName}</span>
+                    {reason && <span className="text-xs text-destructive block">{reason}</span>}
+                  </div>
                 </div>
                 <div className="flex items-center gap-3 text-muted-foreground">
                   <span>
-                    {log.record_count.toLocaleString()} records · {formatBytes(log.file_size)} written
+                    {(log?.record_count ?? 0).toLocaleString()} records · {formatBytes(log?.file_size)} written
                   </span>
-                  <span>{relativeTime(log.updated_at || log.created_at)}</span>
+                  {log && <span>{relativeTime(log.updated_at || log.created_at)}</span>}
                   <Badge variant={status === 'processing' ? 'secondary' : 'destructive'}>
                     {statusLabel[status]}
                   </Badge>

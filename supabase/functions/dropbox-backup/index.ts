@@ -33,6 +33,8 @@ interface Source {
   id: string;
   name: string;
   user_id: string;
+  active?: boolean;
+  is_partner?: boolean;
 }
 
 interface DropboxConfig {
@@ -367,6 +369,7 @@ async function processRecreateBackup(
       dropboxPath: validConfig.dropbox_path,
       dropboxToken: validConfig.dropbox_token,
     };
+    options.backupLogId = await createSourceBackupPlaceholder(options, exportFormat);
     const result = exportFormat === 'csv'
       ? await streamCsvBackupForSource(options)
       : await createBufferedBackupForSource({ ...options, exportFormat });
@@ -631,8 +634,30 @@ async function createBackupForUser(
     }> = [];
 
     const dateString = format(previousDayPST, 'yyyy-MM-dd');
-    for (const source of sources) {
-      if (source.is_partner) continue;
+    const eligibleSources = sources.filter(source => !source.is_partner);
+    const placeholderRows = eligibleSources.map(source => ({
+      user_id: userId,
+      source_id: source.id,
+      file_name: null,
+      file_path: null,
+      record_count: 0,
+      backup_type: backupType,
+      format: exportFormat === 'csv' ? 'csv' : 'json',
+      status: 'processing',
+      file_size: 0,
+      error_message: source.active === false
+        ? 'Source is paused, so its data is excluded from backups.'
+        : 'Waiting for this source to begin.',
+    }));
+    const { data: placeholders, error: placeholderError } = await supabase
+      .from('backup_logs')
+      .insert(placeholderRows)
+      .select('id, source_id');
+    if (placeholderError) throw new Error(`Unable to initialize source backup logs: ${placeholderError.message}`);
+    const placeholderBySource = new Map((placeholders ?? []).map(row => [row.source_id, row.id]));
+
+    for (const source of eligibleSources) {
+      const backupLogId = placeholderBySource.get(source.id) ?? null;
       try {
         const result = exportFormat === 'csv'
           ? await streamCsvBackupForSource({
@@ -645,6 +670,7 @@ async function createBackupForUser(
               backupType,
               dropboxPath,
               dropboxToken,
+              backupLogId,
             })
           : await createBufferedBackupForSource({
               userId,
@@ -657,9 +683,24 @@ async function createBackupForUser(
               exportFormat,
               dropboxPath,
               dropboxToken,
+              backupLogId,
             });
 
-        if (result.skipped) continue;
+        if (result.skipped) {
+          await updateBackupLog(backupLogId, {
+            status: 'failed',
+            error_message: source.active === false
+              ? 'Source is paused, so its data is excluded from backups.'
+              : `No eligible data was received for ${dateString}.`,
+          });
+          backupResults.push({
+            sourceId: source.id,
+            success: false,
+            backupLogId: backupLogId ?? undefined,
+            error: source.active === false ? 'Source is paused' : 'No eligible data for this date',
+          });
+          continue;
+        }
         backupResults.push({ sourceId: source.id, ...result });
         if (result.success) {
           totalBackedUpCount += result.recordCount ?? 0;
@@ -667,10 +708,13 @@ async function createBackupForUser(
         }
       } catch (sourceError) {
         console.error(`Error processing backup for source ${source.id}:`, sourceError);
+        const errorMessage = sourceError instanceof Error ? sourceError.message : 'Unknown error occurred';
+        await updateBackupLog(backupLogId, { status: 'failed', error_message: errorMessage });
         backupResults.push({
           sourceId: source.id,
           success: false,
-          error: sourceError instanceof Error ? sourceError.message : 'Unknown error occurred',
+          backupLogId: backupLogId ?? undefined,
+          error: errorMessage,
         });
       }
     }
@@ -789,6 +833,7 @@ interface SourceBackupOptions {
   backupType: string;
   dropboxPath: string;
   dropboxToken: string;
+  backupLogId?: string | null;
 }
 
 interface SourceBackupResult {
@@ -801,6 +846,30 @@ interface SourceBackupResult {
 }
 
 const BACKUP_PAGE_SIZE = 1000;
+
+async function createSourceBackupPlaceholder(
+  options: SourceBackupOptions,
+  exportFormat: string,
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('backup_logs')
+    .insert({
+      user_id: options.userId,
+      source_id: options.source.id,
+      file_name: null,
+      file_path: null,
+      record_count: 0,
+      backup_type: options.backupType,
+      format: exportFormat === 'csv' ? 'csv' : 'json',
+      status: 'processing',
+      file_size: 0,
+      error_message: 'Waiting for this source to begin.',
+    })
+    .select('id')
+    .single();
+  if (error) console.error(`Unable to create backup placeholder for ${options.source.id}:`, error);
+  return data?.id ?? null;
+}
 
 function sourceFileName(sourceName: string, dateString: string, backupType: string, extension: string): string {
   const safeName = sourceName.replace(/[^a-zA-Z0-9]/g, '_');
@@ -829,10 +898,23 @@ async function createBackupLog(
   const normalizedPath = options.dropboxPath.endsWith('/')
     ? options.dropboxPath.slice(0, -1)
     : options.dropboxPath;
+  if (options.backupLogId) {
+    const { error } = await supabase.from('backup_logs').update({
+      file_name: fileName,
+      file_path: `${normalizedPath}/${fileName}`,
+      record_count: recordCount,
+      format: fileName.endsWith('.csv') ? 'csv' : 'json',
+      status: 'processing',
+      error_message: null,
+    }).eq('id', options.backupLogId);
+    if (error) console.error(`Unable to initialize backup log for ${options.source.id}:`, error);
+    return options.backupLogId;
+  }
   const { data, error } = await supabase
     .from('backup_logs')
     .insert({
       user_id: options.userId,
+      source_id: options.source.id,
       file_name: fileName,
       file_path: `${normalizedPath}/${fileName}`,
       record_count: recordCount,
@@ -929,7 +1011,15 @@ async function streamCsvBackupForSource(options: SourceBackupOptions): Promise<S
     recordCount += page.length;
     if (page.length < BACKUP_PAGE_SIZE) break;
   }
-  if (recordCount === 0) return { success: true, skipped: true, recordCount: 0 };
+  if (recordCount === 0) {
+    await updateBackupLog(options.backupLogId ?? null, {
+      status: 'failed',
+      error_message: options.source.active === false
+        ? 'Source is paused, so its data is excluded from backups.'
+        : `No eligible data was received for ${options.dateString}.`,
+    });
+    return { success: true, skipped: true, backupLogId: options.backupLogId ?? undefined, recordCount: 0 };
+  }
 
   const fileName = sourceFileName(options.source.name, options.dateString, options.backupType, 'csv');
   const backupLogId = await createBackupLog(options, fileName, recordCount);
@@ -967,7 +1057,11 @@ async function streamCsvBackupForSource(options: SourceBackupOptions): Promise<S
     });
     return { success: true, fileName, backupLogId: backupLogId ?? undefined, recordCount };
   } catch (error) {
-    await updateBackupLog(backupLogId, { status: 'failed', file_size: upload.byteCount });
+    await updateBackupLog(backupLogId, {
+      status: 'failed',
+      file_size: upload.byteCount,
+      error_message: error instanceof Error ? error.message : 'The CSV backup failed unexpectedly.',
+    });
     throw error;
   }
 }
@@ -984,7 +1078,15 @@ async function createBufferedBackupForSource(
     entries.push(...page);
     if (page.length < BACKUP_PAGE_SIZE) break;
   }
-  if (entries.length === 0) return { success: true, skipped: true, recordCount: 0 };
+  if (entries.length === 0) {
+    await updateBackupLog(options.backupLogId ?? null, {
+      status: 'failed',
+      error_message: options.source.active === false
+        ? 'Source is paused, so its data is excluded from backups.'
+        : `No eligible data was received for ${options.dateString}.`,
+    });
+    return { success: true, skipped: true, backupLogId: options.backupLogId ?? undefined, recordCount: 0 };
+  }
 
   const fileName = sourceFileName(options.source.name, options.dateString, options.backupType, options.exportFormat);
   const content = generateDataExplorerJSON(entries, options.sources);
@@ -996,6 +1098,7 @@ async function createBufferedBackupForSource(
   const success = storageResult.success || dropboxResult.success;
   await updateBackupLog(backupLogId, {
     status: success ? 'completed' : 'failed',
+    error_message: success ? null : 'Neither Dropbox nor Supabase Storage accepted the backup file.',
     file_size: new TextEncoder().encode(content).byteLength,
     storage_path: storageResult.path ?? null,
     dropbox_url: dropboxResult.dropboxUrl ?? null,

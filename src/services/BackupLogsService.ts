@@ -4,8 +4,10 @@ import { supabase } from '@/integrations/supabase/client';
 export interface BackupLog {
   id: string;
   user_id: string;
-  file_name: string;
-  file_path: string;
+  file_name: string | null;
+  file_path: string | null;
+  source_id?: string | null;
+  error_message?: string | null;
   dropbox_url?: string;
   storage_path?: string;
   file_size?: number;
@@ -15,6 +17,13 @@ export interface BackupLog {
   status: 'completed' | 'failed' | 'processing';
   created_at: string;
   updated_at: string;
+}
+
+export interface BackupSource {
+  id: string;
+  name: string;
+  active: boolean;
+  is_partner: boolean;
 }
 
 export const BackupLogsService = {
@@ -41,6 +50,16 @@ export const BackupLogsService = {
       console.error('Error in getBackupLogs:', error);
       throw error;
     }
+  },
+
+  async getBackupSources(): Promise<BackupSource[]> {
+    const { data, error } = await supabase
+      .from('sources')
+      .select('id, name, active, is_partner')
+      .eq('is_partner', false)
+      .order('name');
+    if (error) throw error;
+    return data || [];
   },
 
   async deleteBackupLog(id: string): Promise<void> {

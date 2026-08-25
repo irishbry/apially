@@ -25,12 +25,13 @@ import {
   AlertTriangle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { BackupLogsService, BackupLog } from "@/services/BackupLogsService";
+import { BackupLogsService, BackupLog, BackupSource } from "@/services/BackupLogsService";
 import { useAuth } from "@/hooks/useAuth";
 import BackupRunProgress, { deriveStatus, statusLabel } from "@/components/BackupRunProgress";
 
 // Extract source name from backup file name pattern: backup_YYYY-MM-DD_SourceName.csv
-const extractSourceName = (fileName: string): string => {
+const extractSourceName = (fileName: string | null): string => {
+  if (!fileName) return 'Unknown';
   const match = fileName.match(/(?:manual_)?backup_\d{4}-\d{2}-\d{2}_(.+)\.\w+$/);
   return match ? match[1].replace(/_/g, ' ') : 'Unknown';
 };
@@ -43,6 +44,7 @@ const CACHE_TTL_MS = 60_000; // 1 minute — background refresh after this
 
 const BackupLogs: React.FC = () => {
   const [logs, setLogs] = useState<BackupLog[]>(cachedLogs ?? []);
+  const [sources, setSources] = useState<BackupSource[]>([]);
   // Only show the spinner if we have nothing cached yet
   const [isLoading, setIsLoading] = useState(cachedLogs === null);
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
@@ -56,14 +58,22 @@ const BackupLogs: React.FC = () => {
 
 
   const sourceNames = useMemo(() => {
-    const names = new Set(logs.map(log => extractSourceName(log.file_name)));
+    const names = new Set(sources.map(source => source.name));
+    logs.forEach(log => {
+      const source = sources.find(item => item.id === log.source_id);
+      names.add(source?.name ?? extractSourceName(log.file_name));
+    });
+    names.delete('Unknown');
     return Array.from(names).sort();
-  }, [logs]);
+  }, [logs, sources]);
 
   const filteredLogs = useMemo(() => {
     if (selectedSource === 'all') return logs;
-    return logs.filter(log => extractSourceName(log.file_name) === selectedSource);
-  }, [logs, selectedSource]);
+    return logs.filter(log => {
+      const source = sources.find(item => item.id === log.source_id);
+      return (source?.name ?? extractSourceName(log.file_name)) === selectedSource;
+    });
+  }, [logs, sources, selectedSource]);
 
   useEffect(() => {
     if (!user) return;
@@ -73,6 +83,9 @@ const BackupLogs: React.FC = () => {
     if (cachedLogs === null || isStale) {
       loadBackupLogs(cachedLogs !== null);
     }
+    BackupLogsService.getBackupSources().then(setSources).catch(error => {
+      console.error('Error loading backup sources:', error);
+    });
 
     // Subscribe to real-time updates so the cache stays fresh in the background
     const unsubscribe = BackupLogsService.subscribeToBackupLogs((updatedLogs) => {
@@ -193,7 +206,7 @@ const BackupLogs: React.FC = () => {
       
       const downloadUrl = await BackupLogsService.getDownloadUrl(log.storage_path);
       if (downloadUrl) {
-        const success = await downloadFile(downloadUrl, log.file_name);
+        const success = await downloadFile(downloadUrl, log.file_name || 'backup');
         
         if (success) {
           toast({
@@ -237,7 +250,7 @@ const BackupLogs: React.FC = () => {
         directUrl = directUrl.replace('?dl=0', '?dl=1');
       }
       
-      const success = await downloadFile(directUrl, log.file_name);
+      const success = await downloadFile(directUrl, log.file_name || 'backup');
       
       if (success) {
         toast({
@@ -337,7 +350,7 @@ const BackupLogs: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <BackupRunProgress logs={logs} extractSourceName={extractSourceName} />
+      <BackupRunProgress logs={logs} sources={sources} extractSourceName={extractSourceName} />
       <Card className="w-full max-w-6xl mx-auto">
 
       <CardHeader className="pb-3">
@@ -409,7 +422,10 @@ const BackupLogs: React.FC = () => {
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <HardDrive className="h-4 w-4 text-slate-400" />
-                        <span className="font-medium">{log.file_name}</span>
+                        <div>
+                          <span className="font-medium block">{log.file_name || sources.find(source => source.id === log.source_id)?.name || 'File not produced'}</span>
+                          {log.error_message && <span className="text-xs text-destructive block max-w-md">{log.error_message}</span>}
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>
