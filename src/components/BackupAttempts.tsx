@@ -20,7 +20,15 @@ interface BackupAttempt {
   created_at: string;
 }
 
+interface BackupAlert {
+  id: string;
+  alert_type: string;
+  details: string | null;
+  last_alerted_at: string;
+}
+
 const ADMIN_EMAILS = ['bryan@rvnu.com'];
+
 
 const BackupAttempts = () => {
   const { user } = useAuth();
