@@ -83,6 +83,23 @@ const BackupLogs: React.FC = () => {
     return unsubscribe;
   }, [user]);
 
+  const hasRunningBackup = useMemo(
+    () => logs.some(log => log.status === 'processing'),
+    [logs]
+  );
+
+  // While a run is in flight, refresh + re-render so progress advances and a
+  // stalled run flips to "Timed out" without the user reloading the page.
+  useEffect(() => {
+    if (!user || !hasRunningBackup) return;
+    const interval = setInterval(() => {
+      setTick(t => t + 1);
+      loadBackupLogs(true);
+    }, 15_000);
+    return () => clearInterval(interval);
+  }, [user, hasRunningBackup]);
+
+
   // background = true means we already have cached data shown, just refresh silently
   const loadBackupLogs = async (background = false) => {
     try {
