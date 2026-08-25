@@ -335,67 +335,6 @@ async function processRecreateBackup(
       });
     }
 
-    // Paginated fetch of all entries for this source in the PST day
-    const PAGE_SIZE = 1000;
-    const allEntries: DataEntry[] = [];
-    let offset = 0;
-    while (true) {
-      const { data: page, error: pageError } = await supabase
-        .from('data_entries')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('source_id', sourceId)
-        .gte('created_at', startUTC.toISOString())
-        .lte('created_at', endUTC.toISOString())
-        .or('metadata->>paused.is.null,metadata->>paused.neq.true')
-        .order('created_at', { ascending: false })
-        .range(offset, offset + PAGE_SIZE - 1);
-
-      if (pageError) {
-        console.error('Fetch page error:', pageError);
-        break;
-      }
-      if (!page || page.length === 0) break;
-      allEntries.push(...(page as DataEntry[]));
-      if (page.length < PAGE_SIZE) break;
-      offset += PAGE_SIZE;
-    }
-
-    if (allEntries.length === 0) {
-      return new Response(JSON.stringify({ success: false, error: 'No data found for this source on this date' }), {
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    const safeName = source.name.replace(/[^a-zA-Z0-9]/g, '_');
-    const fileName = `backup_${pstDate}_${safeName}.${exportFormat}`;
-    const backupContent = exportFormat === 'json'
-      ? generateDataExplorerJSON(allEntries, sources as Source[])
-      : generateDataExplorerCSV(allEntries, sources as Source[]);
-    const fileSize = new Blob([backupContent]).size;
-
-    // Insert backup log
-    const { data: backupLog } = await supabase
-      .from('backup_logs')
-      .insert({
-        user_id: userId,
-        file_name: fileName,
-        file_path: fileName,
-        record_count: allEntries.length,
-        backup_type: 'scheduled',
-        format: exportFormat,
-        status: 'processing',
-        file_size: fileSize,
-      })
-      .select()
-      .single();
-
-    // Upload to Supabase Storage
-    const storageResult = await uploadToSupabaseStorage(fileName, backupContent, userId);
-
-    // Upload to Dropbox if config present
-    let dropboxUrl: string | null = null;
     const { data: config } = await supabase
       .from('dropbox_configs')
       .select('*')
@@ -403,40 +342,51 @@ async function processRecreateBackup(
       .eq('is_active', true)
       .maybeSingle();
 
-    if (config) {
-      const validConfig = await ensureValidAccessToken(config as DropboxConfig);
-      if (validConfig) {
-        const dbxResult = await uploadToDropbox(
-          validConfig.dropbox_token,
-          validConfig.dropbox_path,
-          fileName,
-          backupContent
-        );
-        if (dbxResult.success) dropboxUrl = dbxResult.dropboxUrl || null;
-      }
+    if (!config) {
+      return new Response(JSON.stringify({ success: false, error: 'No active Dropbox configuration found' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    const validConfig = await ensureValidAccessToken(config as DropboxConfig);
+    if (!validConfig) {
+      return new Response(JSON.stringify({ success: false, error: 'Failed to obtain valid Dropbox access token' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    // Finalize log
-    if (backupLog) {
-      await supabase
-        .from('backup_logs')
-        .update({
-          status: storageResult.success || dropboxUrl ? 'completed' : 'failed',
-          storage_path: storageResult.path || null,
-          dropbox_url: dropboxUrl,
-        })
-        .eq('id', backupLog.id);
+    const options: SourceBackupOptions = {
+      userId,
+      source,
+      sources: sources as Source[],
+      startUtc: startUTC.toISOString(),
+      endUtc: endUTC.toISOString(),
+      dateString: pstDate,
+      backupType: 'scheduled',
+      dropboxPath: validConfig.dropbox_path,
+      dropboxToken: validConfig.dropbox_token,
+    };
+    const result = exportFormat === 'csv'
+      ? await streamCsvBackupForSource(options)
+      : await createBufferedBackupForSource({ ...options, exportFormat });
+
+    if (result.skipped) {
+      return new Response(JSON.stringify({ success: false, error: 'No data found for this source on this date' }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     return new Response(
       JSON.stringify({
-        success: true,
-        fileName,
-        recordCount: allEntries.length,
-        storagePath: storageResult.path,
-        dropboxUrl,
+        success: result.success,
+        fileName: result.fileName,
+        recordCount: result.recordCount,
+        backupLogId: result.backupLogId,
+        error: result.error,
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: result.success ? 200 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
     console.error('processRecreateBackup error:', error);
