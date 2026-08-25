@@ -663,49 +663,7 @@ async function createBackupForUser(
       return { success: true, fileName: '', path: '', backedUpCount: 0 };
     }
 
-    // Step 2: For each source, fetch ALL entries with pagination
-    const dataBySource = new Map<string, DataEntry[]>();
-    for (const sourceId of uniqueSourceIds) {
-      const allEntries: DataEntry[] = [];
-      let offset = 0;
-      while (true) {
-        const { data: page, error: pageError } = await supabase
-          .from('data_entries')
-          .select('*')
-          .eq('user_id', userId)
-          .eq('source_id', sourceId)
-          .gte('created_at', startOfDayUTC.toISOString())
-          .lte('created_at', endOfDayUTC.toISOString())
-          // Skip entries that were ingested while their source was paused
-          .or('metadata->>paused.is.null,metadata->>paused.neq.true')
-          .order('created_at', { ascending: false })
-          .range(offset, offset + PAGE_SIZE - 1);
-
-        if (pageError) {
-          console.error(`Error fetching page at offset ${offset} for source ${sourceId}:`, pageError);
-          break;
-        }
-        if (!page || page.length === 0) break;
-        allEntries.push(...page);
-        console.log(`Fetched ${page.length} entries at offset ${offset} for source ${sourceId}`);
-        if (page.length < PAGE_SIZE) break;
-        offset += PAGE_SIZE;
-      }
-      if (allEntries.length > 0) {
-        dataBySource.set(sourceId, allEntries);
-      }
-    }
-
-    const totalEntries = Array.from(dataBySource.values()).reduce((sum, arr) => sum + arr.length, 0);
-    console.log(`Fetched ${totalEntries} total entries across ${dataBySource.size} sources (paginated)`);
-
-    if (dataBySource.size === 0) {
-      console.log(`No data entries found after paginated fetch for user ${userId}`);
-      await finalizeAttempt('success', 'No data to back up for this day');
-      return { success: true, fileName: '', path: '', backedUpCount: 0 };
-    }
-
-    // Test Dropbox connection first
+    // Test Dropbox once before opening per-source upload sessions.
     console.log('Testing Dropbox connection before upload...');
     const connectionValid = await testDropboxConnectionInternal(dropboxPath, dropboxToken);
     if (!connectionValid) {
@@ -713,10 +671,9 @@ async function createBackupForUser(
       await finalizeAttempt('failed', 'Dropbox connection failed');
       return { success: false, error: 'Dropbox connection failed' };
     }
-    console.log('Dropbox connection test passed');
 
     let totalBackedUpCount = 0;
-    const pendingIdsToMark: string[] = [];
+    const successfulSourceIds: string[] = [];
     const backupResults: Array<{
       sourceId: string;
       success: boolean;
@@ -725,156 +682,54 @@ async function createBackupForUser(
       error?: string;
     }> = [];
 
-    // Create backup for each source
-    for (const [sourceId, sourceData] of dataBySource) {
-      console.log(`Processing backup for source ${sourceId} with ${sourceData.length} entries`);
-      
+    const dateString = format(previousDayPST, 'yyyy-MM-dd');
+    for (const source of sources) {
+      if (source.is_partner) continue;
       try {
-        // Generate filename for this source using PST date
-        const sourceName = sources.find(s => s.id === sourceId)?.name || 'Unknown';
-        const safeName = sourceName.replace(/[^a-zA-Z0-9]/g, '_');
-        
-        // Use PST date for filename (the previous day in PST that we're backing up)
-        const PST_TIMEZONE = 'America/Los_Angeles';
-        const nowPST = toZonedTime(new Date(), PST_TIMEZONE);
-        const previousDayPST = new Date(nowPST);
-        previousDayPST.setDate(previousDayPST.getDate() - 1);
-        const dateString = format(previousDayPST, 'yyyy-MM-dd');
-        
-        const typePrefix = backupType === 'scheduled' ? 'backup' : 'manual_backup';
-        const fileName = `${typePrefix}_${dateString}_${safeName}.${exportFormat}`;
+        const result = exportFormat === 'csv'
+          ? await streamCsvBackupForSource({
+              userId,
+              source,
+              sources,
+              startUtc: startOfDayUTC.toISOString(),
+              endUtc: endOfDayUTC.toISOString(),
+              dateString,
+              backupType,
+              dropboxPath,
+              dropboxToken,
+            })
+          : await createBufferedBackupForSource({
+              userId,
+              source,
+              sources,
+              startUtc: startOfDayUTC.toISOString(),
+              endUtc: endOfDayUTC.toISOString(),
+              dateString,
+              backupType,
+              exportFormat,
+              dropboxPath,
+              dropboxToken,
+            });
 
-        console.log(`Generating backup for source ${sourceId} (${sourceName}) with PST date: ${dateString}`);
-
-        // Generate backup content for this source
-        let backupContent = '';
-        if (exportFormat === 'csv') {
-          backupContent = generateDataExplorerCSV(sourceData, sources);
-        } else {
-          backupContent = generateDataExplorerJSON(sourceData, sources);
-        }
-
-        const fileSize = new Blob([backupContent]).size;
-        console.log(`Generated backup content for source ${sourceId}: ${fileName} (${backupContent.length} characters)`);
-
-        // Create backup log entry for this source
-        const { data: backupLog, error: logError } = await supabase
-          .from('backup_logs')
-          .insert({
-            user_id: userId,
-            file_name: fileName,
-            file_path: `${dropboxPath}/${fileName}`,
-            record_count: sourceData.length,
-            backup_type: backupType,
-            format: exportFormat,
-            status: 'processing',
-            file_size: fileSize
-          })
-          .select()
-          .single();
-
-        let backupLogId: string | null = null;
-        if (logError) {
-          console.error(`Error creating backup log for source ${sourceId}:`, logError);
-        } else {
-          backupLogId = backupLog.id;
-          console.log(`Created backup log with ID: ${backupLogId} for source ${sourceId}`);
-        }
-
-        // Upload to both Supabase Storage and Dropbox in parallel
-        console.log(`Starting parallel uploads for source ${sourceId}...`);
-        const [storageResult, dropboxResult] = await Promise.allSettled([
-          uploadToSupabaseStorage(fileName, backupContent, userId),
-          uploadToDropbox(dropboxToken, dropboxPath, fileName, backupContent)
-        ]);
-
-        let storagePath: string | null = null;
-        let dropboxUrl: string | null = null;
-        let hasError = false;
-        let errorMessage = '';
-
-        // Check storage upload result
-        if (storageResult.status === 'fulfilled' && storageResult.value.success) {
-          storagePath = storageResult.value.path;
-          console.log(`Supabase Storage upload successful for source ${sourceId}: ${storagePath}`);
-        } else {
-          const error = storageResult.status === 'rejected' ? storageResult.reason : 'Unknown storage error';
-          console.error(`Supabase Storage upload failed for source ${sourceId}:`, error);
-          hasError = true;
-          errorMessage += 'Storage upload failed. ';
-        }
-
-        // Check Dropbox upload result
-        if (dropboxResult.status === 'fulfilled' && dropboxResult.value.success) {
-          dropboxUrl = dropboxResult.value.dropboxUrl;
-          console.log(`Dropbox upload successful for source ${sourceId}, URL: ${dropboxUrl}`);
-        } else {
-          const error = dropboxResult.status === 'rejected' ? dropboxResult.reason : 'Unknown Dropbox error';
-          console.error(`Dropbox upload failed for source ${sourceId}:`, error);
-          hasError = true;
-          errorMessage += 'Dropbox upload failed. ';
-        }
-
-        // If at least one upload succeeded for this source
-        if (storagePath || dropboxUrl) {
-          console.log(`At least one upload succeeded for source ${sourceId}. Storage: ${!!storagePath}, Dropbox: ${!!dropboxUrl}`);
-
-          // Collect entry IDs for post-finalize marking (do NOT mark inline;
-          // marking large sets can exceed the edge function wall clock and
-          // prevent the backup_attempts row from being finalized).
-          const entryIds = sourceData.map(entry => entry.id);
-          pendingIdsToMark.push(...entryIds);
-          totalBackedUpCount += entryIds.length;
-          console.log(`Queued ${entryIds.length} entries to mark for source ${sourceId}`);
-
-          // Update backup log with success status and URLs
-          if (backupLogId) {
-            const logUpdateData: any = {
-              status: 'completed',
-              storage_path: storagePath
-            };
-            if (dropboxUrl) {
-              logUpdateData.dropbox_url = dropboxUrl;
-            }
-            
-            await supabase
-              .from('backup_logs')
-              .update(logUpdateData)
-              .eq('id', backupLogId);
-            
-            console.log(`Updated backup log ${backupLogId} with completion status for source ${sourceId}`);
-          }
-
-          backupResults.push({
-            sourceId,
-            success: true,
-            fileName,
-            backupLogId: backupLogId || undefined
-          });
-        } else {
-          // Both uploads failed for this source
-          console.error(`Both Storage and Dropbox uploads failed for source ${sourceId}`);
-          if (backupLogId) {
-            await supabase
-              .from('backup_logs')
-              .update({ status: 'failed' })
-              .eq('id', backupLogId);
-          }
-
-          backupResults.push({
-            sourceId,
-            success: false,
-            error: errorMessage.trim() || 'Both storage and Dropbox uploads failed'
-          });
+        if (result.skipped) continue;
+        backupResults.push({ sourceId: source.id, ...result });
+        if (result.success) {
+          totalBackedUpCount += result.recordCount ?? 0;
+          successfulSourceIds.push(source.id);
         }
       } catch (sourceError) {
-        console.error(`Error processing backup for source ${sourceId}:`, sourceError);
+        console.error(`Error processing backup for source ${source.id}:`, sourceError);
         backupResults.push({
-          sourceId,
+          sourceId: source.id,
           success: false,
-          error: sourceError instanceof Error ? sourceError.message : 'Unknown error occurred'
+          error: sourceError instanceof Error ? sourceError.message : 'Unknown error occurred',
         });
       }
+    }
+
+    if (backupResults.length === 0) {
+      await finalizeAttempt('success', 'No data to back up for this day');
+      return { success: true, fileName: '', path: '', backedUpCount: 0 };
     }
 
     // Log overall attempt result - UPDATE the existing attempt record
@@ -912,14 +767,13 @@ async function createBackupForUser(
       console.warn('Failed to log backup attempt result:', logError);
     }
 
-    // Mark records AFTER finalizing the attempt so a long-running update
-    // loop can't leave the attempt row stuck in 'attempting'.
-    if (pendingIdsToMark.length > 0) {
-      console.log(`Marking ${pendingIdsToMark.length} entries as backed up (post-finalize)`);
+    // Mark records only after the attempt is finalized. IDs are fetched and
+    // updated one bounded page at a time so high-volume days stay memory-safe.
+    for (const sourceId of successfulSourceIds) {
       try {
-        await updateRecordsInChunks(pendingIdsToMark, userId);
+        await markSourceEntriesBackedUp(userId, sourceId, startOfDayUTC.toISOString(), endOfDayUTC.toISOString());
       } catch (markErr) {
-        console.error('Post-finalize record marking failed:', markErr);
+        console.error(`Post-finalize record marking failed for source ${sourceId}:`, markErr);
       }
     }
 
