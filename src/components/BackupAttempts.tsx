@@ -5,9 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { AlertTriangle, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Clock, XCircle, ChevronDown, ChevronUp, BellRing, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
+
 
 interface BackupAttempt {
   id: string;
@@ -18,7 +20,15 @@ interface BackupAttempt {
   created_at: string;
 }
 
+interface BackupAlert {
+  id: string;
+  alert_type: string;
+  details: string | null;
+  last_alerted_at: string;
+}
+
 const ADMIN_EMAILS = ['bryan@rvnu.com'];
+
 
 const BackupAttempts = () => {
   const { user } = useAuth();
@@ -28,10 +38,14 @@ const BackupAttempts = () => {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('today');
+  const [alerts, setAlerts] = useState<BackupAlert[]>([]);
+  const [checking, setChecking] = useState(false);
 
   useEffect(() => {
     fetchAttempts();
+    fetchAlerts();
   }, []);
+
 
   useEffect(() => {
     if (isAdmin && attempts.length > 0 && Object.keys(emailMap).length === 0) {
@@ -54,6 +68,38 @@ const BackupAttempts = () => {
       setLoading(false);
     }
   };
+
+  const fetchAlerts = async () => {
+    const { data, error } = await supabase
+      .from('backup_alerts')
+      .select('id, alert_type, details, last_alerted_at')
+      .order('last_alerted_at', { ascending: false })
+      .limit(10);
+    if (!error) setAlerts((data || []) as BackupAlert[]);
+  };
+
+  const runAlertCheck = async () => {
+    setChecking(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('backup-alert-check', { body: {} });
+      if (error) throw error;
+      const issues = data?.issues ?? 0;
+      const sent = data?.alerts_sent ?? 0;
+      if (issues === 0) {
+        toast.success('No failed or stuck backups detected');
+      } else {
+        toast.warning(`${issues} backup issue${issues > 1 ? 's' : ''} detected — ${sent} notification${sent === 1 ? '' : 's'} emailed`);
+      }
+      await Promise.all([fetchAttempts(), fetchAlerts()]);
+    } catch (e) {
+      console.error('Alert check failed:', e);
+      toast.error('Could not run the backup alert check');
+    } finally {
+      setChecking(false);
+    }
+  };
+
+
 
   const fetchEmails = async () => {
     try {
@@ -167,15 +213,55 @@ const BackupAttempts = () => {
                   </Badge>
                 )}
               </CardTitle>
-              <Button variant="ghost" size="sm" className="gap-1">
-                {open ? <>Hide <ChevronUp className="w-4 h-4" /></> : <>Show <ChevronDown className="w-4 h-4" /></>}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1"
+                  disabled={checking}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    runAlertCheck();
+                  }}
+                >
+                  {checking ? <Loader2 className="w-4 h-4 animate-spin" /> : <BellRing className="w-4 h-4" />}
+                  Check &amp; notify
+                </Button>
+                <Button variant="ghost" size="sm" className="gap-1">
+                  {open ? <>Hide <ChevronUp className="w-4 h-4" /></> : <>Show <ChevronDown className="w-4 h-4" /></>}
+                </Button>
+              </div>
             </div>
           </CardHeader>
         </CollapsibleTrigger>
 
         <CollapsibleContent>
           <CardContent>
+            <div className="mb-4 rounded-md border p-3">
+              <div className="flex items-center gap-2 mb-2 text-sm font-medium">
+                <BellRing className="w-4 h-4 text-muted-foreground" />
+                Recent backup alerts
+                <span className="text-xs text-muted-foreground font-normal">
+                  (auto-checked hourly, emailed to the source owner)
+                </span>
+              </div>
+              {alerts.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No backup alerts have been sent.</p>
+              ) : (
+                <ul className="space-y-1">
+                  {alerts.map((a) => (
+                    <li key={a.id} className="text-sm flex items-start gap-2">
+                      <AlertTriangle className="w-3.5 h-3.5 mt-0.5 text-destructive shrink-0" />
+                      <span className="text-muted-foreground">
+                        <span className="text-foreground">{a.details || a.alert_type}</span>{' '}
+                        — {new Date(a.last_alerted_at).toLocaleString()}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="grid grid-cols-4 w-full md:w-auto">
                 <TabsTrigger value="today">Today ({summary.today.length})</TabsTrigger>

@@ -90,3 +90,6 @@ verify_jwt = false
 
 [functions.source-health-check]
 verify_jwt = false
+
+[functions.backup-alert-check]
+verify_jwt = false

@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      backup_alerts: {
+        Row: {
+          alert_key: string
+          alert_type: string
+          created_at: string
+          details: string | null
+          id: string
+          last_alerted_at: string
+          user_id: string
+        }
+        Insert: {
+          alert_key: string
+          alert_type?: string
+          created_at?: string
+          details?: string | null
+          id?: string
+          last_alerted_at?: string
+          user_id: string
+        }
+        Update: {
+          alert_key?: string
+          alert_type?: string
+          created_at?: string
+          details?: string | null
+          id?: string
+          last_alerted_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       backup_attempts: {
         Row: {
           attempt_date: string
