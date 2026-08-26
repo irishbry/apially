@@ -41,6 +41,7 @@ const App = () => (
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/smtp-test" element={<SmtpTest />} />
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/admin/dropbox" element={<DropboxAdminPage />} />
         <Route path="/v2" element={<V2Dashboard />} />
         {/* Handle 404 errors */}
         <Route path="/404" element={<NotFound />} />
