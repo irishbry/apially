@@ -78,18 +78,29 @@ Deno.serve(async (req) => {
 
     const sourceIds = [...new Set((logs || []).map((l) => l.source_id).filter(Boolean))] as string[];
     const sourceNames = new Map<string, string>();
+    const sourcePaused = new Set<string>();
+    const sourcePartner = new Set<string>();
     if (sourceIds.length > 0) {
       const { data: sources } = await supabase
         .from("sources")
-        .select("id, name")
+        .select("id, name, active, is_partner")
         .in("id", sourceIds);
-      for (const s of sources || []) sourceNames.set(s.id, s.name);
+      for (const s of sources || []) {
+        sourceNames.set(s.id, s.name);
+        if (!s.active) sourcePaused.add(s.id);
+        if (s.is_partner) sourcePartner.add(s.id);
+      }
     }
 
     const labelFor = (log: { source_id: string | null; file_name: string | null }) =>
       (log.source_id ? sourceNames.get(log.source_id) : null) || log.file_name || "Unknown source";
 
     for (const l of logs || []) {
+      // Don't alert on paused sources or data partners — they intentionally don't back up data.
+      if (l.source_id && (sourcePaused.has(l.source_id) || sourcePartner.has(l.source_id))) {
+        continue;
+      }
+
       if (l.status === "failed") {
         issues.push({
           key: `log:${l.id}:failed`,
