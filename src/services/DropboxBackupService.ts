@@ -170,7 +170,9 @@ export const DropboxBackupService = {
     const params = new URLSearchParams({
       client_id: appKey,
       token_access_type: 'offline',
-      response_type: 'code'
+      response_type: 'code',
+      scope: 'files.content.write files.content.read sharing.write sharing.read files.metadata.read',
+      force_reapprove: 'true'
     });
     
     return `${baseUrl}?${params.toString()}`;
