@@ -8,6 +8,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Clock, Database, Loader2, XCircle } from "lucide-react";
 import { BackupLog, BackupSource } from "@/services/BackupLogsService";
 import { deriveStatus, statusLabel, DerivedStatus } from "@/components/BackupRunProgress";
+import DropboxErrorHint from "@/components/DropboxErrorHint";
+import { diagnoseDropboxError } from "@/utils/dropboxErrors";
 
 interface Props {
   logs: BackupLog[];
@@ -193,7 +195,11 @@ const BackupRunDashboard: React.FC<Props> = ({ logs, sources, extractSourceName 
                       <TableCell>{log ? formatTime(log.created_at) : '—'}</TableCell>
                       <TableCell>{log ? formatDuration(log) : '—'}</TableCell>
                       <TableCell className={status === 'completed' ? 'text-muted-foreground' : 'text-destructive'}>
-                        {cause}
+                        {diagnoseDropboxError(cause) ? (
+                          <DropboxErrorHint message={cause} className="max-w-lg" />
+                        ) : (
+                          cause
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

@@ -9,6 +9,7 @@ import { BackupLog, BackupSource } from "@/services/BackupLogsService";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import DropboxErrorHint from "@/components/DropboxErrorHint";
 
 // A source whose log row hasn't been touched for this long is treated as timed out:
 // the edge function died mid-run and will never finalize the row itself.
@@ -226,7 +227,7 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }
                   {status === 'failed' && <XCircle className="h-4 w-4 text-destructive" />}
                   <div className="min-w-0">
                     <span className="font-medium block truncate">{sourceName}</span>
-                    {reason && <span className="text-xs text-destructive block">{reason}</span>}
+                    {reason && <DropboxErrorHint message={reason} compact />}
                   </div>
                 </div>
                 <div className="flex items-center gap-3 text-muted-foreground">
