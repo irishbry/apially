@@ -15,6 +15,7 @@ import { ApiService } from "@/services/ApiService";
 import { DropboxBackupService } from "@/services/DropboxBackupService";
 import { useAuth } from "@/hooks/useAuth";
 import BackupLogs from "./BackupLogs";
+import ReconnectDropbox from "./ReconnectDropbox";
 
 const DropboxLinkForm: React.FC = () => {
   const [dropboxPath, setDropboxPath] = useState('');
@@ -457,14 +458,21 @@ const DropboxLinkForm: React.FC = () => {
                     </div>
                   </div>
 
-                  <Button 
-                    onClick={resetSetup} 
-                    variant="outline" 
-                    size="sm"
-                    className="w-full"
-                  >
-                    Reconfigure OAuth Setup
-                  </Button>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <ReconnectDropbox onReconnected={loadBackupStats} />
+                    <Button 
+                      onClick={resetSetup} 
+                      variant="outline" 
+                      size="sm"
+                      className="flex-1"
+                    >
+                      Reconfigure OAuth Setup
+                    </Button>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Use “Reconnect Dropbox” after changing app permissions — existing tokens keep their old scopes,
+                    which is what breaks backup download links.
+                  </p>
                 </div>
               )}
             </CardContent>
