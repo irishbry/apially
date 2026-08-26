@@ -27,6 +27,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { BackupLogsService, BackupLog, BackupSource } from "@/services/BackupLogsService";
 import { useAuth } from "@/hooks/useAuth";
+import { ApiService } from "@/services/ApiService";
 import BackupRunProgress, { deriveStatus, statusLabel } from "@/components/BackupRunProgress";
 import BackupRunDashboard from "@/components/BackupRunDashboard";
 
