@@ -193,7 +193,11 @@ const BackupRunDashboard: React.FC<Props> = ({ logs, sources, extractSourceName 
                       <TableCell>{log ? formatTime(log.created_at) : '—'}</TableCell>
                       <TableCell>{log ? formatDuration(log) : '—'}</TableCell>
                       <TableCell className={status === 'completed' ? 'text-muted-foreground' : 'text-destructive'}>
-                        {cause}
+                        {diagnoseDropboxError(cause) ? (
+                          <DropboxErrorHint message={cause} className="max-w-lg" />
+                        ) : (
+                          cause
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
