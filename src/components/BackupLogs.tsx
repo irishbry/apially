@@ -28,6 +28,7 @@ import { useToast } from "@/hooks/use-toast";
 import { BackupLogsService, BackupLog, BackupSource } from "@/services/BackupLogsService";
 import { useAuth } from "@/hooks/useAuth";
 import BackupRunProgress, { deriveStatus, statusLabel } from "@/components/BackupRunProgress";
+import BackupRunDashboard from "@/components/BackupRunDashboard";
 
 // Extract source name from backup file name pattern: backup_YYYY-MM-DD_SourceName.csv
 const extractSourceName = (fileName: string | null): string => {
