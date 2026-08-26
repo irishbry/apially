@@ -92,7 +92,7 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }
       const source = sources.find((item) => item.id === log.source_id);
       bySource.set(source?.name ?? extractSourceName(log.file_name), log);
     });
-    const runLogs = sources.map((source) => {
+    const runLogs = sources.filter((source) => source.active).map((source) => {
       const log = bySource.get(source.name);
       return {
         sourceId: source.id,
@@ -101,9 +101,7 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }
         log,
         status: log ? deriveStatus(log, now) : 'failed' as DerivedStatus,
         reason: log?.error_message || (!log
-          ? (source.active
-              ? 'No backup record was created. The run ended before this source started.'
-              : 'Source is paused, so its data is excluded from backups.')
+          ? 'No backup record was created. The run ended before this source started.'
           : null),
       };
     });
