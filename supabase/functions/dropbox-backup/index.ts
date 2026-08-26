@@ -8,6 +8,7 @@ import {
   serializeCsvHeader,
   serializeCsvRows,
 } from './csv-stream.ts';
+import { createStageLogger } from './stage-metrics.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
