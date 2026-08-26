@@ -27,6 +27,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { BackupLogsService, BackupLog, BackupSource } from "@/services/BackupLogsService";
 import { useAuth } from "@/hooks/useAuth";
+import { ApiService } from "@/services/ApiService";
 import BackupRunProgress, { deriveStatus, statusLabel } from "@/components/BackupRunProgress";
 import BackupRunDashboard from "@/components/BackupRunDashboard";
 
@@ -51,6 +52,7 @@ const BackupLogs: React.FC = () => {
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
   const [isDownloadingId, setIsDownloadingId] = useState<string | null>(null);
   const [selectedSource, setSelectedSource] = useState<string>('all');
+  const [dropboxApp, setDropboxApp] = useState<{ appKey: string | null; connected: boolean } | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -86,6 +88,16 @@ const BackupLogs: React.FC = () => {
     }
     BackupLogsService.getBackupSources().then(setSources).catch(error => {
       console.error('Error loading backup sources:', error);
+    });
+
+    // Show which Dropbox app is connected alongside the logs
+    ApiService.getDropboxConfig().then(config => {
+      setDropboxApp({
+        appKey: config?.app_key ?? null,
+        connected: Boolean(config?.refresh_token && config?.is_active),
+      });
+    }).catch(error => {
+      console.error('Error loading Dropbox config:', error);
     });
 
     // Subscribe to real-time updates so the cache stays fresh in the background
@@ -359,6 +371,12 @@ const BackupLogs: React.FC = () => {
         <CardTitle className="flex items-center gap-3 text-lg">
           <Database className="h-5 w-5 text-primary" />
           Backup Logs
+          {dropboxApp && (
+            <Badge variant={dropboxApp.connected ? 'default' : 'destructive'} className="font-mono text-xs">
+              Dropbox app {dropboxApp.appKey ?? 'not set'}
+              {dropboxApp.connected ? '' : ' · not connected'}
+            </Badge>
+          )}
         </CardTitle>
         <CardDescription>
           View and manage your backup history. Files are stored both locally and on Dropbox for redundancy.
