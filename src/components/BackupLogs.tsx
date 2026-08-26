@@ -89,6 +89,16 @@ const BackupLogs: React.FC = () => {
       console.error('Error loading backup sources:', error);
     });
 
+    // Show which Dropbox app is connected alongside the logs
+    ApiService.getDropboxConfig().then(config => {
+      setDropboxApp({
+        appKey: config?.app_key ?? null,
+        connected: Boolean(config?.refresh_token && config?.is_active),
+      });
+    }).catch(error => {
+      console.error('Error loading Dropbox config:', error);
+    });
+
     // Subscribe to real-time updates so the cache stays fresh in the background
     const unsubscribe = BackupLogsService.subscribeToBackupLogs((updatedLogs) => {
       cachedLogs = updatedLogs;
