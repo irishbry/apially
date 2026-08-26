@@ -305,10 +305,12 @@ const DropboxLinkForm: React.FC = () => {
                   </div>
 
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                    <h4 className="text-sm font-medium text-amber-900 mb-2">⚠️ Permission Required</h4>
+                    <h4 className="text-sm font-medium text-amber-900 mb-2">⚠️ Permissions Required</h4>
                     <p className="text-sm text-amber-800">
-                      Make sure to enable the <strong>files.content.write</strong> permission in your Dropbox app's Permissions tab. 
-                      Without this permission, backup uploads will fail with "scope not permitted" errors.
+                      Enable <strong>files.content.write</strong>, <strong>files.content.read</strong>, <strong>files.metadata.read</strong>,
+                      <strong> sharing.write</strong> and <strong>sharing.read</strong> in your Dropbox app's Permissions tab.
+                      Uploads need write access; download links need the sharing and read scopes. After changing permissions
+                      you must re-authorize here — existing tokens keep the old scopes.
                     </p>
                   </div>
 
