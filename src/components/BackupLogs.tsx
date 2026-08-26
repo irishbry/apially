@@ -371,6 +371,12 @@ const BackupLogs: React.FC = () => {
         <CardTitle className="flex items-center gap-3 text-lg">
           <Database className="h-5 w-5 text-primary" />
           Backup Logs
+          {dropboxApp && (
+            <Badge variant={dropboxApp.connected ? 'default' : 'destructive'} className="font-mono text-xs">
+              Dropbox app {dropboxApp.appKey ?? 'not set'}
+              {dropboxApp.connected ? '' : ' · not connected'}
+            </Badge>
+          )}
         </CardTitle>
         <CardDescription>
           View and manage your backup history. Files are stored both locally and on Dropbox for redundancy.
