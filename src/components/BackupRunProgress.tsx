@@ -226,7 +226,7 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }
                   {status === 'failed' && <XCircle className="h-4 w-4 text-destructive" />}
                   <div className="min-w-0">
                     <span className="font-medium block truncate">{sourceName}</span>
-                    {reason && <span className="text-xs text-destructive block">{reason}</span>}
+                    {reason && <DropboxErrorHint message={reason} compact />}
                   </div>
                 </div>
                 <div className="flex items-center gap-3 text-muted-foreground">
