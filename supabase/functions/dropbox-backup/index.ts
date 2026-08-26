@@ -1005,6 +1005,14 @@ async function copyDropboxFileToStorage(
 async function streamCsvBackupForSource(options: SourceBackupOptions): Promise<SourceBackupResult> {
   const columns = new Set<string>();
   let recordCount = 0;
+  let pages = 0;
+  const log = createStageLogger({
+    runId: crypto.randomUUID(),
+    userId: options.userId,
+    sourceId: options.source.id,
+    sourceName: options.source.name,
+    dateString: options.dateString,
+  });
   const declaredFields = new Set([
     ...Object.keys(options.source.schema?.fieldTypes ?? {}),
     ...(options.source.schema?.requiredFields ?? []),
@@ -1013,30 +1021,35 @@ async function streamCsvBackupForSource(options: SourceBackupOptions): Promise<S
     if (field !== 'clientIp' && field !== 'receivedAt' && field !== 'paused') columns.add(field);
   });
 
+  log.event('source', { schemaDeclaredFields: declaredFields.size, format: 'csv' });
+
   // Schema-defined sources already declare their CSV columns, avoiding a full
   // duplicate scan before upload. Legacy sources without a schema retain the
   // discovery pass so their historical CSV shape is unchanged.
   if (declaredFields.size === 0) {
-    for (let offset = 0; ; offset += BACKUP_PAGE_SIZE) {
-      const { data, error } = await sourceEntriesQuery(options, 'id, metadata', offset);
-      if (error) throw new Error(`CSV schema fetch failed: ${error.message}`);
-      const page = (data ?? []) as DataEntry[];
-      if (page.length === 0) break;
-      addCsvColumns(columns, page);
-      recordCount += page.length;
-      if (page.length < BACKUP_PAGE_SIZE) break;
-    }
+    await log.time('scan', async () => {
+      for (let offset = 0; ; offset += BACKUP_PAGE_SIZE) {
+        const { data, error } = await sourceEntriesQuery(options, 'id, metadata', offset);
+        if (error) throw new Error(`CSV schema fetch failed: ${error.message}`);
+        const page = (data ?? []) as DataEntry[];
+        if (page.length === 0) break;
+        addCsvColumns(columns, page);
+        recordCount += page.length;
+        if (page.length < BACKUP_PAGE_SIZE) break;
+      }
+    }, () => ({ rows: recordCount, columns: columns.size }));
   } else {
     columns.add('source');
     columns.add('created_at');
   }
 
   const firstPageResult = declaredFields.size > 0
-    ? await sourceEntriesQuery(options, '*', 0)
+    ? await log.time('fetch', () => sourceEntriesQuery(options, '*', 0), () => ({ offset: 0 }))
     : null;
   if (firstPageResult?.error) throw new Error(`CSV data fetch failed: ${firstPageResult.error.message}`);
   const firstPage = (firstPageResult?.data ?? []) as DataEntry[];
   if (declaredFields.size > 0 && firstPage.length === 0 || declaredFields.size === 0 && recordCount === 0) {
+    log.event('source', { skipped: true, reason: 'no eligible records' });
     await updateBackupLog(options.backupLogId ?? null, {
       status: 'failed',
       error_message: options.source.active === false
@@ -1053,31 +1066,52 @@ async function streamCsvBackupForSource(options: SourceBackupOptions): Promise<S
   const upload = new DropboxUploadSession(options.dropboxToken, options.dropboxPath, fileName);
 
   try {
-    await upload.start();
+    await log.time('upload', () => upload.start(), () => ({ phaseName: 'session_start', fileName }));
     await upload.append(serializeCsvHeader(orderedColumns));
     for (let offset = 0; ; offset += BACKUP_PAGE_SIZE) {
       const result = offset === 0 && firstPageResult
         ? firstPageResult
-        : await sourceEntriesQuery(options, '*', offset);
+        : await log.time('fetch', () => sourceEntriesQuery(options, '*', offset), () => ({ offset }));
       const { data, error } = result;
       if (error) throw new Error(`CSV data fetch failed: ${error.message}`);
       const page = (data ?? []) as DataEntry[];
       if (page.length === 0) break;
       if (declaredFields.size > 0) recordCount += page.length;
-      await upload.append(`\n${serializeCsvRows(page, orderedColumns, sourceNames)}`);
-      console.log(`Streamed ${Math.min(offset + page.length, recordCount)}/${recordCount} rows for ${options.source.id}`);
+      pages += 1;
+
+      const csvStart = Date.now();
+      const chunk = `\n${serializeCsvRows(page, orderedColumns, sourceNames)}`;
+      const csvMs = Date.now() - csvStart;
+      log.event('csv', { offset, rows: page.length, bytes: chunk.length, durationMs: csvMs });
+
+      await log.time('upload', () => upload.append(chunk), () => ({
+        phaseName: 'session_append',
+        offset,
+        rows: page.length,
+        bytes: upload.byteCount,
+      }));
+      log.event('upload', {
+        phaseName: 'progress',
+        rows: recordCount,
+        pages,
+        bytes: upload.byteCount,
+      });
       // Heartbeat the log row so the UI can show live progress and can tell a
       // still-running job apart from one that died mid-run (stale updated_at).
       await updateBackupLog(backupLogId, { file_size: upload.byteCount });
       if (page.length < BACKUP_PAGE_SIZE) break;
 
     }
-    await upload.finish();
+    await log.time('upload', () => upload.finish(), () => ({
+      phaseName: 'session_finish',
+      rows: recordCount,
+      bytes: upload.byteCount,
+    }));
 
-    const [dropboxUrl, storageResult] = await Promise.all([
+    const [dropboxUrl, storageResult] = await log.time('finalize', () => Promise.all([
       getDropboxSharedLink(options.dropboxToken, upload.fullPath),
       copyDropboxFileToStorage(options.dropboxToken, upload.fullPath, options.userId, fileName),
-    ]);
+    ]), () => ({ fileName, bytes: upload.byteCount }));
     await updateBackupLog(backupLogId, {
       status: 'completed',
       record_count: recordCount,
@@ -1085,8 +1119,24 @@ async function streamCsvBackupForSource(options: SourceBackupOptions): Promise<S
       storage_path: storageResult.path ?? null,
       dropbox_url: dropboxUrl,
     });
+    log.event('source', {
+      result: 'completed',
+      rows: recordCount,
+      pages,
+      bytes: upload.byteCount,
+      totalMs: log.elapsedMs(),
+      stageMs: log.totals(),
+    });
     return { success: true, fileName, backupLogId: backupLogId ?? undefined, recordCount };
   } catch (error) {
+    log.fail('source', error, {
+      result: 'failed',
+      rows: recordCount,
+      pages,
+      bytes: upload.byteCount,
+      totalMs: log.elapsedMs(),
+      stageMs: log.totals(),
+    });
     await updateBackupLog(backupLogId, {
       status: 'failed',
       file_size: upload.byteCount,
