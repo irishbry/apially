@@ -1151,15 +1151,28 @@ async function createBufferedBackupForSource(
   options: SourceBackupOptions & { exportFormat: string },
 ): Promise<SourceBackupResult> {
   const entries: DataEntry[] = [];
-  for (let offset = 0; ; offset += BACKUP_PAGE_SIZE) {
-    const { data, error } = await sourceEntriesQuery(options, '*', offset);
-    if (error) throw new Error(`JSON data fetch failed: ${error.message}`);
-    const page = (data ?? []) as DataEntry[];
-    if (page.length === 0) break;
-    entries.push(...page);
-    if (page.length < BACKUP_PAGE_SIZE) break;
-  }
+  const log = createStageLogger({
+    runId: crypto.randomUUID(),
+    userId: options.userId,
+    sourceId: options.source.id,
+    sourceName: options.source.name,
+    dateString: options.dateString,
+  });
+  log.event('source', { format: options.exportFormat });
+
+  await log.time('scan', async () => {
+    for (let offset = 0; ; offset += BACKUP_PAGE_SIZE) {
+      const { data, error } = await sourceEntriesQuery(options, '*', offset);
+      if (error) throw new Error(`JSON data fetch failed: ${error.message}`);
+      const page = (data ?? []) as DataEntry[];
+      if (page.length === 0) break;
+      entries.push(...page);
+      if (page.length < BACKUP_PAGE_SIZE) break;
+    }
+  }, () => ({ rows: entries.length }));
+
   if (entries.length === 0) {
+    log.event('source', { skipped: true, reason: 'no eligible records' });
     await updateBackupLog(options.backupLogId ?? null, {
       status: 'failed',
       error_message: options.source.active === false
@@ -1170,12 +1183,13 @@ async function createBufferedBackupForSource(
   }
 
   const fileName = sourceFileName(options.source.name, options.dateString, options.backupType, options.exportFormat);
-  const content = generateDataExplorerJSON(entries, options.sources);
+  const content = await log.time('csv', async () => generateDataExplorerJSON(entries, options.sources),
+    () => ({ rows: entries.length }));
   const backupLogId = await createBackupLog(options, fileName, entries.length);
-  const [storageResult, dropboxResult] = await Promise.all([
+  const [storageResult, dropboxResult] = await log.time('upload', () => Promise.all([
     uploadToSupabaseStorage(fileName, content, options.userId),
     uploadToDropbox(options.dropboxToken, options.dropboxPath, fileName, content),
-  ]);
+  ]), () => ({ fileName, bytes: content.length }));
   const success = storageResult.success || dropboxResult.success;
   await updateBackupLog(backupLogId, {
     status: success ? 'completed' : 'failed',
@@ -1183,6 +1197,13 @@ async function createBufferedBackupForSource(
     file_size: new TextEncoder().encode(content).byteLength,
     storage_path: storageResult.path ?? null,
     dropbox_url: dropboxResult.dropboxUrl ?? null,
+  });
+  log.event('source', {
+    result: success ? 'completed' : 'failed',
+    rows: entries.length,
+    bytes: content.length,
+    totalMs: log.elapsedMs(),
+    stageMs: log.totals(),
   });
   return { success, fileName, backupLogId: backupLogId ?? undefined, recordCount: entries.length };
 }
