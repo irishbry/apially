@@ -119,7 +119,9 @@ const handler = async (req: Request): Promise<Response> => {
       return await processScheduledBackups();
     }
 
-    if (action === 'recreate_backup') {
+    // Scheduled source jobs use the same bounded single-source path as manual
+    // retries, rather than keeping one function alive for every source.
+    if (action === 'recreate_backup' || action === 'scheduled_source_backup') {
       if (!userId || !sourceId || !pstDate) {
         return new Response(JSON.stringify({ error: 'userId, sourceId, and pstDate are required' }), {
           status: 400,
