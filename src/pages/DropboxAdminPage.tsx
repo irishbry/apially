@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, RefreshCw, CloudUpload, KeyRound, ArrowLeft, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import DropboxErrorHint from '@/components/DropboxErrorHint';
 
 interface DropboxConfig {
   id: string;
@@ -184,9 +185,7 @@ export default function DropboxAdminPage() {
                   {lastUpload.record_count.toLocaleString()} records · {format(new Date(lastUpload.created_at), 'MMM d, h:mm a')}
                 </p>
                 {lastUpload.error_message && (
-                  <p className="flex items-start gap-1 text-xs text-destructive">
-                    <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {lastUpload.error_message}
-                  </p>
+                  <DropboxErrorHint message={lastUpload.error_message} className="mt-2" />
                 )}
               </>
             ) : (

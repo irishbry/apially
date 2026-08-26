@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import DropboxErrorHint from "@/components/DropboxErrorHint";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -444,7 +445,7 @@ const BackupLogs: React.FC = () => {
                         <HardDrive className="h-4 w-4 text-slate-400" />
                         <div>
                           <span className="font-medium block">{log.file_name || sources.find(source => source.id === log.source_id)?.name || 'File not produced'}</span>
-                          {log.error_message && <span className="text-xs text-destructive block max-w-md">{log.error_message}</span>}
+                          {log.error_message && <DropboxErrorHint message={log.error_message} className="max-w-md mt-1" />}
                         </div>
                       </div>
                     </TableCell>

@@ -9,6 +9,7 @@ import { BackupLog, BackupSource } from "@/services/BackupLogsService";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import DropboxErrorHint from "@/components/DropboxErrorHint";
 
 // A source whose log row hasn't been touched for this long is treated as timed out:
 // the edge function died mid-run and will never finalize the row itself.
