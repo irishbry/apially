@@ -952,6 +952,7 @@ async function getDropboxSharedLink(token: string, path: string): Promise<string
     body: JSON.stringify({ path, settings: { requested_visibility: 'public' } }),
   });
   if (response.ok) return (await response.json()).url ?? null;
+  console.error(`Dropbox create_shared_link failed for ${path} (${response.status}):`, await response.text());
 
   // An overwritten file can already have a shared link; retrieve it rather than failing.
   const existing = await fetch('https://api.dropboxapi.com/2/sharing/list_shared_links', {
@@ -959,10 +960,14 @@ async function getDropboxSharedLink(token: string, path: string): Promise<string
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ path, direct_only: true }),
   });
-  if (!existing.ok) return null;
+  if (!existing.ok) {
+    console.error(`Dropbox list_shared_links failed for ${path} (${existing.status}):`, await existing.text());
+    return null;
+  }
   const result = await existing.json();
   return result.links?.[0]?.url ?? null;
 }
+
 
 async function copyDropboxFileToStorage(
   token: string,
