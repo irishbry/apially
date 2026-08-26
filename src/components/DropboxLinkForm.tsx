@@ -298,7 +298,7 @@ const DropboxLinkForm: React.FC = () => {
                     <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
                       <li>Create a Dropbox App at <a href="https://www.dropbox.com/developers/apps" target="_blank" rel="noopener noreferrer" className="underline">developers.dropbox.com</a></li>
                       <li>Choose "Scoped access" and "Full Dropbox" access</li>
-                      <li><strong>Important:</strong> In the "Permissions" tab, enable the <code>files.content.write</code> scope to allow file uploads</li>
+                      <li><strong>Important:</strong> In the "Permissions" tab, enable <code>files.content.write</code>, <code>files.content.read</code>, <code>files.metadata.read</code>, <code>sharing.write</code> and <code>sharing.read</code></li>
                       <li>Copy your App Key and App Secret from the app settings</li>
                       <li>Fill in the form below and generate authorization URL</li>
                     </ol>
