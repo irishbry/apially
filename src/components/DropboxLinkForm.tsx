@@ -15,6 +15,7 @@ import { ApiService } from "@/services/ApiService";
 import { DropboxBackupService } from "@/services/DropboxBackupService";
 import { useAuth } from "@/hooks/useAuth";
 import BackupLogs from "./BackupLogs";
+import ReconnectDropbox from "./ReconnectDropbox";
 
 const DropboxLinkForm: React.FC = () => {
   const [dropboxPath, setDropboxPath] = useState('');
