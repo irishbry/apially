@@ -35,6 +35,10 @@ interface Source {
   user_id: string;
   active?: boolean;
   is_partner?: boolean;
+  schema?: {
+    fieldTypes?: Record<string, unknown>;
+    requiredFields?: string[];
+  } | null;
 }
 
 interface DropboxConfig {
@@ -119,7 +123,9 @@ const handler = async (req: Request): Promise<Response> => {
       return await processScheduledBackups();
     }
 
-    if (action === 'recreate_backup') {
+    // Scheduled source jobs use the same bounded single-source path as manual
+    // retries, rather than keeping one function alive for every source.
+    if (action === 'recreate_backup' || action === 'scheduled_source_backup') {
       if (!userId || !sourceId || !pstDate) {
         return new Response(JSON.stringify({ error: 'userId, sourceId, and pstDate are required' }), {
           status: 400,
@@ -999,19 +1005,38 @@ async function copyDropboxFileToStorage(
 async function streamCsvBackupForSource(options: SourceBackupOptions): Promise<SourceBackupResult> {
   const columns = new Set<string>();
   let recordCount = 0;
+  const declaredFields = new Set([
+    ...Object.keys(options.source.schema?.fieldTypes ?? {}),
+    ...(options.source.schema?.requiredFields ?? []),
+  ]);
+  declaredFields.forEach((field) => {
+    if (field !== 'clientIp' && field !== 'receivedAt' && field !== 'paused') columns.add(field);
+  });
 
-  // First bounded pass discovers every metadata key so the CSV schema remains
-  // identical for every page, even when a field first appears late in the day.
-  for (let offset = 0; ; offset += BACKUP_PAGE_SIZE) {
-    const { data, error } = await sourceEntriesQuery(options, 'id, metadata', offset);
-    if (error) throw new Error(`CSV schema fetch failed: ${error.message}`);
-    const page = (data ?? []) as DataEntry[];
-    if (page.length === 0) break;
-    addCsvColumns(columns, page);
-    recordCount += page.length;
-    if (page.length < BACKUP_PAGE_SIZE) break;
+  // Schema-defined sources already declare their CSV columns, avoiding a full
+  // duplicate scan before upload. Legacy sources without a schema retain the
+  // discovery pass so their historical CSV shape is unchanged.
+  if (declaredFields.size === 0) {
+    for (let offset = 0; ; offset += BACKUP_PAGE_SIZE) {
+      const { data, error } = await sourceEntriesQuery(options, 'id, metadata', offset);
+      if (error) throw new Error(`CSV schema fetch failed: ${error.message}`);
+      const page = (data ?? []) as DataEntry[];
+      if (page.length === 0) break;
+      addCsvColumns(columns, page);
+      recordCount += page.length;
+      if (page.length < BACKUP_PAGE_SIZE) break;
+    }
+  } else {
+    columns.add('source');
+    columns.add('created_at');
   }
-  if (recordCount === 0) {
+
+  const firstPageResult = declaredFields.size > 0
+    ? await sourceEntriesQuery(options, '*', 0)
+    : null;
+  if (firstPageResult?.error) throw new Error(`CSV data fetch failed: ${firstPageResult.error.message}`);
+  const firstPage = (firstPageResult?.data ?? []) as DataEntry[];
+  if (declaredFields.size > 0 && firstPage.length === 0 || declaredFields.size === 0 && recordCount === 0) {
     await updateBackupLog(options.backupLogId ?? null, {
       status: 'failed',
       error_message: options.source.active === false
@@ -1031,10 +1056,14 @@ async function streamCsvBackupForSource(options: SourceBackupOptions): Promise<S
     await upload.start();
     await upload.append(serializeCsvHeader(orderedColumns));
     for (let offset = 0; ; offset += BACKUP_PAGE_SIZE) {
-      const { data, error } = await sourceEntriesQuery(options, '*', offset);
+      const result = offset === 0 && firstPageResult
+        ? firstPageResult
+        : await sourceEntriesQuery(options, '*', offset);
+      const { data, error } = result;
       if (error) throw new Error(`CSV data fetch failed: ${error.message}`);
       const page = (data ?? []) as DataEntry[];
       if (page.length === 0) break;
+      if (declaredFields.size > 0) recordCount += page.length;
       await upload.append(`\n${serializeCsvRows(page, orderedColumns, sourceNames)}`);
       console.log(`Streamed ${Math.min(offset + page.length, recordCount)}/${recordCount} rows for ${options.source.id}`);
       // Heartbeat the log row so the UI can show live progress and can tell a
@@ -1051,6 +1080,7 @@ async function streamCsvBackupForSource(options: SourceBackupOptions): Promise<S
     ]);
     await updateBackupLog(backupLogId, {
       status: 'completed',
+      record_count: recordCount,
       file_size: upload.byteCount,
       storage_path: storageResult.path ?? null,
       dropbox_url: dropboxUrl,
