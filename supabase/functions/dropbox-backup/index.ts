@@ -868,6 +868,7 @@ async function createSourceBackupPlaceholder(
       file_path: null,
       record_count: 0,
       backup_type: options.backupType,
+      backup_date: options.dateString,
       format: exportFormat === 'csv' ? 'csv' : 'json',
       status: 'processing',
       file_size: 0,
