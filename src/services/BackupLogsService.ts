@@ -63,6 +63,22 @@ export const BackupLogsService = {
     return data || [];
   },
 
+  async getSourceRecordCounts(): Promise<Record<string, number>> {
+    try {
+      const { data, error } = await supabase
+        .from('source_record_counts')
+        .select('source_id, record_count');
+      if (error) throw error;
+      return (data || []).reduce((acc, row) => {
+        acc[row.source_id] = Number(row.record_count || 0);
+        return acc;
+      }, {} as Record<string, number>);
+    } catch (error) {
+      console.error('Error fetching source record counts:', error);
+      return {};
+    }
+  },
+
   async deleteBackupLog(id: string): Promise<void> {
     try {
       // First get the log to find the storage path
