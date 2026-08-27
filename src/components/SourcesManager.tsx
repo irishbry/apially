@@ -17,6 +17,8 @@ import { ConfigService } from '@/services/ConfigService';
 import { useForm } from 'react-hook-form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { BackupLogsService, BackupLog } from '@/services/BackupLogsService';
 
 interface CreateSourceForm {
@@ -37,6 +39,7 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
   const [sources, setSources] = useState<SourceWithRecords[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedApiKey, setSelectedApiKey] = useState<string>('');
+  const [showPaused, setShowPaused] = useState(false);
   const [showApiKey, setShowApiKey] = useState<{[key: string]: boolean}>({});
   const [isCreatingSource, setIsCreatingSource] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
