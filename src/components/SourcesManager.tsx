@@ -17,6 +17,8 @@ import { ConfigService } from '@/services/ConfigService';
 import { useForm } from 'react-hook-form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { BackupLogsService, BackupLog } from '@/services/BackupLogsService';
 
 interface CreateSourceForm {
@@ -37,6 +39,7 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
   const [sources, setSources] = useState<SourceWithRecords[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedApiKey, setSelectedApiKey] = useState<string>('');
+  const [showPaused, setShowPaused] = useState(false);
   const [showApiKey, setShowApiKey] = useState<{[key: string]: boolean}>({});
   const [isCreatingSource, setIsCreatingSource] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -645,6 +648,16 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
                 </span>
               </div>
               <div className="flex items-center gap-2">
+                <Switch
+                  id="show-paused"
+                  checked={showPaused}
+                  onCheckedChange={setShowPaused}
+                />
+                <Label htmlFor="show-paused" className="text-sm text-muted-foreground cursor-pointer">
+                  Show paused
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
                 {selectedIds.length > 0 && (
                   <Button variant="outline" size="sm" onClick={() => setSelectedIds([])} disabled={isDeleting}>
                     Clear
@@ -669,11 +682,12 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
             </div>
           ) : sources.length > 0 ? (
             (() => {
-              const parents = sources.filter(s => !(s as any).parent_id);
-              const orphans = sources.filter(s => (s as any).parent_id && !sources.some(p => p.id === (s as any).parent_id));
+              const visibleSources = showPaused ? sources : sources.filter(s => s.active);
+              const parents = visibleSources.filter(s => !(s as any).parent_id);
+              const orphans = visibleSources.filter(s => (s as any).parent_id && !sources.some(p => p.id === (s as any).parent_id));
               const topLevel = [...parents, ...orphans];
               const childrenByParent = new Map<string, SourceWithRecords[]>();
-              for (const s of sources) {
+              for (const s of visibleSources) {
                 const pid = (s as any).parent_id;
                 if (pid && sources.some(p => p.id === pid)) {
                   if (!childrenByParent.has(pid)) childrenByParent.set(pid, []);
@@ -872,6 +886,11 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
 
               return (
                 <div className="space-y-4">
+                  {topLevel.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-6">
+                      No active sources. Turn on "Show paused" to see paused sources.
+                    </p>
+                  )}
                   {topLevel.map(parent => (
                     <div key={parent.id} className="space-y-2">
                       {renderRow(parent, false)}
