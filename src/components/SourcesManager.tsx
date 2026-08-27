@@ -886,6 +886,11 @@ const SourcesManager: React.FC<SourcesManagerProps> = ({ onApiKeySelect }) => {
 
               return (
                 <div className="space-y-4">
+                  {topLevel.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-6">
+                      No active sources. Turn on "Show paused" to see paused sources.
+                    </p>
+                  )}
                   {topLevel.map(parent => (
                     <div key={parent.id} className="space-y-2">
                       {renderRow(parent, false)}
