@@ -63,15 +63,36 @@ const BackupLogs: React.FC = () => {
   const [, setTick] = useState(0);
 
 
+  // Build the list of source names shown in the tab bar.
+  // Default: only active sources that actually have data.
+  // Toggle: show every non-partner source plus any source referenced by logs.
   const sourceNames = useMemo(() => {
-    const names = new Set(sources.map(source => source.name));
+    const allNames = new Set<string>();
+    sources.forEach(source => allNames.add(source.name));
     logs.forEach(log => {
       const source = sources.find(item => item.id === log.source_id);
-      names.add(source?.name ?? extractSourceName(log.file_name));
+      allNames.add(source?.name ?? extractSourceName(log.file_name));
     });
-    names.delete('Unknown');
-    return Array.from(names).sort();
-  }, [logs, sources]);
+    allNames.delete('Unknown');
+
+    if (showAllSources) return Array.from(allNames).sort();
+
+    const visible = new Set<string>();
+    sources.forEach(source => {
+      if (!source.active) return;
+      const hasData = (recordCounts[source.id] || 0) > 0;
+      if (hasData) visible.add(source.name);
+    });
+    // Also keep any source that already has a completed backup log with records
+    logs.forEach(log => {
+      if (log.record_count > 0) {
+        const source = sources.find(item => item.id === log.source_id);
+        const name = source?.name ?? extractSourceName(log.file_name);
+        if (name && name !== 'Unknown') visible.add(name);
+      }
+    });
+    return Array.from(visible).sort();
+  }, [logs, sources, recordCounts, showAllSources]);
 
   const filteredLogs = useMemo(() => {
     if (selectedSource === 'all') return logs;
