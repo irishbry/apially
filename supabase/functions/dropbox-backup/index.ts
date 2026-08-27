@@ -649,6 +649,7 @@ async function createBackupForUser(
       file_path: null,
       record_count: 0,
       backup_type: backupType,
+      backup_date: dateString,
       format: exportFormat === 'csv' ? 'csv' : 'json',
       status: 'processing',
       file_size: 0,
