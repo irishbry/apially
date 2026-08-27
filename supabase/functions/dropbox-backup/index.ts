@@ -1099,6 +1099,20 @@ async function repairBackupLinks(userId: string, batchSize = 10): Promise<Respon
         continue;
       }
 
+      const producedNewDropboxLink = !log.dropbox_url && !!dropboxUrl;
+      const producedNewStorageCopy = !log.storage_path && !!storageResult.path;
+
+      // Nothing new was created (e.g. the Dropbox share link scope is still
+      // missing, so getDropboxSharedLink returned null). Mark the row so it is
+      // not re-selected by the next batch and count it as a failure.
+      if (!producedNewDropboxLink && !producedNewStorageCopy) {
+        console.warn(`[repairBackupLinks] nothing new produced for ${log.file_name}; marking as unrepairable`);
+        await updateBackupLog(log.id as string, { error_message: 'link_repair_unavailable' });
+        failed += 1;
+        failures.push(`${log.file_name} (Dropbox share link unavailable — check sharing.write scope)`);
+        continue;
+      }
+
       await updateBackupLog(log.id as string, {
         dropbox_url: dropboxUrl,
         storage_path: storageResult.path ?? null,
