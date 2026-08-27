@@ -579,7 +579,7 @@ const BackupLogs: React.FC = () => {
                   {isRepairing ? (
                     <div className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
                   ) : (
-                    <Download className="h-3 w-3" />
+                    <Wrench className="h-3 w-3" />
                   )}
                   Restore download links
                 </Button>
@@ -588,6 +588,62 @@ const BackupLogs: React.FC = () => {
                 )}
               </div>
             </div>
+
+            {repairProgress && (
+              <Alert className={repairProgress.done ? 'border-green-500/30 bg-green-500/5' : 'border-primary/30 bg-primary/5'}>
+                <div className="flex items-start gap-3 w-full">
+                  {repairProgress.done ? (
+                    <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
+                  ) : (
+                    <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin mt-0.5" />
+                  )}
+                  <div className="flex-1 space-y-2">
+                    <AlertTitle className="text-sm">
+                      {repairProgress.done
+                        ? `Link restore complete — ${repairProgress.totalRepaired} repaired, ${repairProgress.totalFailed} failed`
+                        : `Restoring download links... batch ${repairProgress.batch}`}
+                    </AlertTitle>
+                    <AlertDescription className="text-xs">
+                      {repairProgress.currentFile}
+                    </AlertDescription>
+                    {missingLinkCount > 0 && (
+                      <Progress
+                        value={Math.min(100, Math.round(((repairProgress.totalRepaired + repairProgress.totalFailed) / missingLinkCount) * 100))}
+                        className="h-2"
+                      />
+                    )}
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>
+                        {repairProgress.totalRepaired} repaired · {repairProgress.totalFailed} failed · {repairProgress.remaining} remaining
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs"
+                        onClick={() => setShowRepairDetails(d => !d)}
+                      >
+                        {showRepairDetails ? (
+                          <><ChevronUp className="h-3 w-3 mr-1" /> Hide details</>
+                        ) : (
+                          <><ChevronDown className="h-3 w-3 mr-1" /> Show details</>
+                        )}
+                      </Button>
+                    </div>
+                    {showRepairDetails && (
+                      <div className="rounded-md border bg-background p-2 text-xs font-mono space-y-1 max-h-40 overflow-y-auto">
+                        {repairProgress.failures.length === 0 ? (
+                          <span className="text-muted-foreground">No failures reported yet.</span>
+                        ) : (
+                          repairProgress.failures.map((f, i) => (
+                            <div key={i} className="text-destructive">{f}</div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Alert>
+            )}
 
             <Table>
               <TableHeader>
