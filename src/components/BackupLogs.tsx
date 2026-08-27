@@ -6,6 +6,8 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { 
   Table,
   TableBody,
@@ -25,7 +27,10 @@ import {
   Calendar,
   FileText,
   HardDrive,
-  AlertTriangle
+  AlertTriangle,
+  Wrench,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { BackupLogsService, BackupLog, BackupSource } from "@/services/BackupLogsService";
@@ -60,6 +65,16 @@ const BackupLogs: React.FC = () => {
   const [recordCounts, setRecordCounts] = useState<Record<string, number>>({});
   const [showAllSources, setShowAllSources] = useState(false);
   const [isRepairing, setIsRepairing] = useState(false);
+  const [repairProgress, setRepairProgress] = useState<{
+    batch: number;
+    totalRepaired: number;
+    totalFailed: number;
+    remaining: number;
+    currentFile?: string;
+    done: boolean;
+    failures: string[];
+  } | null>(null);
+  const [showRepairDetails, setShowRepairDetails] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -305,19 +320,68 @@ const BackupLogs: React.FC = () => {
   const handleRepairLinks = async () => {
     if (!user) return;
     setIsRepairing(true);
+    setRepairProgress({
+      batch: 0,
+      totalRepaired: 0,
+      totalFailed: 0,
+      remaining: missingLinkCount,
+      currentFile: undefined,
+      done: false,
+      failures: [],
+    });
+    setShowRepairDetails(true);
+
     try {
       // Repair in small batches so each Edge Function call stays inside its runtime limit
       let repaired = 0;
       let failed = 0;
-      for (let round = 0; round < 15; round++) {
+      const allFailures: string[] = [];
+      const allRepaired: string[] = [];
+      const batchSize = 8;
+      const estimatedBatches = Math.max(1, Math.ceil(missingLinkCount / batchSize));
+
+      console.log(`[BackupLogs] starting link repair for ${missingLinkCount} missing links`);
+
+      for (let round = 0; round < 20; round++) {
+        setRepairProgress(prev => ({
+          ...prev!,
+          batch: round + 1,
+          currentFile: `Batch ${round + 1} of ~${estimatedBatches}...`,
+        }));
+
         const { data, error } = await supabase.functions.invoke('dropbox-backup', {
-          body: { action: 'repair_links', userId: user.id, limit: 8 },
+          body: { action: 'repair_links', userId: user.id, limit: batchSize },
         });
+        console.log(`[BackupLogs] repair batch ${round + 1} response:`, { data, error });
         if (error) throw error;
-        if (data?.success === false) throw new Error(data.error || 'Link repair failed');
+        if (data?.success === false || data?.error) throw new Error(data.error || 'Link repair failed');
+
         repaired += data?.repaired ?? 0;
         failed += data?.failed ?? 0;
-        if ((data?.checked ?? 0) === 0 || (data?.repaired ?? 0) === 0) break;
+        if (data?.failures?.length) {
+          allFailures.push(...data.failures);
+        }
+        if (data?.repairedFiles?.length) {
+          allRepaired.push(...data.repairedFiles);
+        }
+
+        const checked = data?.checked ?? 0;
+        const justProcessed = (data?.repaired ?? 0) + (data?.failed ?? 0);
+        const remaining = Math.max(0, missingLinkCount - repaired - failed);
+
+        setRepairProgress({
+          batch: round + 1,
+          totalRepaired: repaired,
+          totalFailed: failed,
+          remaining,
+          currentFile: checked === 0
+            ? 'No more missing links found'
+            : `Batch ${round + 1}: ${data?.repaired ?? 0} repaired, ${data?.failed ?? 0} failed`,
+          done: checked === 0 || justProcessed === 0,
+          failures: allFailures.slice(0, 50),
+        });
+
+        if (checked === 0 || justProcessed === 0) break;
       }
 
       toast({
@@ -326,6 +390,8 @@ const BackupLogs: React.FC = () => {
       });
       await loadBackupLogs();
     } catch (repairError) {
+      console.error('Repair links error:', repairError);
+      setRepairProgress(prev => prev ? { ...prev, done: true } : null);
       toast({
         title: "Could not restore links",
         description: repairError instanceof Error ? repairError.message : 'Unknown error',
@@ -520,7 +586,7 @@ const BackupLogs: React.FC = () => {
                   {isRepairing ? (
                     <div className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
                   ) : (
-                    <Download className="h-3 w-3" />
+                    <Wrench className="h-3 w-3" />
                   )}
                   Restore download links
                 </Button>
@@ -529,6 +595,62 @@ const BackupLogs: React.FC = () => {
                 )}
               </div>
             </div>
+
+            {repairProgress && (
+              <Alert className={repairProgress.done ? 'border-green-500/30 bg-green-500/5' : 'border-primary/30 bg-primary/5'}>
+                <div className="flex items-start gap-3 w-full">
+                  {repairProgress.done ? (
+                    <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
+                  ) : (
+                    <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin mt-0.5" />
+                  )}
+                  <div className="flex-1 space-y-2">
+                    <AlertTitle className="text-sm">
+                      {repairProgress.done
+                        ? `Link restore complete — ${repairProgress.totalRepaired} repaired, ${repairProgress.totalFailed} failed`
+                        : `Restoring download links... batch ${repairProgress.batch}`}
+                    </AlertTitle>
+                    <AlertDescription className="text-xs">
+                      {repairProgress.currentFile}
+                    </AlertDescription>
+                    {missingLinkCount > 0 && (
+                      <Progress
+                        value={Math.min(100, Math.round(((repairProgress.totalRepaired + repairProgress.totalFailed) / missingLinkCount) * 100))}
+                        className="h-2"
+                      />
+                    )}
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>
+                        {repairProgress.totalRepaired} repaired · {repairProgress.totalFailed} failed · {repairProgress.remaining} remaining
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs"
+                        onClick={() => setShowRepairDetails(d => !d)}
+                      >
+                        {showRepairDetails ? (
+                          <><ChevronUp className="h-3 w-3 mr-1" /> Hide details</>
+                        ) : (
+                          <><ChevronDown className="h-3 w-3 mr-1" /> Show details</>
+                        )}
+                      </Button>
+                    </div>
+                    {showRepairDetails && (
+                      <div className="rounded-md border bg-background p-2 text-xs font-mono space-y-1 max-h-40 overflow-y-auto">
+                        {repairProgress.failures.length === 0 ? (
+                          <span className="text-muted-foreground">No failures reported yet.</span>
+                        ) : (
+                          repairProgress.failures.map((f, i) => (
+                            <div key={i} className="text-destructive">{f}</div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Alert>
+            )}
 
             <Table>
               <TableHeader>

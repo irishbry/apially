@@ -124,11 +124,12 @@ const handler = async (req: Request): Promise<Response> => {
     // Rebuild missing Dropbox share links / Storage copies for completed backups
     if (action === 'repair_links') {
       if (!userId) {
-        return new Response(JSON.stringify({ error: 'userId is required' }), {
+        return new Response(JSON.stringify({ success: false, error: 'userId is required' }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
+      console.log(`[repair_links] starting for user ${userId} with limit ${Number(limit) > 0 ? Number(limit) : 10}`);
       return await repairBackupLinks(userId, Number(limit) > 0 ? Number(limit) : 10);
     }
 
@@ -1073,9 +1074,13 @@ async function repairBackupLinks(userId: string, batchSize = 10): Promise<Respon
   let repaired = 0;
   let failed = 0;
   const failures: string[] = [];
+  const repairedFiles: string[] = [];
+
+  console.log(`[repairBackupLinks] found ${logs?.length ?? 0} logs needing link repair`);
 
   for (const log of logs ?? []) {
     const fullPath = buildDropboxPath(validConfig.dropbox_path, log.file_name as string);
+    console.log(`[repairBackupLinks] repairing ${log.file_name} at ${fullPath}`);
     try {
       const [dropboxUrl, storageResult] = await Promise.all([
         log.dropbox_url ? Promise.resolve(log.dropbox_url as string) : getDropboxSharedLink(validConfig.dropbox_token, fullPath),
@@ -1085,6 +1090,7 @@ async function repairBackupLinks(userId: string, batchSize = 10): Promise<Respon
       ]);
 
       if (!dropboxUrl && !storageResult.path) {
+        console.warn(`[repairBackupLinks] no link or storage path produced for ${log.file_name}`);
         failed += 1;
         failures.push(log.file_name as string);
         continue;
@@ -1094,7 +1100,9 @@ async function repairBackupLinks(userId: string, batchSize = 10): Promise<Respon
         dropbox_url: dropboxUrl,
         storage_path: storageResult.path ?? null,
       });
+      console.log(`[repairBackupLinks] success for ${log.file_name}: dropbox_url=${!!dropboxUrl}, storage_path=${!!storageResult.path}`);
       repaired += 1;
+      repairedFiles.push(log.file_name as string);
     } catch (repairError) {
       console.error(`Link repair failed for ${log.file_name}:`, repairError);
       failed += 1;
@@ -1102,8 +1110,10 @@ async function repairBackupLinks(userId: string, batchSize = 10): Promise<Respon
     }
   }
 
+  console.log(`[repairBackupLinks] batch complete: checked=${logs?.length ?? 0}, repaired=${repaired}, failed=${failed}`);
+
   return new Response(
-    JSON.stringify({ success: true, checked: logs?.length ?? 0, repaired, failed, failures: failures.slice(0, 10) }),
+    JSON.stringify({ success: true, checked: logs?.length ?? 0, repaired, failed, failures: failures.slice(0, 10), repairedFiles: repairedFiles.slice(0, 10) }),
     { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
   );
 }
