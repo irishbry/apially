@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import DropboxErrorHint from "@/components/DropboxErrorHint";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -64,6 +64,30 @@ const BackupLogs: React.FC = () => {
   // Ticks while a run is active so elapsed/timeout state stays accurate on screen
   const [, setTick] = useState(0);
 
+  // Normalize names so "Popular - Solar" and "Popular___Solar" resolve to one source
+  const normalizeName = (value: string) =>
+    value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+  // Resolve a log's display source name: source link first, then normalized
+  // file-name match against known sources, then the raw parsed file-name text.
+  const resolveNameFromFile = useCallback(
+    (fileName: string | null): string => {
+      const parsed = extractSourceName(fileName);
+      if (parsed === 'Unknown') return parsed;
+      const norm = normalizeName(parsed);
+      const match = sources.find(source => normalizeName(source.name) === norm);
+      return match?.name ?? parsed;
+    },
+    [sources],
+  );
+
+  const resolveLogName = useCallback(
+    (log: BackupLog): string => {
+      const source = sources.find(item => item.id === log.source_id);
+      return source?.name ?? resolveNameFromFile(log.file_name);
+    },
+    [sources, resolveNameFromFile],
+  );
 
   // Build the list of source names shown in the tab bar.
   // Default: only active sources that actually have data.
@@ -72,8 +96,7 @@ const BackupLogs: React.FC = () => {
     const allNames = new Set<string>();
     sources.forEach(source => allNames.add(source.name));
     logs.forEach(log => {
-      const source = sources.find(item => item.id === log.source_id);
-      allNames.add(source?.name ?? extractSourceName(log.file_name));
+      allNames.add(resolveLogName(log));
     });
     allNames.delete('Unknown');
 
@@ -88,21 +111,18 @@ const BackupLogs: React.FC = () => {
     // Also keep any source that already has a completed backup log with records
     logs.forEach(log => {
       if (log.record_count > 0) {
-        const source = sources.find(item => item.id === log.source_id);
-        const name = source?.name ?? extractSourceName(log.file_name);
+        const name = resolveLogName(log);
         if (name && name !== 'Unknown') visible.add(name);
       }
     });
     return Array.from(visible).sort();
-  }, [logs, sources, recordCounts, showAllSources]);
+  }, [logs, sources, recordCounts, showAllSources, resolveLogName]);
 
   const filteredLogs = useMemo(() => {
     if (selectedSource === 'all') return logs;
-    return logs.filter(log => {
-      const source = sources.find(item => item.id === log.source_id);
-      return (source?.name ?? extractSourceName(log.file_name)) === selectedSource;
-    });
-  }, [logs, sources, selectedSource]);
+    return logs.filter(log => resolveLogName(log) === selectedSource);
+  }, [logs, selectedSource, resolveLogName]);
+
 
   useEffect(() => {
     if (!user) return;
@@ -393,8 +413,8 @@ const BackupLogs: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <BackupRunProgress logs={logs} sources={sources} extractSourceName={extractSourceName} />
-      <BackupRunDashboard logs={logs} sources={sources} extractSourceName={extractSourceName} />
+      <BackupRunProgress logs={logs} sources={sources} extractSourceName={resolveNameFromFile} />
+      <BackupRunDashboard logs={logs} sources={sources} extractSourceName={resolveNameFromFile} />
       <Card className="w-full max-w-6xl mx-auto">
 
       <CardHeader className="pb-3">
