@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Progress } from "@/components/ui/progress";
-import { Activity, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Loader2, RefreshCw, XCircle } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Loader2, MinusCircle, RefreshCw, XCircle } from "lucide-react";
 import { BackupLog, BackupSource } from "@/services/BackupLogsService";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
