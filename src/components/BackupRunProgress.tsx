@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Progress } from "@/components/ui/progress";
-import { Activity, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Loader2, RefreshCw, XCircle } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Loader2, MinusCircle, RefreshCw, XCircle } from "lucide-react";
 import { BackupLog, BackupSource } from "@/services/BackupLogsService";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -15,9 +15,17 @@ import DropboxErrorHint from "@/components/DropboxErrorHint";
 // the edge function died mid-run and will never finalize the row itself.
 export const STALE_AFTER_MS = 10 * 60 * 1000;
 
-export type DerivedStatus = 'completed' | 'failed' | 'processing' | 'timed_out';
+export type DerivedStatus = 'completed' | 'failed' | 'processing' | 'timed_out' | 'no_data';
+
+// "Failed" rows that are really just "this source had nothing to back up that day".
+export const isNoDataMessage = (message?: string | null) =>
+  Boolean(message && (
+    message.startsWith('No eligible data was received') ||
+    message.startsWith('Source is paused')
+  ));
 
 export const deriveStatus = (log: BackupLog, now = Date.now()): DerivedStatus => {
+  if (log.status === 'failed' && isNoDataMessage(log.error_message)) return 'no_data';
   if (log.status !== 'processing') return log.status as DerivedStatus;
   const touchedAt = new Date(log.updated_at || log.created_at).getTime();
   return now - touchedAt > STALE_AFTER_MS ? 'timed_out' : 'processing';
@@ -28,6 +36,7 @@ export const statusLabel: Record<DerivedStatus, string> = {
   failed: 'Failed',
   processing: 'In progress',
   timed_out: 'Timed out',
+  no_data: 'No data',
 };
 
 const formatBytes = (bytes?: number) => {
@@ -61,6 +70,20 @@ const getLosAngelesDate = (iso: string) => {
   }).formatToParts(new Date(iso));
   const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? '';
   return `${value('year')}-${value('month')}-${value('day')}`;
+};
+
+/**
+ * The day whose data a backup covers. Scheduled runs execute at ~3 AM PST and
+ * back up the *previous* PST day, so retrying must not use the run's own date.
+ */
+export const backupTargetDate = (log?: BackupLog, fallbackIso?: string | null) => {
+  if (log?.backup_date) return log.backup_date;
+  const iso = log?.created_at ?? fallbackIso;
+  if (!iso) return null;
+  const runDay = getLosAngelesDate(iso);
+  const [y, m, d] = runDay.split('-').map(Number);
+  const previous = new Date(Date.UTC(y, m - 1, d - 1));
+  return previous.toISOString().slice(0, 10);
 };
 
 interface Props {
@@ -112,7 +135,7 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }
         acc[item.status] += 1;
         return acc;
       },
-      { completed: 0, failed: 0, processing: 0, timed_out: 0 } as Record<DerivedStatus, number>,
+      { completed: 0, failed: 0, processing: 0, timed_out: 0, no_data: 0 } as Record<DerivedStatus, number>,
     );
 
     return {
@@ -124,13 +147,15 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }
 
   if (runLogs.length === 0) return null;
 
-  const finished = counts.completed + counts.failed + counts.timed_out;
+  const finished = counts.completed + counts.failed + counts.timed_out + counts.no_data;
   const percent = Math.round((finished / runLogs.length) * 100);
   const hasProblem = counts.failed > 0 || counts.timed_out > 0;
   const unhealthy = runLogs.filter((item) => item.status !== 'completed');
 
   const retryBackup = async (sourceId: string, sourceName: string, log?: BackupLog) => {
     if (!user || !runStartedAt) return;
+    const pstDate = backupTargetDate(log, runStartedAt);
+    if (!pstDate) return;
     setRetryingSourceId(sourceId);
     try {
       const { data, error } = await supabase.functions.invoke('dropbox-backup', {
@@ -138,7 +163,7 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }
           action: 'recreate_backup',
           userId: user.id,
           sourceId,
-          pstDate: getLosAngelesDate(log?.created_at ?? runStartedAt),
+          pstDate,
           format: log?.format ?? 'csv',
         },
       });
@@ -207,6 +232,11 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }
                 <XCircle className="h-3 w-3" /> {counts.failed} failed
               </Badge>
             )}
+            {counts.no_data > 0 && (
+              <Badge variant="outline" className="gap-1">
+                <MinusCircle className="h-3 w-3" /> {counts.no_data} no data
+              </Badge>
+            )}
           </div>
         </div>
 
@@ -225,9 +255,14 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }
                   {status === 'processing' && <Loader2 className="h-4 w-4 animate-spin text-yellow-600" />}
                   {status === 'timed_out' && <AlertTriangle className="h-4 w-4 text-destructive" />}
                   {status === 'failed' && <XCircle className="h-4 w-4 text-destructive" />}
+                  {status === 'no_data' && <MinusCircle className="h-4 w-4 text-muted-foreground" />}
                   <div className="min-w-0">
                     <span className="font-medium block truncate">{sourceName}</span>
-                    {reason && <DropboxErrorHint message={reason} compact />}
+                    {reason && (
+                      status === 'no_data'
+                        ? <span className="text-xs text-muted-foreground block">{reason}</span>
+                        : <DropboxErrorHint message={reason} compact />
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-3 text-muted-foreground">
@@ -235,9 +270,14 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }
                     {(log?.record_count ?? 0).toLocaleString()} records · {formatBytes(log?.file_size)} written
                   </span>
                   {log && <span>{relativeTime(log.updated_at || log.created_at)}</span>}
-                  <Badge variant={status === 'processing' ? 'secondary' : 'destructive'}>
+                  <Badge
+                    variant={
+                      status === 'processing' ? 'secondary' : status === 'no_data' ? 'outline' : 'destructive'
+                    }
+                  >
                     {statusLabel[status]}
                   </Badge>
+
                   {sourceActive && status !== 'processing' && (
                     <Button
                       variant="outline"

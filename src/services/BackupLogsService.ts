@@ -7,6 +7,7 @@ export interface BackupLog {
   file_name: string | null;
   file_path: string | null;
   source_id?: string | null;
+  backup_date?: string | null;
   error_message?: string | null;
   dropbox_url?: string;
   storage_path?: string;

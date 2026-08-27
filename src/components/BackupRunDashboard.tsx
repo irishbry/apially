@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Clock, Database, Loader2, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Clock, Database, Loader2, MinusCircle, XCircle } from "lucide-react";
 import { BackupLog, BackupSource } from "@/services/BackupLogsService";
 import { deriveStatus, statusLabel, DerivedStatus } from "@/components/BackupRunProgress";
 import DropboxErrorHint from "@/components/DropboxErrorHint";
@@ -43,6 +43,7 @@ const formatTime = (iso: string) =>
 
 const errorCause = (status: DerivedStatus, log?: BackupLog) => {
   if (!log) return 'No backup record — the run ended before this source started.';
+  if (status === 'no_data') return log.error_message || 'No data was received for this day.';
   if (log.error_message) return log.error_message;
   if (status === 'timed_out') return 'No progress update for over 10 minutes — the job stopped mid-upload.';
   if (status === 'failed') return 'Backup failed without a reported reason.';
@@ -54,6 +55,7 @@ const statusIcon = (status: DerivedStatus) => {
   if (status === 'completed') return <CheckCircle2 className="h-4 w-4 text-green-600" />;
   if (status === 'processing') return <Loader2 className="h-4 w-4 animate-spin text-yellow-600" />;
   if (status === 'timed_out') return <AlertTriangle className="h-4 w-4 text-destructive" />;
+  if (status === 'no_data') return <MinusCircle className="h-4 w-4 text-muted-foreground" />;
   return <XCircle className="h-4 w-4 text-destructive" />;
 };
 
@@ -70,7 +72,8 @@ const BackupRunDashboard: React.FC<Props> = ({ logs, sources, extractSourceName 
     const byDay = new Map<string, Map<string, BackupLog>>();
 
     logs.forEach((log) => {
-      const day = pstDay(log.created_at);
+      // Group by the day the data covers, falling back to the run day.
+      const day = log.backup_date ?? pstDay(log.created_at);
       const source = sources.find((s) => s.id === log.source_id);
       const name = source?.name ?? extractSourceName(log.file_name);
       if (!byDay.has(day)) byDay.set(day, new Map());
@@ -111,7 +114,7 @@ const BackupRunDashboard: React.FC<Props> = ({ logs, sources, extractSourceName 
       acc.records += row.log?.record_count ?? 0;
       return acc;
     },
-    { completed: 0, failed: 0, processing: 0, timed_out: 0, records: 0 },
+    { completed: 0, failed: 0, processing: 0, timed_out: 0, no_data: 0, records: 0 },
   );
 
   return (
@@ -194,7 +197,7 @@ const BackupRunDashboard: React.FC<Props> = ({ logs, sources, extractSourceName 
                       <TableCell className="text-right">{(log?.record_count ?? 0).toLocaleString()}</TableCell>
                       <TableCell>{log ? formatTime(log.created_at) : '—'}</TableCell>
                       <TableCell>{log ? formatDuration(log) : '—'}</TableCell>
-                      <TableCell className={status === 'completed' ? 'text-muted-foreground' : 'text-destructive'}>
+                      <TableCell className={status === 'completed' || status === 'no_data' ? 'text-muted-foreground' : 'text-destructive'}>
                         {diagnoseDropboxError(cause) ? (
                           <DropboxErrorHint message={cause} className="max-w-lg" />
                         ) : (

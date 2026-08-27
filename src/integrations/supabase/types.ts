@@ -73,6 +73,7 @@ export type Database = {
       }
       backup_logs: {
         Row: {
+          backup_date: string | null
           backup_type: string
           created_at: string
           dropbox_url: string | null
@@ -90,6 +91,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          backup_date?: string | null
           backup_type?: string
           created_at?: string
           dropbox_url?: string | null
@@ -107,6 +109,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          backup_date?: string | null
           backup_type?: string
           created_at?: string
           dropbox_url?: string | null
