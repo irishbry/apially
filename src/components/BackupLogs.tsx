@@ -429,7 +429,7 @@ const BackupLogs: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+            <div className="flex flex-col gap-3">
               {sourceNames.length > 1 && (
                 <Tabs value={selectedSource} onValueChange={setSelectedSource}>
                   <TabsList className="flex-wrap h-auto gap-1">
@@ -442,16 +442,6 @@ const BackupLogs: React.FC = () => {
                   </TabsList>
                 </Tabs>
               )}
-              <div className="flex items-center gap-2 shrink-0">
-                <Switch
-                  id="show-all-sources"
-                  checked={showAllSources}
-                  onCheckedChange={setShowAllSources}
-                />
-                <Label htmlFor="show-all-sources" className="text-sm text-muted-foreground cursor-pointer">
-                  Show all sources
-                </Label>
-              </div>
             </div>
 
             <div className="flex items-center justify-between text-sm text-muted-foreground">
