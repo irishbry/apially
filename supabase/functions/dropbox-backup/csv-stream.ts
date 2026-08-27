@@ -87,7 +87,7 @@ export function serializeCsvRows(
     .join('\n');
 }
 
-function dropboxPath(folderPath: string, fileName: string): string {
+export function dropboxPath(folderPath: string, fileName: string): string {
   let cleanFolderPath = folderPath.startsWith('/') ? folderPath : `/${folderPath}`;
   if (cleanFolderPath.endsWith('/')) cleanFolderPath = cleanFolderPath.slice(0, -1);
   return `${cleanFolderPath}/${fileName}`;

@@ -31,6 +31,7 @@ import { useToast } from "@/hooks/use-toast";
 import { BackupLogsService, BackupLog, BackupSource } from "@/services/BackupLogsService";
 import { useAuth } from "@/hooks/useAuth";
 import { ApiService } from "@/services/ApiService";
+import { supabase } from "@/integrations/supabase/client";
 import BackupRunProgress, { deriveStatus, statusLabel } from "@/components/BackupRunProgress";
 import BackupRunDashboard from "@/components/BackupRunDashboard";
 
@@ -58,6 +59,7 @@ const BackupLogs: React.FC = () => {
   const [dropboxApp, setDropboxApp] = useState<{ appKey: string | null; connected: boolean } | null>(null);
   const [recordCounts, setRecordCounts] = useState<Record<string, number>>({});
   const [showAllSources, setShowAllSources] = useState(false);
+  const [isRepairing, setIsRepairing] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -294,6 +296,48 @@ const BackupLogs: React.FC = () => {
     }
   };
 
+  // Completed backups whose Dropbox share link / Storage copy never got created
+  const missingLinkCount = useMemo(
+    () => logs.filter(log => log.status === 'completed' && log.file_name && !log.storage_path && !log.dropbox_url).length,
+    [logs],
+  );
+
+  const handleRepairLinks = async () => {
+    if (!user) return;
+    setIsRepairing(true);
+    try {
+      // Repair in small batches so each Edge Function call stays inside its runtime limit
+      let repaired = 0;
+      let failed = 0;
+      for (let round = 0; round < 15; round++) {
+        const { data, error } = await supabase.functions.invoke('dropbox-backup', {
+          body: { action: 'repair_links', userId: user.id, limit: 8 },
+        });
+        if (error) throw error;
+        if (data?.success === false) throw new Error(data.error || 'Link repair failed');
+        repaired += data?.repaired ?? 0;
+        failed += data?.failed ?? 0;
+        if ((data?.checked ?? 0) === 0 || (data?.repaired ?? 0) === 0) break;
+      }
+
+      toast({
+        title: "Download links restored",
+        description: `${repaired} backup${repaired !== 1 ? 's' : ''} now have download links${failed ? `, ${failed} could not be recovered` : ''}.`,
+      });
+      await loadBackupLogs();
+    } catch (repairError) {
+      toast({
+        title: "Could not restore links",
+        description: repairError instanceof Error ? repairError.message : 'Unknown error',
+        variant: "destructive",
+      });
+    } finally {
+      setIsRepairing(false);
+    }
+  };
+
+
+
   const handleDropboxDownload = async (log: BackupLog) => {
     if (!log.dropbox_url) {
       toast({
@@ -464,11 +508,26 @@ const BackupLogs: React.FC = () => {
               )}
             </div>
 
-            <div className="flex items-center justify-between text-sm text-muted-foreground">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
               <span>{filteredLogs.length} backup log{filteredLogs.length !== 1 ? 's' : ''} found{selectedSource !== 'all' ? ` for ${selectedSource}` : ''}</span>
-              {!showAllSources && (
-                <span className="text-xs">Showing active sources with data</span>
-              )}
+              <div className="flex items-center gap-3">
+                {missingLinkCount > 0 && (
+                  <span className="text-xs text-destructive">
+                    {missingLinkCount} backup{missingLinkCount !== 1 ? 's' : ''} without a download link
+                  </span>
+                )}
+                <Button variant="outline" size="sm" onClick={handleRepairLinks} disabled={isRepairing} className="gap-2">
+                  {isRepairing ? (
+                    <div className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Download className="h-3 w-3" />
+                  )}
+                  Restore download links
+                </Button>
+                {!showAllSources && (
+                  <span className="text-xs">Showing active sources with data</span>
+                )}
+              </div>
             </div>
 
             <Table>
