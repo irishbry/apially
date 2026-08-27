@@ -675,11 +675,13 @@ const BackupLogs: React.FC = () => {
                       </div>
                     </TableCell>
 
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <HardDrive className="h-4 w-4 text-slate-400" />
-                        <div>
-                          <span className="font-medium block">{log.file_name || sources.find(source => source.id === log.source_id)?.name || 'File not produced'}</span>
+                    <TableCell className="whitespace-normal min-w-[200px] max-w-[360px]">
+                      <div className="flex items-start gap-2">
+                        <HardDrive className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
+                        <div className="min-w-0">
+                          <span className="font-medium block break-all line-clamp-2 leading-snug" title={log.file_name || sources.find(source => source.id === log.source_id)?.name || 'File not produced'}>
+                            {log.file_name || sources.find(source => source.id === log.source_id)?.name || 'File not produced'}
+                          </span>
                           {log.error_message && <DropboxErrorHint message={log.error_message} className="max-w-md mt-1" />}
                         </div>
                       </div>
