@@ -114,6 +114,10 @@ const BackupLogs: React.FC = () => {
       console.error('Error loading backup sources:', error);
     });
 
+    BackupLogsService.getSourceRecordCounts().then(setRecordCounts).catch(error => {
+      console.error('Error loading source record counts:', error);
+    });
+
     // Show which Dropbox app is connected alongside the logs
     ApiService.getDropboxConfig().then(config => {
       setDropboxApp({
