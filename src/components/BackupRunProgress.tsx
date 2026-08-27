@@ -232,6 +232,11 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }
                 <XCircle className="h-3 w-3" /> {counts.failed} failed
               </Badge>
             )}
+            {counts.no_data > 0 && (
+              <Badge variant="outline" className="gap-1">
+                <MinusCircle className="h-3 w-3" /> {counts.no_data} no data
+              </Badge>
+            )}
           </div>
         </div>
 
@@ -250,9 +255,14 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }
                   {status === 'processing' && <Loader2 className="h-4 w-4 animate-spin text-yellow-600" />}
                   {status === 'timed_out' && <AlertTriangle className="h-4 w-4 text-destructive" />}
                   {status === 'failed' && <XCircle className="h-4 w-4 text-destructive" />}
+                  {status === 'no_data' && <MinusCircle className="h-4 w-4 text-muted-foreground" />}
                   <div className="min-w-0">
                     <span className="font-medium block truncate">{sourceName}</span>
-                    {reason && <DropboxErrorHint message={reason} compact />}
+                    {reason && (
+                      status === 'no_data'
+                        ? <span className="text-xs text-muted-foreground block">{reason}</span>
+                        : <DropboxErrorHint message={reason} compact />
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-3 text-muted-foreground">
@@ -260,9 +270,14 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }
                     {(log?.record_count ?? 0).toLocaleString()} records · {formatBytes(log?.file_size)} written
                   </span>
                   {log && <span>{relativeTime(log.updated_at || log.created_at)}</span>}
-                  <Badge variant={status === 'processing' ? 'secondary' : 'destructive'}>
+                  <Badge
+                    variant={
+                      status === 'processing' ? 'secondary' : status === 'no_data' ? 'outline' : 'destructive'
+                    }
+                  >
                     {statusLabel[status]}
                   </Badge>
+
                   {sourceActive && status !== 'processing' && (
                     <Button
                       variant="outline"
