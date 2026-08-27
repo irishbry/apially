@@ -15,9 +15,17 @@ import DropboxErrorHint from "@/components/DropboxErrorHint";
 // the edge function died mid-run and will never finalize the row itself.
 export const STALE_AFTER_MS = 10 * 60 * 1000;
 
-export type DerivedStatus = 'completed' | 'failed' | 'processing' | 'timed_out';
+export type DerivedStatus = 'completed' | 'failed' | 'processing' | 'timed_out' | 'no_data';
+
+// "Failed" rows that are really just "this source had nothing to back up that day".
+export const isNoDataMessage = (message?: string | null) =>
+  Boolean(message && (
+    message.startsWith('No eligible data was received') ||
+    message.startsWith('Source is paused')
+  ));
 
 export const deriveStatus = (log: BackupLog, now = Date.now()): DerivedStatus => {
+  if (log.status === 'failed' && isNoDataMessage(log.error_message)) return 'no_data';
   if (log.status !== 'processing') return log.status as DerivedStatus;
   const touchedAt = new Date(log.updated_at || log.created_at).getTime();
   return now - touchedAt > STALE_AFTER_MS ? 'timed_out' : 'processing';
@@ -28,6 +36,7 @@ export const statusLabel: Record<DerivedStatus, string> = {
   failed: 'Failed',
   processing: 'In progress',
   timed_out: 'Timed out',
+  no_data: 'No data',
 };
 
 const formatBytes = (bytes?: number) => {
