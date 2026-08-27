@@ -124,11 +124,12 @@ const handler = async (req: Request): Promise<Response> => {
     // Rebuild missing Dropbox share links / Storage copies for completed backups
     if (action === 'repair_links') {
       if (!userId) {
-        return new Response(JSON.stringify({ error: 'userId is required' }), {
+        return new Response(JSON.stringify({ success: false, error: 'userId is required' }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
+      console.log(`[repair_links] starting for user ${userId} with limit ${Number(limit) > 0 ? Number(limit) : 10}`);
       return await repairBackupLinks(userId, Number(limit) > 0 ? Number(limit) : 10);
     }
 
