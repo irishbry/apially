@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { toZonedTime, fromZonedTime, format } from "https://esm.sh/date-fns-tz@3.0.0";
 import {
   addCsvColumns,
+  dropboxPath as buildDropboxPath,
   DropboxUploadSession,
   orderCsvColumns,
   serializeCsvHeader,
@@ -113,12 +114,24 @@ const handler = async (req: Request): Promise<Response> => {
   console.log('Starting Dropbox backup process...');
 
   try {
-    const { userId, format: exportFormat = 'csv', dropboxPath, dropboxToken, action = 'backup', sourceId, pstDate } = await req.json();
+    const { userId, format: exportFormat = 'csv', dropboxPath, dropboxToken, action = 'backup', sourceId, pstDate, limit } = await req.json();
 
     // Handle different actions
     if (action === 'test_connection') {
       return await testDropboxConnection(dropboxPath, dropboxToken);
     }
+
+    // Rebuild missing Dropbox share links / Storage copies for completed backups
+    if (action === 'repair_links') {
+      if (!userId) {
+        return new Response(JSON.stringify({ error: 'userId is required' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      return await repairBackupLinks(userId, Number(limit) > 0 ? Number(limit) : 10);
+    }
+
 
     if (action === 'scheduled_backup') {
       return await processScheduledBackups();
@@ -1012,6 +1025,91 @@ async function copyDropboxFileToStorage(
   }
 }
 
+/**
+ * Backfill download links for completed backups whose Dropbox share link or
+ * Storage copy failed during finalize. The CSV already lives in Dropbox, so we
+ * only re-create the share link and copy the file into Supabase Storage.
+ */
+async function repairBackupLinks(userId: string, batchSize = 10): Promise<Response> {
+  const { data: config } = await supabase
+    .from('dropbox_configs')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('is_active', true)
+    .maybeSingle();
+
+  if (!config) {
+    return new Response(JSON.stringify({ success: false, error: 'No active Dropbox configuration found' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const validConfig = await ensureValidAccessToken(config as DropboxConfig);
+  if (!validConfig) {
+    return new Response(JSON.stringify({ success: false, error: 'Failed to obtain a valid Dropbox access token' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const { data: logs, error } = await supabase
+    .from('backup_logs')
+    .select('id, file_name, storage_path, dropbox_url')
+    .eq('user_id', userId)
+    .eq('status', 'completed')
+    .not('file_name', 'is', null)
+    .or('storage_path.is.null,dropbox_url.is.null')
+    .order('created_at', { ascending: false })
+    .limit(batchSize);
+
+  if (error) {
+    return new Response(JSON.stringify({ success: false, error: error.message }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  let repaired = 0;
+  let failed = 0;
+  const failures: string[] = [];
+
+  for (const log of logs ?? []) {
+    const fullPath = buildDropboxPath(validConfig.dropbox_path, log.file_name as string);
+    try {
+      const [dropboxUrl, storageResult] = await Promise.all([
+        log.dropbox_url ? Promise.resolve(log.dropbox_url as string) : getDropboxSharedLink(validConfig.dropbox_token, fullPath),
+        log.storage_path
+          ? Promise.resolve({ success: true, path: log.storage_path as string })
+          : copyDropboxFileToStorage(validConfig.dropbox_token, fullPath, userId, log.file_name as string),
+      ]);
+
+      if (!dropboxUrl && !storageResult.path) {
+        failed += 1;
+        failures.push(log.file_name as string);
+        continue;
+      }
+
+      await updateBackupLog(log.id as string, {
+        dropbox_url: dropboxUrl,
+        storage_path: storageResult.path ?? null,
+      });
+      repaired += 1;
+    } catch (repairError) {
+      console.error(`Link repair failed for ${log.file_name}:`, repairError);
+      failed += 1;
+      failures.push(log.file_name as string);
+    }
+  }
+
+  return new Response(
+    JSON.stringify({ success: true, checked: logs?.length ?? 0, repaired, failed, failures: failures.slice(0, 10) }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+  );
+}
+
+
+
 async function streamCsvBackupForSource(options: SourceBackupOptions): Promise<SourceBackupResult> {
   const columns = new Set<string>();
   let recordCount = 0;
@@ -1128,6 +1226,9 @@ async function streamCsvBackupForSource(options: SourceBackupOptions): Promise<S
       file_size: upload.byteCount,
       storage_path: storageResult.path ?? null,
       dropbox_url: dropboxUrl,
+      error_message: !dropboxUrl && !storageResult.path
+        ? 'File uploaded to Dropbox, but the download link could not be created (check Dropbox sharing permissions). Use "Restore download links" to retry.'
+        : null,
     });
     log.event('source', {
       result: 'completed',
