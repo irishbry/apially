@@ -429,21 +429,36 @@ const BackupLogs: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            {sourceNames.length > 1 && (
-              <Tabs value={selectedSource} onValueChange={setSelectedSource}>
-                <TabsList className="flex-wrap h-auto gap-1">
-                  <TabsTrigger value="all">All Sources</TabsTrigger>
-                  {sourceNames.map(name => (
-                    <TabsTrigger key={name} value={name}>
-                      {name}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              </Tabs>
-            )}
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+              {sourceNames.length > 1 && (
+                <Tabs value={selectedSource} onValueChange={setSelectedSource}>
+                  <TabsList className="flex-wrap h-auto gap-1">
+                    <TabsTrigger value="all">All Sources</TabsTrigger>
+                    {sourceNames.map(name => (
+                      <TabsTrigger key={name} value={name}>
+                        {name}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                </Tabs>
+              )}
+              <div className="flex items-center gap-2 shrink-0">
+                <Switch
+                  id="show-all-sources"
+                  checked={showAllSources}
+                  onCheckedChange={setShowAllSources}
+                />
+                <Label htmlFor="show-all-sources" className="text-sm text-muted-foreground cursor-pointer">
+                  Show all sources
+                </Label>
+              </div>
+            </div>
 
             <div className="flex items-center justify-between text-sm text-muted-foreground">
               <span>{filteredLogs.length} backup log{filteredLogs.length !== 1 ? 's' : ''} found{selectedSource !== 'all' ? ` for ${selectedSource}` : ''}</span>
+              {!showAllSources && (
+                <span className="text-xs">Showing active sources with data</span>
+              )}
             </div>
 
             <Table>
