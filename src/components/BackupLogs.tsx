@@ -336,8 +336,11 @@ const BackupLogs: React.FC = () => {
       let repaired = 0;
       let failed = 0;
       const allFailures: string[] = [];
+      const allRepaired: string[] = [];
       const batchSize = 8;
       const estimatedBatches = Math.max(1, Math.ceil(missingLinkCount / batchSize));
+
+      console.log(`[BackupLogs] starting link repair for ${missingLinkCount} missing links`);
 
       for (let round = 0; round < 20; round++) {
         setRepairProgress(prev => ({
@@ -349,13 +352,17 @@ const BackupLogs: React.FC = () => {
         const { data, error } = await supabase.functions.invoke('dropbox-backup', {
           body: { action: 'repair_links', userId: user.id, limit: batchSize },
         });
+        console.log(`[BackupLogs] repair batch ${round + 1} response:`, { data, error });
         if (error) throw error;
-        if (data?.success === false) throw new Error(data.error || 'Link repair failed');
+        if (data?.success === false || data?.error) throw new Error(data.error || 'Link repair failed');
 
         repaired += data?.repaired ?? 0;
         failed += data?.failed ?? 0;
         if (data?.failures?.length) {
           allFailures.push(...data.failures);
+        }
+        if (data?.repairedFiles?.length) {
+          allRepaired.push(...data.repairedFiles);
         }
 
         const checked = data?.checked ?? 0;
