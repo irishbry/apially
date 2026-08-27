@@ -320,19 +320,61 @@ const BackupLogs: React.FC = () => {
   const handleRepairLinks = async () => {
     if (!user) return;
     setIsRepairing(true);
+    setRepairProgress({
+      batch: 0,
+      totalRepaired: 0,
+      totalFailed: 0,
+      remaining: missingLinkCount,
+      currentFile: undefined,
+      done: false,
+      failures: [],
+    });
+    setShowRepairDetails(true);
+
     try {
       // Repair in small batches so each Edge Function call stays inside its runtime limit
       let repaired = 0;
       let failed = 0;
-      for (let round = 0; round < 15; round++) {
+      const allFailures: string[] = [];
+      const batchSize = 8;
+      const estimatedBatches = Math.max(1, Math.ceil(missingLinkCount / batchSize));
+
+      for (let round = 0; round < 20; round++) {
+        setRepairProgress(prev => ({
+          ...prev!,
+          batch: round + 1,
+          currentFile: `Batch ${round + 1} of ~${estimatedBatches}...`,
+        }));
+
         const { data, error } = await supabase.functions.invoke('dropbox-backup', {
-          body: { action: 'repair_links', userId: user.id, limit: 8 },
+          body: { action: 'repair_links', userId: user.id, limit: batchSize },
         });
         if (error) throw error;
         if (data?.success === false) throw new Error(data.error || 'Link repair failed');
+
         repaired += data?.repaired ?? 0;
         failed += data?.failed ?? 0;
-        if ((data?.checked ?? 0) === 0 || (data?.repaired ?? 0) === 0) break;
+        if (data?.failures?.length) {
+          allFailures.push(...data.failures);
+        }
+
+        const checked = data?.checked ?? 0;
+        const justProcessed = (data?.repaired ?? 0) + (data?.failed ?? 0);
+        const remaining = Math.max(0, missingLinkCount - repaired - failed);
+
+        setRepairProgress({
+          batch: round + 1,
+          totalRepaired: repaired,
+          totalFailed: failed,
+          remaining,
+          currentFile: checked === 0
+            ? 'No more missing links found'
+            : `Batch ${round + 1}: ${data?.repaired ?? 0} repaired, ${data?.failed ?? 0} failed`,
+          done: checked === 0 || justProcessed === 0,
+          failures: allFailures.slice(0, 50),
+        });
+
+        if (checked === 0 || justProcessed === 0) break;
       }
 
       toast({
@@ -341,6 +383,8 @@ const BackupLogs: React.FC = () => {
       });
       await loadBackupLogs();
     } catch (repairError) {
+      console.error('Repair links error:', repairError);
+      setRepairProgress(prev => prev ? { ...prev, done: true } : null);
       toast({
         title: "Could not restore links",
         description: repairError instanceof Error ? repairError.message : 'Unknown error',
