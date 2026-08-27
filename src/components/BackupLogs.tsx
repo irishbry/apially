@@ -54,6 +54,8 @@ const BackupLogs: React.FC = () => {
   const [isDownloadingId, setIsDownloadingId] = useState<string | null>(null);
   const [selectedSource, setSelectedSource] = useState<string>('all');
   const [dropboxApp, setDropboxApp] = useState<{ appKey: string | null; connected: boolean } | null>(null);
+  const [recordCounts, setRecordCounts] = useState<Record<string, number>>({});
+  const [showAllSources, setShowAllSources] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
 
