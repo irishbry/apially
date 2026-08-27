@@ -72,6 +72,20 @@ const getLosAngelesDate = (iso: string) => {
   return `${value('year')}-${value('month')}-${value('day')}`;
 };
 
+/**
+ * The day whose data a backup covers. Scheduled runs execute at ~3 AM PST and
+ * back up the *previous* PST day, so retrying must not use the run's own date.
+ */
+export const backupTargetDate = (log?: BackupLog, fallbackIso?: string | null) => {
+  if (log?.backup_date) return log.backup_date;
+  const iso = log?.created_at ?? fallbackIso;
+  if (!iso) return null;
+  const runDay = getLosAngelesDate(iso);
+  const [y, m, d] = runDay.split('-').map(Number);
+  const previous = new Date(Date.UTC(y, m - 1, d - 1));
+  return previous.toISOString().slice(0, 10);
+};
+
 interface Props {
   logs: BackupLog[];
   sources: BackupSource[];
