@@ -43,6 +43,7 @@ const formatTime = (iso: string) =>
 
 const errorCause = (status: DerivedStatus, log?: BackupLog) => {
   if (!log) return 'No backup record — the run ended before this source started.';
+  if (status === 'no_data') return log.error_message || 'No data was received for this day.';
   if (log.error_message) return log.error_message;
   if (status === 'timed_out') return 'No progress update for over 10 minutes — the job stopped mid-upload.';
   if (status === 'failed') return 'Backup failed without a reported reason.';
@@ -54,6 +55,7 @@ const statusIcon = (status: DerivedStatus) => {
   if (status === 'completed') return <CheckCircle2 className="h-4 w-4 text-green-600" />;
   if (status === 'processing') return <Loader2 className="h-4 w-4 animate-spin text-yellow-600" />;
   if (status === 'timed_out') return <AlertTriangle className="h-4 w-4 text-destructive" />;
+  if (status === 'no_data') return <MinusCircle className="h-4 w-4 text-muted-foreground" />;
   return <XCircle className="h-4 w-4 text-destructive" />;
 };
 
