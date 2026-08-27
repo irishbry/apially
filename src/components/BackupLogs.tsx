@@ -65,6 +65,16 @@ const BackupLogs: React.FC = () => {
   const [recordCounts, setRecordCounts] = useState<Record<string, number>>({});
   const [showAllSources, setShowAllSources] = useState(false);
   const [isRepairing, setIsRepairing] = useState(false);
+  const [repairProgress, setRepairProgress] = useState<{
+    batch: number;
+    totalRepaired: number;
+    totalFailed: number;
+    remaining: number;
+    currentFile?: string;
+    done: boolean;
+    failures: string[];
+  } | null>(null);
+  const [showRepairDetails, setShowRepairDetails] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
 
