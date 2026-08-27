@@ -135,7 +135,7 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }
         acc[item.status] += 1;
         return acc;
       },
-      { completed: 0, failed: 0, processing: 0, timed_out: 0 } as Record<DerivedStatus, number>,
+      { completed: 0, failed: 0, processing: 0, timed_out: 0, no_data: 0 } as Record<DerivedStatus, number>,
     );
 
     return {
@@ -147,13 +147,15 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }
 
   if (runLogs.length === 0) return null;
 
-  const finished = counts.completed + counts.failed + counts.timed_out;
+  const finished = counts.completed + counts.failed + counts.timed_out + counts.no_data;
   const percent = Math.round((finished / runLogs.length) * 100);
   const hasProblem = counts.failed > 0 || counts.timed_out > 0;
   const unhealthy = runLogs.filter((item) => item.status !== 'completed');
 
   const retryBackup = async (sourceId: string, sourceName: string, log?: BackupLog) => {
     if (!user || !runStartedAt) return;
+    const pstDate = backupTargetDate(log, runStartedAt);
+    if (!pstDate) return;
     setRetryingSourceId(sourceId);
     try {
       const { data, error } = await supabase.functions.invoke('dropbox-backup', {
@@ -161,7 +163,7 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }
           action: 'recreate_backup',
           userId: user.id,
           sourceId,
-          pstDate: getLosAngelesDate(log?.created_at ?? runStartedAt),
+          pstDate,
           format: log?.format ?? 'csv',
         },
       });
