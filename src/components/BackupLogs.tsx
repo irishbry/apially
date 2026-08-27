@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import DropboxErrorHint from "@/components/DropboxErrorHint";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -54,6 +56,8 @@ const BackupLogs: React.FC = () => {
   const [isDownloadingId, setIsDownloadingId] = useState<string | null>(null);
   const [selectedSource, setSelectedSource] = useState<string>('all');
   const [dropboxApp, setDropboxApp] = useState<{ appKey: string | null; connected: boolean } | null>(null);
+  const [recordCounts, setRecordCounts] = useState<Record<string, number>>({});
+  const [showAllSources, setShowAllSources] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -61,15 +65,36 @@ const BackupLogs: React.FC = () => {
   const [, setTick] = useState(0);
 
 
+  // Build the list of source names shown in the tab bar.
+  // Default: only active sources that actually have data.
+  // Toggle: show every non-partner source plus any source referenced by logs.
   const sourceNames = useMemo(() => {
-    const names = new Set(sources.map(source => source.name));
+    const allNames = new Set<string>();
+    sources.forEach(source => allNames.add(source.name));
     logs.forEach(log => {
       const source = sources.find(item => item.id === log.source_id);
-      names.add(source?.name ?? extractSourceName(log.file_name));
+      allNames.add(source?.name ?? extractSourceName(log.file_name));
     });
-    names.delete('Unknown');
-    return Array.from(names).sort();
-  }, [logs, sources]);
+    allNames.delete('Unknown');
+
+    if (showAllSources) return Array.from(allNames).sort();
+
+    const visible = new Set<string>();
+    sources.forEach(source => {
+      if (!source.active) return;
+      const hasData = (recordCounts[source.id] || 0) > 0;
+      if (hasData) visible.add(source.name);
+    });
+    // Also keep any source that already has a completed backup log with records
+    logs.forEach(log => {
+      if (log.record_count > 0) {
+        const source = sources.find(item => item.id === log.source_id);
+        const name = source?.name ?? extractSourceName(log.file_name);
+        if (name && name !== 'Unknown') visible.add(name);
+      }
+    });
+    return Array.from(visible).sort();
+  }, [logs, sources, recordCounts, showAllSources]);
 
   const filteredLogs = useMemo(() => {
     if (selectedSource === 'all') return logs;
@@ -89,6 +114,10 @@ const BackupLogs: React.FC = () => {
     }
     BackupLogsService.getBackupSources().then(setSources).catch(error => {
       console.error('Error loading backup sources:', error);
+    });
+
+    BackupLogsService.getSourceRecordCounts().then(setRecordCounts).catch(error => {
+      console.error('Error loading source record counts:', error);
     });
 
     // Show which Dropbox app is connected alongside the logs
@@ -400,21 +429,36 @@ const BackupLogs: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            {sourceNames.length > 1 && (
-              <Tabs value={selectedSource} onValueChange={setSelectedSource}>
-                <TabsList className="flex-wrap h-auto gap-1">
-                  <TabsTrigger value="all">All Sources</TabsTrigger>
-                  {sourceNames.map(name => (
-                    <TabsTrigger key={name} value={name}>
-                      {name}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              </Tabs>
-            )}
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+              {sourceNames.length > 1 && (
+                <Tabs value={selectedSource} onValueChange={setSelectedSource}>
+                  <TabsList className="flex-wrap h-auto gap-1">
+                    <TabsTrigger value="all">All Sources</TabsTrigger>
+                    {sourceNames.map(name => (
+                      <TabsTrigger key={name} value={name}>
+                        {name}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                </Tabs>
+              )}
+              <div className="flex items-center gap-2 shrink-0">
+                <Switch
+                  id="show-all-sources"
+                  checked={showAllSources}
+                  onCheckedChange={setShowAllSources}
+                />
+                <Label htmlFor="show-all-sources" className="text-sm text-muted-foreground cursor-pointer">
+                  Show all sources
+                </Label>
+              </div>
+            </div>
 
             <div className="flex items-center justify-between text-sm text-muted-foreground">
               <span>{filteredLogs.length} backup log{filteredLogs.length !== 1 ? 's' : ''} found{selectedSource !== 'all' ? ` for ${selectedSource}` : ''}</span>
+              {!showAllSources && (
+                <span className="text-xs">Showing active sources with data</span>
+              )}
             </div>
 
             <Table>
