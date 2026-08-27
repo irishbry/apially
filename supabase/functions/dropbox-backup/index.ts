@@ -1056,11 +1056,14 @@ async function repairBackupLinks(userId: string, batchSize = 10): Promise<Respon
 
   const { data: logs, error } = await supabase
     .from('backup_logs')
-    .select('id, file_name, storage_path, dropbox_url')
+    .select('id, file_name, storage_path, dropbox_url, error_message')
     .eq('user_id', userId)
     .eq('status', 'completed')
     .not('file_name', 'is', null)
     .or('storage_path.is.null,dropbox_url.is.null')
+    // Skip rows we already attempted and could not produce any new link for,
+    // otherwise the same unfixable rows are re-selected every batch forever.
+    .or('error_message.is.null,error_message.neq.link_repair_unavailable')
     .order('created_at', { ascending: false })
     .limit(batchSize);
 
