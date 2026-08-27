@@ -113,7 +113,7 @@ const BackupRunDashboard: React.FC<Props> = ({ logs, sources, extractSourceName 
       acc.records += row.log?.record_count ?? 0;
       return acc;
     },
-    { completed: 0, failed: 0, processing: 0, timed_out: 0, records: 0 },
+    { completed: 0, failed: 0, processing: 0, timed_out: 0, no_data: 0, records: 0 },
   );
 
   return (
