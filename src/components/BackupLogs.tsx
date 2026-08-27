@@ -570,6 +570,17 @@ const BackupLogs: React.FC = () => {
                 ))}
               </TableBody>
             </Table>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t">
+              <Switch
+                id="show-all-sources"
+                checked={showAllSources}
+                onCheckedChange={setShowAllSources}
+              />
+              <Label htmlFor="show-all-sources" className="text-sm text-muted-foreground cursor-pointer">
+                Show all sources
+              </Label>
+            </div>
           </div>
         )}
       </CardContent>
