@@ -1056,11 +1056,14 @@ async function repairBackupLinks(userId: string, batchSize = 10): Promise<Respon
 
   const { data: logs, error } = await supabase
     .from('backup_logs')
-    .select('id, file_name, storage_path, dropbox_url')
+    .select('id, file_name, storage_path, dropbox_url, error_message')
     .eq('user_id', userId)
     .eq('status', 'completed')
     .not('file_name', 'is', null)
     .or('storage_path.is.null,dropbox_url.is.null')
+    // Skip rows we already attempted and could not produce any new link for,
+    // otherwise the same unfixable rows are re-selected every batch forever.
+    .or('error_message.is.null,error_message.neq.link_repair_unavailable')
     .order('created_at', { ascending: false })
     .limit(batchSize);
 
@@ -1093,6 +1096,20 @@ async function repairBackupLinks(userId: string, batchSize = 10): Promise<Respon
         console.warn(`[repairBackupLinks] no link or storage path produced for ${log.file_name}`);
         failed += 1;
         failures.push(log.file_name as string);
+        continue;
+      }
+
+      const producedNewDropboxLink = !log.dropbox_url && !!dropboxUrl;
+      const producedNewStorageCopy = !log.storage_path && !!storageResult.path;
+
+      // Nothing new was created (e.g. the Dropbox share link scope is still
+      // missing, so getDropboxSharedLink returned null). Mark the row so it is
+      // not re-selected by the next batch and count it as a failure.
+      if (!producedNewDropboxLink && !producedNewStorageCopy) {
+        console.warn(`[repairBackupLinks] nothing new produced for ${log.file_name}; marking as unrepairable`);
+        await updateBackupLog(log.id as string, { error_message: 'link_repair_unavailable' });
+        failed += 1;
+        failures.push(`${log.file_name} (Dropbox share link unavailable — check sharing.write scope)`);
         continue;
       }
 
