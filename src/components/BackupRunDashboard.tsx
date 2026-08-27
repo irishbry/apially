@@ -72,7 +72,8 @@ const BackupRunDashboard: React.FC<Props> = ({ logs, sources, extractSourceName 
     const byDay = new Map<string, Map<string, BackupLog>>();
 
     logs.forEach((log) => {
-      const day = pstDay(log.created_at);
+      // Group by the day the data covers, falling back to the run day.
+      const day = log.backup_date ?? pstDay(log.created_at);
       const source = sources.find((s) => s.id === log.source_id);
       const name = source?.name ?? extractSourceName(log.file_name);
       if (!byDay.has(day)) byDay.set(day, new Map());
