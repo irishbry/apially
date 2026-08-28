@@ -61,7 +61,7 @@ const relativeTime = (iso: string) => {
   return `${Math.floor(hours / 24)}d ago`;
 };
 
-const getLosAngelesDate = (iso: string) => {
+export const getLosAngelesDate = (iso: string) => {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/Los_Angeles',
     year: 'numeric',
