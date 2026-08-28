@@ -136,9 +136,81 @@ const BackupLogs: React.FC = () => {
   }, [logs, sources, recordCounts, showAllSources, resolveLogName]);
 
   const filteredLogs = useMemo(() => {
-    if (selectedSource === 'all') return logs;
-    return logs.filter(log => resolveLogName(log) === selectedSource);
-  }, [logs, selectedSource, resolveLogName]);
+    const bySource = selectedSource === 'all'
+      ? logs
+      : logs.filter(log => resolveLogName(log) === selectedSource);
+    // Successful backups only — failures are summarized as one notice per day
+    // instead of repeating an error row for every attempt.
+    if (showFailedAttempts) return bySource;
+    return bySource.filter(log => log.status === 'completed' || log.status === 'processing');
+  }, [logs, selectedSource, resolveLogName, showFailedAttempts]);
+
+  // Sources that should produce a file every day
+  const expectedSources = useMemo(
+    () => sources.filter(source =>
+      source.active
+      && !source.is_partner
+      && (selectedSource === 'all'
+        ? (recordCounts[source.id] || 0) > 0
+        : source.name === selectedSource)),
+    [sources, selectedSource, recordCounts],
+  );
+
+  // Days (last 14) where an expected source produced no completed backup file
+  const missingDays = useMemo(() => {
+    if (expectedSources.length === 0) return [];
+    const done = new Set<string>();
+    logs.forEach(log => {
+      if (log.status !== 'completed' || !log.file_name) return;
+      const day = backupTargetDate(log);
+      if (day) done.add(`${resolveLogName(log)}|${day}`);
+    });
+
+    const todayPst = getLosAngelesDate(new Date().toISOString());
+    const [y, m, d] = todayPst.split('-').map(Number);
+    const result: { date: string; sources: BackupSource[] }[] = [];
+    for (let i = 1; i <= 14; i++) {
+      const date = new Date(Date.UTC(y, m - 1, d - i)).toISOString().slice(0, 10);
+      const missing = expectedSources.filter(source => !done.has(`${source.name}|${date}`));
+      if (missing.length > 0) result.push({ date, sources: missing });
+    }
+    return result;
+  }, [logs, expectedSources, resolveLogName]);
+
+  const retryDay = async (date: string, targets: BackupSource[]) => {
+    if (!user) return;
+    setRetryingDay(date);
+    let ok = 0;
+    let failed = 0;
+    try {
+      for (const source of targets) {
+        try {
+          const { data, error } = await supabase.functions.invoke('dropbox-backup', {
+            body: {
+              action: 'recreate_backup',
+              userId: user.id,
+              sourceId: source.id,
+              pstDate: date,
+              format: 'csv',
+            },
+          });
+          if (error || data?.success === false) throw new Error(error?.message || data?.error || 'Backup failed');
+          ok++;
+        } catch (sourceError) {
+          console.error(`Retry failed for ${source.name} on ${date}:`, sourceError);
+          failed++;
+        }
+      }
+      toast({
+        title: `Retry finished for ${date}`,
+        description: `${ok} source${ok !== 1 ? 's' : ''} backed up${failed ? `, ${failed} still missing` : ''}.`,
+        variant: failed && !ok ? 'destructive' : 'default',
+      });
+      await loadBackupLogs(true);
+    } finally {
+      setRetryingDay(null);
+    }
+  };
 
 
   useEffect(() => {
