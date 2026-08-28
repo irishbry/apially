@@ -726,6 +726,43 @@ const BackupLogs: React.FC = () => {
               </Alert>
             )}
 
+            {missingDays.length > 0 && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle className="text-sm">
+                  Missing backups for {missingDays.length} day{missingDays.length !== 1 ? 's' : ''}
+                </AlertTitle>
+                <AlertDescription className="text-xs">
+                  <div className="mt-2 space-y-1">
+                    {missingDays.slice(0, 7).map(({ date, sources: missing }) => (
+                      <div key={date} className="flex flex-wrap items-center justify-between gap-2">
+                        <span>
+                          <span className="font-medium">{date}</span>
+                          {' — '}
+                          {missing.length} source{missing.length !== 1 ? 's' : ''} without a file
+                          {missing.length <= 4 ? ` (${missing.map(s => s.name).join(', ')})` : ''}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 gap-1 text-xs"
+                          disabled={retryingDay !== null}
+                          onClick={() => retryDay(date, missing)}
+                        >
+                          {retryingDay === date ? (
+                            <div className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <Wrench className="h-3 w-3" />
+                          )}
+                          Retry {date}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
+
             <Table>
               <TableHeader>
                 <TableRow>
