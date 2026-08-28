@@ -37,7 +37,7 @@ import { BackupLogsService, BackupLog, BackupSource } from "@/services/BackupLog
 import { useAuth } from "@/hooks/useAuth";
 import { ApiService } from "@/services/ApiService";
 import { supabase } from "@/integrations/supabase/client";
-import BackupRunProgress, { deriveStatus, statusLabel } from "@/components/BackupRunProgress";
+import BackupRunProgress, { deriveStatus, statusLabel, backupTargetDate, getLosAngelesDate } from "@/components/BackupRunProgress";
 import BackupRunDashboard from "@/components/BackupRunDashboard";
 
 // Extract source name from backup file name pattern: backup_YYYY-MM-DD_SourceName.csv
@@ -64,6 +64,8 @@ const BackupLogs: React.FC = () => {
   const [dropboxApp, setDropboxApp] = useState<{ appKey: string | null; connected: boolean } | null>(null);
   const [recordCounts, setRecordCounts] = useState<Record<string, number>>({});
   const [showAllSources, setShowAllSources] = useState(false);
+  const [showFailedAttempts, setShowFailedAttempts] = useState(false);
+  const [retryingDay, setRetryingDay] = useState<string | null>(null);
   const [isRepairing, setIsRepairing] = useState(false);
   const [repairProgress, setRepairProgress] = useState<{
     batch: number;
