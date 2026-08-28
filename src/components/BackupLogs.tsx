@@ -885,15 +885,27 @@ const BackupLogs: React.FC = () => {
               </TableBody>
             </Table>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t">
-              <Switch
-                id="show-all-sources"
-                checked={showAllSources}
-                onCheckedChange={setShowAllSources}
-              />
-              <Label htmlFor="show-all-sources" className="text-sm text-muted-foreground cursor-pointer">
-                Show all sources
-              </Label>
+            <div className="flex flex-wrap items-center justify-end gap-4 pt-2 border-t">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="show-failed-attempts"
+                  checked={showFailedAttempts}
+                  onCheckedChange={setShowFailedAttempts}
+                />
+                <Label htmlFor="show-failed-attempts" className="text-sm text-muted-foreground cursor-pointer">
+                  Show failed attempts
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="show-all-sources"
+                  checked={showAllSources}
+                  onCheckedChange={setShowAllSources}
+                />
+                <Label htmlFor="show-all-sources" className="text-sm text-muted-foreground cursor-pointer">
+                  Show all sources
+                </Label>
+              </div>
             </div>
           </div>
         )}
