@@ -793,7 +793,7 @@ const BackupLogs: React.FC = () => {
                           <span className="font-medium block break-all line-clamp-2 leading-snug" title={log.file_name || sources.find(source => source.id === log.source_id)?.name || 'File not produced'}>
                             {log.file_name || sources.find(source => source.id === log.source_id)?.name || 'File not produced'}
                           </span>
-                          {log.error_message && <DropboxErrorHint message={log.error_message} className="max-w-md mt-1" />}
+                          {showFailedAttempts && log.error_message && <DropboxErrorHint message={log.error_message} className="max-w-md mt-1" />}
                         </div>
                       </div>
                     </TableCell>
