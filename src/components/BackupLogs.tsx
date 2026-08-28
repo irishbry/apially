@@ -37,7 +37,7 @@ import { BackupLogsService, BackupLog, BackupSource } from "@/services/BackupLog
 import { useAuth } from "@/hooks/useAuth";
 import { ApiService } from "@/services/ApiService";
 import { supabase } from "@/integrations/supabase/client";
-import BackupRunProgress, { deriveStatus, statusLabel } from "@/components/BackupRunProgress";
+import BackupRunProgress, { deriveStatus, statusLabel, backupTargetDate, getLosAngelesDate } from "@/components/BackupRunProgress";
 import BackupRunDashboard from "@/components/BackupRunDashboard";
 
 // Extract source name from backup file name pattern: backup_YYYY-MM-DD_SourceName.csv
@@ -64,6 +64,8 @@ const BackupLogs: React.FC = () => {
   const [dropboxApp, setDropboxApp] = useState<{ appKey: string | null; connected: boolean } | null>(null);
   const [recordCounts, setRecordCounts] = useState<Record<string, number>>({});
   const [showAllSources, setShowAllSources] = useState(false);
+  const [showFailedAttempts, setShowFailedAttempts] = useState(false);
+  const [retryingDay, setRetryingDay] = useState<string | null>(null);
   const [isRepairing, setIsRepairing] = useState(false);
   const [repairProgress, setRepairProgress] = useState<{
     batch: number;
@@ -136,9 +138,81 @@ const BackupLogs: React.FC = () => {
   }, [logs, sources, recordCounts, showAllSources, resolveLogName]);
 
   const filteredLogs = useMemo(() => {
-    if (selectedSource === 'all') return logs;
-    return logs.filter(log => resolveLogName(log) === selectedSource);
-  }, [logs, selectedSource, resolveLogName]);
+    const bySource = selectedSource === 'all'
+      ? logs
+      : logs.filter(log => resolveLogName(log) === selectedSource);
+    // Successful backups only — failures are summarized as one notice per day
+    // instead of repeating an error row for every attempt.
+    if (showFailedAttempts) return bySource;
+    return bySource.filter(log => log.status === 'completed' || log.status === 'processing');
+  }, [logs, selectedSource, resolveLogName, showFailedAttempts]);
+
+  // Sources that should produce a file every day
+  const expectedSources = useMemo(
+    () => sources.filter(source =>
+      source.active
+      && !source.is_partner
+      && (selectedSource === 'all'
+        ? (recordCounts[source.id] || 0) > 0
+        : source.name === selectedSource)),
+    [sources, selectedSource, recordCounts],
+  );
+
+  // Days (last 14) where an expected source produced no completed backup file
+  const missingDays = useMemo(() => {
+    if (expectedSources.length === 0) return [];
+    const done = new Set<string>();
+    logs.forEach(log => {
+      if (log.status !== 'completed' || !log.file_name) return;
+      const day = backupTargetDate(log);
+      if (day) done.add(`${resolveLogName(log)}|${day}`);
+    });
+
+    const todayPst = getLosAngelesDate(new Date().toISOString());
+    const [y, m, d] = todayPst.split('-').map(Number);
+    const result: { date: string; sources: BackupSource[] }[] = [];
+    for (let i = 1; i <= 14; i++) {
+      const date = new Date(Date.UTC(y, m - 1, d - i)).toISOString().slice(0, 10);
+      const missing = expectedSources.filter(source => !done.has(`${source.name}|${date}`));
+      if (missing.length > 0) result.push({ date, sources: missing });
+    }
+    return result;
+  }, [logs, expectedSources, resolveLogName]);
+
+  const retryDay = async (date: string, targets: BackupSource[]) => {
+    if (!user) return;
+    setRetryingDay(date);
+    let ok = 0;
+    let failed = 0;
+    try {
+      for (const source of targets) {
+        try {
+          const { data, error } = await supabase.functions.invoke('dropbox-backup', {
+            body: {
+              action: 'recreate_backup',
+              userId: user.id,
+              sourceId: source.id,
+              pstDate: date,
+              format: 'csv',
+            },
+          });
+          if (error || data?.success === false) throw new Error(error?.message || data?.error || 'Backup failed');
+          ok++;
+        } catch (sourceError) {
+          console.error(`Retry failed for ${source.name} on ${date}:`, sourceError);
+          failed++;
+        }
+      }
+      toast({
+        title: `Retry finished for ${date}`,
+        description: `${ok} source${ok !== 1 ? 's' : ''} backed up${failed ? `, ${failed} still missing` : ''}.`,
+        variant: failed && !ok ? 'destructive' : 'default',
+      });
+      await loadBackupLogs(true);
+    } finally {
+      setRetryingDay(null);
+    }
+  };
 
 
   useEffect(() => {
@@ -652,6 +726,43 @@ const BackupLogs: React.FC = () => {
               </Alert>
             )}
 
+            {missingDays.length > 0 && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle className="text-sm">
+                  Missing backups for {missingDays.length} day{missingDays.length !== 1 ? 's' : ''}
+                </AlertTitle>
+                <AlertDescription className="text-xs">
+                  <div className="mt-2 space-y-1">
+                    {missingDays.slice(0, 7).map(({ date, sources: missing }) => (
+                      <div key={date} className="flex flex-wrap items-center justify-between gap-2">
+                        <span>
+                          <span className="font-medium">{date}</span>
+                          {' — '}
+                          {missing.length} source{missing.length !== 1 ? 's' : ''} without a file
+                          {missing.length <= 4 ? ` (${missing.map(s => s.name).join(', ')})` : ''}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 gap-1 text-xs"
+                          disabled={retryingDay !== null}
+                          onClick={() => retryDay(date, missing)}
+                        >
+                          {retryingDay === date ? (
+                            <div className="h-3 w-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <Wrench className="h-3 w-3" />
+                          )}
+                          Retry {date}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
+
             <Table>
               <TableHeader>
                 <TableRow>
@@ -682,7 +793,7 @@ const BackupLogs: React.FC = () => {
                           <span className="font-medium block break-all line-clamp-2 leading-snug" title={log.file_name || sources.find(source => source.id === log.source_id)?.name || 'File not produced'}>
                             {log.file_name || sources.find(source => source.id === log.source_id)?.name || 'File not produced'}
                           </span>
-                          {log.error_message && <DropboxErrorHint message={log.error_message} className="max-w-md mt-1" />}
+                          {showFailedAttempts && log.error_message && <DropboxErrorHint message={log.error_message} className="max-w-md mt-1" />}
                         </div>
                       </div>
                     </TableCell>
@@ -774,15 +885,27 @@ const BackupLogs: React.FC = () => {
               </TableBody>
             </Table>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t">
-              <Switch
-                id="show-all-sources"
-                checked={showAllSources}
-                onCheckedChange={setShowAllSources}
-              />
-              <Label htmlFor="show-all-sources" className="text-sm text-muted-foreground cursor-pointer">
-                Show all sources
-              </Label>
+            <div className="flex flex-wrap items-center justify-end gap-4 pt-2 border-t">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="show-failed-attempts"
+                  checked={showFailedAttempts}
+                  onCheckedChange={setShowFailedAttempts}
+                />
+                <Label htmlFor="show-failed-attempts" className="text-sm text-muted-foreground cursor-pointer">
+                  Show failed attempts
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="show-all-sources"
+                  checked={showAllSources}
+                  onCheckedChange={setShowAllSources}
+                />
+                <Label htmlFor="show-all-sources" className="text-sm text-muted-foreground cursor-pointer">
+                  Show all sources
+                </Label>
+              </div>
             </div>
           </div>
         )}
