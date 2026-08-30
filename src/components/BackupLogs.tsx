@@ -30,7 +30,8 @@ import {
   AlertTriangle,
   Wrench,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  X
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { BackupLogsService, BackupLog, BackupSource } from "@/services/BackupLogsService";
@@ -180,6 +181,21 @@ const BackupLogs: React.FC = () => {
     }
     return result;
   }, [logs, expectedSources, resolveLogName]);
+
+  // Fingerprint of the current missing-days set — dismissal stays until the
+  // situation changes (new missing day appears or a day gets fixed)
+  const missingDaysKey = useMemo(
+    () => missingDays.map(({ date, sources: m }) => `${date}:${m.map(s => s.name).join(',')}`).join('|'),
+    [missingDays],
+  );
+  const [dismissedMissingKey, setDismissedMissingKey] = useState<string | null>(
+    () => localStorage.getItem('backup-logs-dismissed-missing'),
+  );
+  const dismissMissingDays = () => {
+    localStorage.setItem('backup-logs-dismissed-missing', missingDaysKey);
+    setDismissedMissingKey(missingDaysKey);
+  };
+  const showMissingDays = missingDays.length > 0 && dismissedMissingKey !== missingDaysKey;
 
   const retryDay = async (date: string, targets: BackupSource[]) => {
     if (!user) return;
@@ -728,12 +744,20 @@ const BackupLogs: React.FC = () => {
               </Alert>
             )}
 
-            {missingDays.length > 0 && (
-              <Alert variant="destructive">
+            {showMissingDays && (
+              <Alert variant="destructive" className="relative pr-10">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle className="text-sm">
                   Missing backups for {missingDays.length} day{missingDays.length !== 1 ? 's' : ''}
                 </AlertTitle>
+                <button
+                  type="button"
+                  onClick={dismissMissingDays}
+                  aria-label="Dismiss missing backups notice"
+                  className="absolute right-3 top-3 rounded-md p-1 text-current opacity-60 transition-opacity hover:opacity-100"
+                >
+                  <X className="h-4 w-4" />
+                </button>
                 <AlertDescription className="text-xs">
                   <div className="mt-2 space-y-1">
                     {missingDays.slice(0, 7).map(({ date, sources: missing }) => (
