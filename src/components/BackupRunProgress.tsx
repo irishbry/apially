@@ -101,12 +101,29 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }
   const [retryingSourceId, setRetryingSourceId] = useState<string | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
-  const { runLogs, counts, runStartedAt } = useMemo(() => {
+  const { runLogs, counts, runStartedAt, scheduledRunAt, manualRunAt, runIsManual } = useMemo(() => {
     const now = Date.now();
+    const isScheduled = (log: BackupLog) => log.backup_type === 'scheduled';
+    const newestOf = (items: BackupLog[]) =>
+      items.reduce<number>((max, log) => Math.max(max, new Date(log.created_at).getTime()), 0);
+
+    const scheduledLogs = logs.filter(isScheduled);
+    const manualLogs = logs.filter((log) => !isScheduled(log));
+    const scheduledRunAt = scheduledLogs.length ? new Date(newestOf(scheduledLogs)).toISOString() : null;
+    const manualRunAt = manualLogs.length ? new Date(newestOf(manualLogs)).toISOString() : null;
+
+    // Prefer showing the nightly scheduled run; fall back to manual retries if
+    // no scheduled run exists in the data (or a manual retry is newer).
+    const baseLogs =
+      scheduledLogs.length && (!manualRunAt || new Date(scheduledRunAt!).getTime() >= new Date(manualRunAt).getTime())
+        ? scheduledLogs
+        : manualLogs.length ? manualLogs : logs;
+    const runIsManual = baseLogs.length > 0 && !isScheduled(baseLogs[0]);
+
     // The current "run" = the newest log plus everything within 6h of it.
-    const newest = logs.reduce<number>((max, log) => Math.max(max, new Date(log.created_at).getTime()), 0);
+    const newest = newestOf(baseLogs);
     const windowStart = newest - 6 * 60 * 60 * 1000;
-    const inRun = logs
+    const inRun = baseLogs
       .filter((log) => new Date(log.created_at).getTime() >= windowStart)
       .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
@@ -142,6 +159,9 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }
       runLogs: runLogs.sort((a, b) => a.sourceName.localeCompare(b.sourceName)),
       counts,
       runStartedAt: inRun[0]?.created_at ?? null,
+      scheduledRunAt,
+      manualRunAt,
+      runIsManual,
     };
   }, [logs, sources, extractSourceName]);
 
@@ -190,12 +210,19 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }
             <div>
               <CardTitle className="flex items-center gap-3 text-lg">
                 <Activity className="h-5 w-5 text-primary" />
-                Latest Backup Run
+                {runIsManual ? 'Latest Backup Run (manual retry)' : 'Latest Scheduled Backup Run'}
               </CardTitle>
-              <CardDescription>
-                {runStartedAt
-                  ? `Started ${relativeTime(runStartedAt)} · ${runLogs.length} source${runLogs.length !== 1 ? 's' : ''}`
-                  : 'Per-source progress for the most recent backup run'}
+              <CardDescription className="space-y-0.5">
+                <span className="block">
+                  {runStartedAt
+                    ? `${runIsManual ? 'Manual run' : 'Scheduled run (3am PST)'} started ${relativeTime(runStartedAt)} · ${runLogs.length} source${runLogs.length !== 1 ? 's' : ''}`
+                    : 'Per-source progress for the most recent backup run'}
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  {scheduledRunAt ? `Last scheduled run: ${relativeTime(scheduledRunAt)}` : 'No scheduled run recorded'}
+                  {' · '}
+                  {manualRunAt ? `Last manual retry: ${relativeTime(manualRunAt)}` : 'No manual retries recorded'}
+                </span>
               </CardDescription>
             </div>
             <CollapsibleTrigger asChild>
