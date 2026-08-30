@@ -210,12 +210,19 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }
             <div>
               <CardTitle className="flex items-center gap-3 text-lg">
                 <Activity className="h-5 w-5 text-primary" />
-                Latest Backup Run
+                {runIsManual ? 'Latest Backup Run (manual retry)' : 'Latest Scheduled Backup Run'}
               </CardTitle>
-              <CardDescription>
-                {runStartedAt
-                  ? `Started ${relativeTime(runStartedAt)} · ${runLogs.length} source${runLogs.length !== 1 ? 's' : ''}`
-                  : 'Per-source progress for the most recent backup run'}
+              <CardDescription className="space-y-0.5">
+                <span className="block">
+                  {runStartedAt
+                    ? `${runIsManual ? 'Manual run' : 'Scheduled run (3am PST)'} started ${relativeTime(runStartedAt)} · ${runLogs.length} source${runLogs.length !== 1 ? 's' : ''}`
+                    : 'Per-source progress for the most recent backup run'}
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  {scheduledRunAt ? `Last scheduled run: ${relativeTime(scheduledRunAt)}` : 'No scheduled run recorded'}
+                  {' · '}
+                  {manualRunAt ? `Last manual retry: ${relativeTime(manualRunAt)}` : 'No manual retries recorded'}
+                </span>
               </CardDescription>
             </div>
             <CollapsibleTrigger asChild>
