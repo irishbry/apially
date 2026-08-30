@@ -159,6 +159,9 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }
       runLogs: runLogs.sort((a, b) => a.sourceName.localeCompare(b.sourceName)),
       counts,
       runStartedAt: inRun[0]?.created_at ?? null,
+      scheduledRunAt,
+      manualRunAt,
+      runIsManual,
     };
   }, [logs, sources, extractSourceName]);
 
