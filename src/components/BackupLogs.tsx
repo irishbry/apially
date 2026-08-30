@@ -744,12 +744,20 @@ const BackupLogs: React.FC = () => {
               </Alert>
             )}
 
-            {missingDays.length > 0 && (
-              <Alert variant="destructive">
+            {showMissingDays && (
+              <Alert variant="destructive" className="relative pr-10">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle className="text-sm">
                   Missing backups for {missingDays.length} day{missingDays.length !== 1 ? 's' : ''}
                 </AlertTitle>
+                <button
+                  type="button"
+                  onClick={dismissMissingDays}
+                  aria-label="Dismiss missing backups notice"
+                  className="absolute right-3 top-3 rounded-md p-1 text-current opacity-60 transition-opacity hover:opacity-100"
+                >
+                  <X className="h-4 w-4" />
+                </button>
                 <AlertDescription className="text-xs">
                   <div className="mt-2 space-y-1">
                     {missingDays.slice(0, 7).map(({ date, sources: missing }) => (
