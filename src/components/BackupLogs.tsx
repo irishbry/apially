@@ -182,6 +182,21 @@ const BackupLogs: React.FC = () => {
     return result;
   }, [logs, expectedSources, resolveLogName]);
 
+  // Fingerprint of the current missing-days set — dismissal stays until the
+  // situation changes (new missing day appears or a day gets fixed)
+  const missingDaysKey = useMemo(
+    () => missingDays.map(({ date, sources: m }) => `${date}:${m.map(s => s.name).join(',')}`).join('|'),
+    [missingDays],
+  );
+  const [dismissedMissingKey, setDismissedMissingKey] = useState<string | null>(
+    () => localStorage.getItem('backup-logs-dismissed-missing'),
+  );
+  const dismissMissingDays = () => {
+    localStorage.setItem('backup-logs-dismissed-missing', missingDaysKey);
+    setDismissedMissingKey(missingDaysKey);
+  };
+  const showMissingDays = missingDays.length > 0 && dismissedMissingKey !== missingDaysKey;
+
   const retryDay = async (date: string, targets: BackupSource[]) => {
     if (!user) return;
     setRetryingDay(date);
