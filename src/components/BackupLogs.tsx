@@ -30,7 +30,8 @@ import {
   AlertTriangle,
   Wrench,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  X
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { BackupLogsService, BackupLog, BackupSource } from "@/services/BackupLogsService";
