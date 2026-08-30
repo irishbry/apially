@@ -141,11 +141,13 @@ const BackupLogs: React.FC = () => {
     const bySource = selectedSource === 'all'
       ? logs
       : logs.filter(log => resolveLogName(log) === selectedSource);
-    // Successful backups only — failures are summarized as one notice per day
-    // instead of repeating an error row for every attempt.
-    if (showFailedAttempts) return bySource;
-    return bySource.filter(log => log.status === 'completed' || log.status === 'processing');
-  }, [logs, selectedSource, resolveLogName, showFailedAttempts]);
+    // Successful backups only — failures and timed-out (stale) runs are hidden
+    // and summarized as one missing-day notice instead.
+    return bySource.filter(log => {
+      const status = deriveStatus(log);
+      return status === 'completed' || status === 'processing';
+    });
+  }, [logs, selectedSource, resolveLogName]);
 
   // Sources that should produce a file every day
   const expectedSources = useMemo(
@@ -886,16 +888,6 @@ const BackupLogs: React.FC = () => {
             </Table>
 
             <div className="flex flex-wrap items-center justify-end gap-4 pt-2 border-t">
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="show-failed-attempts"
-                  checked={showFailedAttempts}
-                  onCheckedChange={setShowFailedAttempts}
-                />
-                <Label htmlFor="show-failed-attempts" className="text-sm text-muted-foreground cursor-pointer">
-                  Show failed attempts
-                </Label>
-              </div>
               <div className="flex items-center gap-2">
                 <Switch
                   id="show-all-sources"
