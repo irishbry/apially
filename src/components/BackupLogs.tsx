@@ -64,7 +64,7 @@ const BackupLogs: React.FC = () => {
   const [dropboxApp, setDropboxApp] = useState<{ appKey: string | null; connected: boolean } | null>(null);
   const [recordCounts, setRecordCounts] = useState<Record<string, number>>({});
   const [showAllSources, setShowAllSources] = useState(false);
-  const [showFailedAttempts, setShowFailedAttempts] = useState(false);
+  
   const [retryingDay, setRetryingDay] = useState<string | null>(null);
   const [isRepairing, setIsRepairing] = useState(false);
   const [repairProgress, setRepairProgress] = useState<{
@@ -795,7 +795,7 @@ const BackupLogs: React.FC = () => {
                           <span className="font-medium block break-all line-clamp-2 leading-snug" title={log.file_name || sources.find(source => source.id === log.source_id)?.name || 'File not produced'}>
                             {log.file_name || sources.find(source => source.id === log.source_id)?.name || 'File not produced'}
                           </span>
-                          {showFailedAttempts && log.error_message && <DropboxErrorHint message={log.error_message} className="max-w-md mt-1" />}
+                          {log.status === 'failed' && log.error_message && <DropboxErrorHint message={log.error_message} className="max-w-md mt-1" />}
                         </div>
                       </div>
                     </TableCell>
