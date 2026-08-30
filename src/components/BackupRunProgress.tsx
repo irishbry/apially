@@ -101,12 +101,29 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }
   const [retryingSourceId, setRetryingSourceId] = useState<string | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
-  const { runLogs, counts, runStartedAt } = useMemo(() => {
+  const { runLogs, counts, runStartedAt, scheduledRunAt, manualRunAt, runIsManual } = useMemo(() => {
     const now = Date.now();
+    const isScheduled = (log: BackupLog) => log.backup_type === 'scheduled';
+    const newestOf = (items: BackupLog[]) =>
+      items.reduce<number>((max, log) => Math.max(max, new Date(log.created_at).getTime()), 0);
+
+    const scheduledLogs = logs.filter(isScheduled);
+    const manualLogs = logs.filter((log) => !isScheduled(log));
+    const scheduledRunAt = scheduledLogs.length ? new Date(newestOf(scheduledLogs)).toISOString() : null;
+    const manualRunAt = manualLogs.length ? new Date(newestOf(manualLogs)).toISOString() : null;
+
+    // Prefer showing the nightly scheduled run; fall back to manual retries if
+    // no scheduled run exists in the data (or a manual retry is newer).
+    const baseLogs =
+      scheduledLogs.length && (!manualRunAt || new Date(scheduledRunAt!).getTime() >= new Date(manualRunAt).getTime())
+        ? scheduledLogs
+        : manualLogs.length ? manualLogs : logs;
+    const runIsManual = baseLogs.length > 0 && !isScheduled(baseLogs[0]);
+
     // The current "run" = the newest log plus everything within 6h of it.
-    const newest = logs.reduce<number>((max, log) => Math.max(max, new Date(log.created_at).getTime()), 0);
+    const newest = newestOf(baseLogs);
     const windowStart = newest - 6 * 60 * 60 * 1000;
-    const inRun = logs
+    const inRun = baseLogs
       .filter((log) => new Date(log.created_at).getTime() >= windowStart)
       .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
