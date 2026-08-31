@@ -98,6 +98,42 @@ async function requireOk(response: Response, operation: string): Promise<Respons
   throw new Error(`${operation} failed (${response.status}): ${await response.text()}`);
 }
 
+const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
+const MAX_DROPBOX_ATTEMPTS = 6;
+
+export function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Dropbox rate-limits concurrent write operations per account (429
+ * too_many_write_operations). Retry those, honouring Retry-After, with
+ * exponential backoff + jitter so a busy nightly run recovers by itself.
+ */
+export async function dropboxFetch(
+  input: string,
+  init: RequestInit,
+  baseFetch: typeof fetch = fetch,
+): Promise<Response> {
+  let lastResponse: Response | null = null;
+  for (let attempt = 1; attempt <= MAX_DROPBOX_ATTEMPTS; attempt += 1) {
+    const response = await baseFetch(input, init);
+    if (!RETRYABLE_STATUSES.has(response.status)) return response;
+    lastResponse = response;
+    if (attempt === MAX_DROPBOX_ATTEMPTS) break;
+    const retryAfterHeader = Number(response.headers.get('Retry-After'));
+    const retryAfterMs = Number.isFinite(retryAfterHeader) && retryAfterHeader > 0
+      ? retryAfterHeader * 1000
+      : 0;
+    const backoffMs = Math.min(30_000, 1000 * 2 ** (attempt - 1));
+    const waitMs = Math.max(retryAfterMs, backoffMs) + Math.floor(Math.random() * 500);
+    try { await response.body?.cancel(); } catch { /* ignore */ }
+    console.warn(`Dropbox ${response.status} on ${input} — retry ${attempt}/${MAX_DROPBOX_ATTEMPTS} in ${waitMs}ms`);
+    await sleep(waitMs);
+  }
+  return lastResponse as Response;
+}
+
 export class DropboxUploadSession {
   private sessionId: string | null = null;
   private offset = 0;
@@ -107,8 +143,10 @@ export class DropboxUploadSession {
     private readonly token: string,
     private readonly folderPath: string,
     private readonly fileName: string,
-    private readonly request: typeof fetch = fetch,
+    private readonly request: typeof fetch = ((input: string, init: RequestInit) =>
+      dropboxFetch(input, init)) as unknown as typeof fetch,
   ) {}
+
 
   get byteCount(): number {
     return this.offset;
