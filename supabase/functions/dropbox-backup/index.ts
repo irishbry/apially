@@ -1453,7 +1453,7 @@ async function testDropboxConnectionInternal(dropboxPath: string, dropboxToken: 
     
     console.log(`Attempting to upload test file to: ${fullTestPath}`);
     
-    const response = await fetch('https://content.dropboxapi.com/2/files/upload', {
+    const response = await dropboxFetch('https://content.dropboxapi.com/2/files/upload', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${dropboxToken}`,
@@ -1469,7 +1469,7 @@ async function testDropboxConnectionInternal(dropboxPath: string, dropboxToken: 
     if (response.ok) {
       console.log('Test file upload successful, cleaning up...');
       // Clean up test file
-      const deleteResponse = await fetch('https://api.dropboxapi.com/2/files/delete_v2', {
+      const deleteResponse = await dropboxFetch('https://api.dropboxapi.com/2/files/delete_v2', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${dropboxToken}`,
@@ -1516,7 +1516,7 @@ async function uploadToDropbox(token: string, folderPath: string, fileName: stri
     
     console.log(`Full upload path: ${fullPath}`);
     
-    const uploadResponse = await fetch('https://content.dropboxapi.com/2/files/upload', {
+    const uploadResponse = await dropboxFetch('https://content.dropboxapi.com/2/files/upload', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
