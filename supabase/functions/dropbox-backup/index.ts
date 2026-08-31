@@ -5,11 +5,16 @@ import {
   addCsvColumns,
   dropboxPath as buildDropboxPath,
   DropboxUploadSession,
+  dropboxFetch,
+  sleep,
   orderCsvColumns,
   serializeCsvHeader,
   serializeCsvRows,
 } from './csv-stream.ts';
 import { createStageLogger } from './stage-metrics.ts';
+
+// Delay between per-source uploads to stay under Dropbox write-op limits.
+const SOURCE_UPLOAD_SPACING_MS = 2000;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -678,7 +683,12 @@ async function createBackupForUser(
     if (placeholderError) throw new Error(`Unable to initialize source backup logs: ${placeholderError.message}`);
     const placeholderBySource = new Map((placeholders ?? []).map(row => [row.source_id, row.id]));
 
+    let processedSourceIndex = 0;
     for (const source of eligibleSources) {
+      // Space out sources: Dropbox rate-limits concurrent/rapid write ops per
+      // account (429 too_many_write_operations) when many uploads land at once.
+      if (processedSourceIndex > 0) await sleep(SOURCE_UPLOAD_SPACING_MS);
+      processedSourceIndex += 1;
       const backupLogId = placeholderBySource.get(source.id) ?? null;
       try {
         const result = exportFormat === 'csv'
@@ -964,7 +974,7 @@ async function updateBackupLog(
 }
 
 async function getDropboxSharedLink(token: string, path: string): Promise<string | null> {
-  const response = await fetch('https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings', {
+  const response = await dropboxFetch('https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings', {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ path, settings: { requested_visibility: 'public' } }),
@@ -973,7 +983,7 @@ async function getDropboxSharedLink(token: string, path: string): Promise<string
   console.error(`Dropbox create_shared_link failed for ${path} (${response.status}):`, await response.text());
 
   // An overwritten file can already have a shared link; retrieve it rather than failing.
-  const existing = await fetch('https://api.dropboxapi.com/2/sharing/list_shared_links', {
+  const existing = await dropboxFetch('https://api.dropboxapi.com/2/sharing/list_shared_links', {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ path, direct_only: true }),
@@ -994,7 +1004,7 @@ async function copyDropboxFileToStorage(
   fileName: string,
 ): Promise<{ success: boolean; path?: string }> {
   try {
-    const temporaryLinkResponse = await fetch('https://api.dropboxapi.com/2/files/get_temporary_link', {
+      const temporaryLinkResponse = await dropboxFetch('https://api.dropboxapi.com/2/files/get_temporary_link', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: dropboxFilePath }),
@@ -1526,7 +1536,7 @@ async function uploadToDropbox(token: string, folderPath: string, fileName: stri
       // Get shareable link for the file
       try {
         console.log('Creating shareable link...');
-        const linkResponse = await fetch('https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings', {
+        const linkResponse = await dropboxFetch('https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
