@@ -69,9 +69,16 @@ Deno.serve(async (req) => {
     }
 
     // 2) Per-source backup logs
+    // Only alert on backups targeting the last 24 hours. A manual retry creates
+    // a NEW row for an OLD date — we key off backup_date (falling back to the
+    // created_at date in LA) so stale re-runs never re-alert.
+    const laDate = (d: Date) =>
+      d.toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" }); // YYYY-MM-DD
+    const minTargetDate = laDate(new Date(now.getTime() - 24 * 60 * 60 * 1000));
+
     const { data: logs, error: logsError } = await supabase
       .from("backup_logs")
-      .select("id, user_id, source_id, file_name, status, error_message, created_at, updated_at")
+      .select("id, user_id, source_id, file_name, status, error_message, created_at, updated_at, backup_date")
       .gte("created_at", since.toISOString());
 
     if (logsError) throw logsError;
@@ -98,6 +105,12 @@ Deno.serve(async (req) => {
     for (const l of logs || []) {
       // Don't alert on paused sources or data partners — they intentionally don't back up data.
       if (l.source_id && (sourcePaused.has(l.source_id) || sourcePartner.has(l.source_id))) {
+        continue;
+      }
+
+      // Only alert on backups targeting the last 24 hours.
+      const targetDate = l.backup_date || laDate(new Date(l.created_at));
+      if (targetDate < minTargetDate) {
         continue;
       }
 
