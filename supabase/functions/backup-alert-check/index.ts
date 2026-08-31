@@ -108,6 +108,12 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      // Only alert on backups targeting the last 24 hours.
+      const targetDate = l.backup_date || laDate(new Date(l.created_at));
+      if (targetDate < minTargetDate) {
+        continue;
+      }
+
       if (l.status === "failed") {
         issues.push({
           key: `log:${l.id}:failed`,
