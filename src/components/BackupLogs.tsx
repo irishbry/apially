@@ -146,7 +146,7 @@ const BackupLogs: React.FC = () => {
     // and summarized as one missing-day notice instead.
     return bySource.filter(log => {
       const status = deriveStatus(log);
-      return status === 'completed' || status === 'processing';
+      return (status === 'completed' && Boolean(log.file_name)) || status === 'processing';
     });
   }, [logs, selectedSource, resolveLogName]);
 
