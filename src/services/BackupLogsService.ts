@@ -25,6 +25,7 @@ export interface BackupSource {
   name: string;
   active: boolean;
   is_partner: boolean;
+  parent_id: string | null;
 }
 
 export const BackupLogsService = {
@@ -63,8 +64,7 @@ export const BackupLogsService = {
   async getBackupSources(): Promise<BackupSource[]> {
     const { data, error } = await supabase
       .from('sources')
-      .select('id, name, active, is_partner')
-      .eq('is_partner', false)
+      .select('id, name, active, is_partner, parent_id')
       .order('name');
     if (error) throw error;
     return data || [];
