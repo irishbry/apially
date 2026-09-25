@@ -1,3 +1,3 @@
 - [x] Move Backup Attempts Monitor, Latest Scheduled Backup Run, and Backup Run Dashboard into Reporting, keeping Backups focused on files.
 - [x] Classify no-data backup days separately from missing eligible files across Backups, Reporting, and alerts; load complete log history.
-- [ ] Replace Backup Logs source tabs with source/subsource folders while retaining file actions and warnings.
+- [x] Replace Backup Logs source tabs with source/subsource folders while retaining file actions and warnings.
