@@ -1252,6 +1252,20 @@ async function streamCsvBackupForSource(options: SourceBackupOptions): Promise<S
         ? 'File uploaded to Dropbox, but the download link could not be created (check Dropbox sharing permissions). Use "Restore download links" to retry.'
         : null,
     });
+    // A retry replaces the same dated filename. Keep previous completed log
+    // rows until the replacement is downloadable, then remove stale entries
+    // so the Backups view shows only the newest working version.
+    if (options.backupType === 'scheduled' && storageResult.path && backupLogId) {
+      const { error: cleanupError } = await supabase.from('backup_logs')
+        .delete()
+        .eq('user_id', options.userId)
+        .eq('source_id', options.source.id)
+        .eq('backup_date', options.dateString)
+        .eq('file_name', fileName)
+        .eq('status', 'completed')
+        .neq('id', backupLogId);
+      if (cleanupError) console.error(`Could not remove superseded logs for ${fileName}:`, cleanupError);
+    }
     log.event('source', {
       result: 'completed',
       rows: recordCount,
