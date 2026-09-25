@@ -559,6 +559,13 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      get_recent_backup_eligibility: {
+        Args: { p_days?: number }
+        Returns: {
+          backup_date: string
+          source_id: string
+        }[]
+      }
       get_source_entry_counts: {
         Args: { p_user_id: string }
         Returns: {
