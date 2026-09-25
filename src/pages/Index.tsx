@@ -16,7 +16,7 @@ import HistoricalAnalysis from "@/components/HistoricalAnalysis";
 import ApiLogViewer from "@/components/ApiLogViewer";
 import ApiAnalytics from "@/components/ApiAnalytics";
 import BackupLogs from "@/components/BackupLogs";
-import BackupAttempts from "@/components/BackupAttempts";
+import BackupReporting from "@/components/BackupReporting";
 import NotificationsCenter, { Notification } from "@/components/NotificationsCenter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -242,7 +242,7 @@ const Index = () => {
                         Quick navigation
                       </div>
                       <nav className="grid gap-2">
-                        {["Dashboard", "Sources", "Data", "Backups", "Analytics", "API Logs", "Settings"].map((item) => (
+                        {["Dashboard", "Sources", "Data", "Backups", "Reporting", "Analytics", "API Logs", "Settings"].map((item) => (
                           <Button 
                             key={item} 
                             variant="ghost" 
@@ -289,6 +289,7 @@ const Index = () => {
                 <TabsTrigger value="sources" className="flex-1">Sources</TabsTrigger>
                 <TabsTrigger value="data" className="flex-1">Data</TabsTrigger>
                 <TabsTrigger value="backups" className="flex-1">Backups</TabsTrigger>
+                <TabsTrigger value="reporting" className="flex-1">Reporting</TabsTrigger>
                 <TabsTrigger value="analytics" className="flex-1">Analytics</TabsTrigger>
                 <TabsTrigger value="logs" className="flex-1">Logs</TabsTrigger>
                 <TabsTrigger value="settings" className="flex-1">Settings</TabsTrigger>
@@ -317,8 +318,11 @@ const Index = () => {
               </TabsContent>
               
               <TabsContent value="backups" forceMount className="space-y-6 data-[state=inactive]:hidden">
-                <BackupAttempts />
                 <BackupLogs />
+              </TabsContent>
+
+              <TabsContent value="reporting" forceMount className="space-y-6 data-[state=inactive]:hidden">
+                <BackupReporting />
               </TabsContent>
               
               <TabsContent value="analytics" className="space-y-6">

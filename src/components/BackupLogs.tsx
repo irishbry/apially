@@ -38,8 +38,7 @@ import { BackupLogsService, BackupLog, BackupSource } from "@/services/BackupLog
 import { useAuth } from "@/hooks/useAuth";
 import { ApiService } from "@/services/ApiService";
 import { supabase } from "@/integrations/supabase/client";
-import BackupRunProgress, { deriveStatus, statusLabel, backupTargetDate, getLosAngelesDate } from "@/components/BackupRunProgress";
-import BackupRunDashboard from "@/components/BackupRunDashboard";
+import { deriveStatus, statusLabel, backupTargetDate, getLosAngelesDate } from "@/components/BackupRunProgress";
 
 // Extract source name from backup file name pattern: backup_YYYY-MM-DD_SourceName.csv
 const extractSourceName = (fileName: string | null): string => {
@@ -615,8 +614,6 @@ const BackupLogs: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <BackupRunProgress logs={logs} sources={sources} extractSourceName={resolveNameFromFile} />
-      <BackupRunDashboard logs={logs} sources={sources} extractSourceName={resolveNameFromFile} />
       <Card className="w-full max-w-6xl mx-auto">
 
       <CardHeader className="pb-3">

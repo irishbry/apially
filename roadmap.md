@@ -1,0 +1,1 @@
+- [x] Move Backup Attempts Monitor, Latest Scheduled Backup Run, and Backup Run Dashboard into Reporting, keeping Backups focused on files.
