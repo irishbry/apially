@@ -12,9 +12,7 @@ import {
   Download, 
   ExternalLink, 
   Trash2, 
-  Clock, 
   CheckCircle2, 
-  XCircle,
   Database,
   FileText,
   HardDrive,
@@ -593,21 +591,6 @@ const BackupLogs: React.FC = () => {
 
   const handleDropboxOpen = (dropboxUrl: string) => {
     window.open(dropboxUrl, '_blank');
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <CheckCircle2 className="h-4 w-4 text-green-600" />;
-      case 'failed':
-        return <XCircle className="h-4 w-4 text-red-600" />;
-      case 'timed_out':
-        return <AlertTriangle className="h-4 w-4 text-red-600" />;
-      case 'processing':
-        return <Clock className="h-4 w-4 text-yellow-600" />;
-      default:
-        return <Clock className="h-4 w-4 text-gray-400" />;
-    }
   };
 
   const getStatusBadge = (status: string) => {
