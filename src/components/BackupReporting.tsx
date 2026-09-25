@@ -9,6 +9,7 @@ const BackupReporting = () => {
   const { user } = useAuth();
   const [logs, setLogs] = useState<BackupLog[]>([]);
   const [sources, setSources] = useState<BackupSource[]>([]);
+  const [eligibleDays, setEligibleDays] = useState<Set<string> | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -19,9 +20,16 @@ const BackupReporting = () => {
     BackupLogsService.getBackupSources().then((items) => {
       if (active) setSources(items);
     }).catch((error) => console.error('Error loading backup reporting sources:', error));
+    const refreshEligibility = () => BackupLogsService.getRecentBackupEligibility().then((days) => {
+      if (active) setEligibleDays(days);
+    }).catch((error) => console.error('Error loading backup eligibility:', error));
+    refreshEligibility();
 
     const unsubscribe = BackupLogsService.subscribeToBackupLogs((items) => {
-      if (active) setLogs(items);
+      if (active) {
+        setLogs(items);
+        refreshEligibility();
+      }
     });
     return () => {
       active = false;
@@ -41,8 +49,8 @@ const BackupReporting = () => {
   return (
     <div className="space-y-6">
       <BackupAttempts />
-      <BackupRunProgress logs={logs} sources={sources} extractSourceName={extractSourceName} />
-      <BackupRunDashboard logs={logs} sources={sources} extractSourceName={extractSourceName} />
+      <BackupRunProgress logs={logs} sources={sources} extractSourceName={extractSourceName} eligibleDays={eligibleDays} />
+      <BackupRunDashboard logs={logs} sources={sources} extractSourceName={extractSourceName} eligibleDays={eligibleDays} />
     </div>
   );
 };

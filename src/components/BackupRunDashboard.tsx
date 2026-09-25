@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Clock, Database, Loader2, MinusCircle, XCircle } from "lucide-react";
 import { BackupLog, BackupSource } from "@/services/BackupLogsService";
-import { deriveStatus, statusLabel, DerivedStatus } from "@/components/BackupRunProgress";
+import { backupTargetDate, deriveStatus, statusLabel, DerivedStatus } from "@/components/BackupRunProgress";
 import DropboxErrorHint from "@/components/DropboxErrorHint";
 import { diagnoseDropboxError } from "@/utils/dropboxErrors";
 
@@ -15,6 +15,7 @@ interface Props {
   logs: BackupLog[];
   sources: BackupSource[];
   extractSourceName: (fileName: string | null) => string;
+  eligibleDays: Set<string> | null;
 }
 
 const pstDay = (iso: string) =>
@@ -63,7 +64,7 @@ const statusIcon = (status: DerivedStatus) => {
  * Historical view of backup runs (grouped by PST day) with per-source
  * status, rows processed, duration and error cause.
  */
-const BackupRunDashboard: React.FC<Props> = ({ logs, sources, extractSourceName }) => {
+const BackupRunDashboard: React.FC<Props> = ({ logs, sources, extractSourceName, eligibleDays }) => {
   const [open, setOpen] = useState(false);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
@@ -73,7 +74,7 @@ const BackupRunDashboard: React.FC<Props> = ({ logs, sources, extractSourceName 
 
     logs.forEach((log) => {
       // Group by the day the data covers, falling back to the run day.
-      const day = log.backup_date ?? pstDay(log.created_at);
+      const day = backupTargetDate(log) ?? pstDay(log.created_at);
       const source = sources.find((s) => s.id === log.source_id);
       const name = source?.name ?? extractSourceName(log.file_name);
       if (!byDay.has(day)) byDay.set(day, new Map());
@@ -93,8 +94,11 @@ const BackupRunDashboard: React.FC<Props> = ({ logs, sources, extractSourceName 
         const rows = Array.from(names)
           .map((name) => {
             const log = map.get(name);
-            const status: DerivedStatus = log ? deriveStatus(log) : 'failed';
-            return { name, log, status, cause: errorCause(status, log) };
+            const source = activeSources.find((item) => item.name === name);
+            const eligible = source ? eligibleDays?.has(`${source.id}|${day}`) : undefined;
+            const baseStatus = log ? deriveStatus(log) : 'failed' as DerivedStatus;
+            const status: DerivedStatus = eligible === false && baseStatus !== 'completed' ? 'no_data' : baseStatus;
+            return { name, log, status, cause: status === 'no_data' ? 'No eligible data for this date.' : errorCause(status, log) };
           })
           .sort((a, b) => a.name.localeCompare(b.name));
         return [day, rows] as const;
@@ -102,7 +106,7 @@ const BackupRunDashboard: React.FC<Props> = ({ logs, sources, extractSourceName 
     );
 
     return { days, rowsByDay };
-  }, [logs, sources, extractSourceName]);
+  }, [logs, sources, extractSourceName, eligibleDays]);
 
   if (days.length === 0) return null;
 
@@ -167,6 +171,9 @@ const BackupRunDashboard: React.FC<Props> = ({ logs, sources, extractSourceName 
                 <Badge variant="destructive" className="gap-1">
                   <XCircle className="h-3 w-3" /> {totals.failed} failed
                 </Badge>
+              )}
+              {totals.no_data > 0 && (
+                <Badge variant="outline" className="gap-1"><MinusCircle className="h-3 w-3" /> {totals.no_data} no data</Badge>
               )}
               <span className="text-muted-foreground flex items-center gap-1">
                 <Clock className="h-3 w-3" /> {totals.records.toLocaleString()} rows processed
