@@ -763,8 +763,7 @@ const BackupLogs: React.FC = () => {
                   <h3 className="min-w-0 break-words text-base font-semibold">{selectedLabel} backups</h3>
                   <span className="shrink-0 text-sm text-muted-foreground">{filteredLogs.length} file{filteredLogs.length !== 1 ? 's' : ''}</span>
                 </div>
-            <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
-              <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                 {missingLinkCount > 0 && (
                   <span className="text-xs text-destructive">
                     {missingLinkCount} backup{missingLinkCount !== 1 ? 's' : ''} without a download link
@@ -778,7 +777,7 @@ const BackupLogs: React.FC = () => {
                   )}
                   Restore download links
                 </Button>
-              </div>
+                </div>
 
             {repairProgress && (
               <Alert className={repairProgress.done ? 'border-green-500/30 bg-green-500/5' : 'border-primary/30 bg-primary/5'}>
