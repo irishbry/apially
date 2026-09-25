@@ -61,11 +61,13 @@ export const BackupLogsService = {
     return new Set((data || []).map(row => `${row.source_id}|${row.backup_date}`));
   },
 
-  async getBackupSources(): Promise<BackupSource[]> {
-    const { data, error } = await supabase
+  async getBackupSources(includePartners = false): Promise<BackupSource[]> {
+    let query = supabase
       .from('sources')
       .select('id, name, active, is_partner, parent_id')
       .order('name');
+    if (!includePartners) query = query.eq('is_partner', false);
+    const { data, error } = await query;
     if (error) throw error;
     return data || [];
   },

@@ -295,7 +295,7 @@ const BackupLogs: React.FC = () => {
     if (cachedLogs === null || isStale) {
       loadBackupLogs(cachedLogs !== null);
     }
-    BackupLogsService.getBackupSources().then(setSources).catch(error => {
+    BackupLogsService.getBackupSources(true).then(setSources).catch(error => {
       console.error('Error loading backup sources:', error);
     });
 
