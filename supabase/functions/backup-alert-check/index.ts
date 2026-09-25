@@ -13,10 +13,11 @@ const STUCK_LOG_MINUTES = 10;
 const ALERT_COOLDOWN_HOURS = 6;
 
 const utcBoundaryForLaDay = (date: string) => {
-  const noon = new Date(`${date}T12:00:00Z`);
+  // 06:00 UTC is before the Los Angeles DST switch on transition days.
+  const beforeLocalMidnight = new Date(`${date}T06:00:00Z`);
   const zone = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Los_Angeles", timeZoneName: "shortOffset",
-  }).formatToParts(noon).find((part) => part.type === "timeZoneName")?.value ?? "GMT-8";
+  }).formatToParts(beforeLocalMidnight).find((part) => part.type === "timeZoneName")?.value ?? "GMT-8";
   const match = zone.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/);
   const offset = match ? (match[1] === "+" ? 1 : -1) * (Number(match[2]) * 60 + Number(match[3] ?? 0)) : -480;
   return new Date(Date.parse(`${date}T00:00:00Z`) - offset * 60000).toISOString();
@@ -126,10 +127,14 @@ Deno.serve(async (req) => {
 
       // A source with no eligible records has nothing to back up. Distinguish
       // that from an actual failed upload or a stuck run with data waiting.
-      if (l.status === "failed" && (l.error_message?.startsWith("No eligible data was received") || l.error_message?.startsWith("Source is paused"))) {
+      if (l.status === "failed" && l.error_message?.startsWith("Source is paused")) {
         continue;
       }
-      if (l.status === "processing" && l.source_id && new Date(l.updated_at || l.created_at) < stuckLogCutoff) {
+      const needsEligibility = l.source_id && (
+        (l.status === "failed" && l.error_message?.startsWith("No eligible data was received")) ||
+        (l.status === "processing" && new Date(l.updated_at || l.created_at) < stuckLogCutoff)
+      );
+      if (needsEligibility) {
         const nextDate = new Date(`${targetDate}T12:00:00Z`);
         nextDate.setUTCDate(nextDate.getUTCDate() + 1);
         const { data: eligible, error: eligibilityError } = await supabase
