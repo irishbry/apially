@@ -9,14 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { 
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { 
   Download, 
   ExternalLink, 
   Trash2, 
@@ -24,7 +16,6 @@ import {
   CheckCircle2, 
   XCircle,
   Database,
-  Calendar,
   FileText,
   HardDrive,
   AlertTriangle,
@@ -881,127 +872,55 @@ const BackupLogs: React.FC = () => {
               </Alert>
             )}
 
-            <div className="overflow-x-auto"><Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Status</TableHead>
-                  <TableHead>File Name</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Format</TableHead>
-                  <TableHead>Records</TableHead>
-                  <TableHead>Size</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredLogs.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {getStatusIcon(deriveStatus(log))}
-                        {getStatusBadge(deriveStatus(log))}
+            <div className="min-w-0 divide-y border-y" aria-label="Backup files">
+              {filteredLogs.map((log) => {
+                const fileName = log.file_name || sources.find(source => source.id === log.source_id)?.name || 'File not produced';
+                return (
+                  <div key={log.id} className="min-w-0 py-3">
+                    <div className="flex min-w-0 items-start gap-2">
+                      <HardDrive className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0 flex-1">
+                        <span className="block break-all text-sm font-medium leading-snug" title={fileName}>{fileName}</span>
+                        {log.status === 'failed' && log.error_message && <DropboxErrorHint message={log.error_message} className="mt-1 max-w-md" />}
                       </div>
-                    </TableCell>
-
-                    <TableCell className="whitespace-normal min-w-[200px] max-w-[360px]">
-                      <div className="flex items-start gap-2">
-                        <HardDrive className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
-                        <div className="min-w-0">
-                          <span className="font-medium block break-all line-clamp-2 leading-snug" title={log.file_name || sources.find(source => source.id === log.source_id)?.name || 'File not produced'}>
-                            {log.file_name || sources.find(source => source.id === log.source_id)?.name || 'File not produced'}
-                          </span>
-                          {log.status === 'failed' && log.error_message && <DropboxErrorHint message={log.error_message} className="max-w-md mt-1" />}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-slate-400" />
-                        <span className="capitalize">{log.backup_type}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="uppercase">
-                        {log.format}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-slate-600">{log.record_count.toLocaleString()}</span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-slate-600">{formatFileSize(log.file_size)}</span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-slate-600">{formatDate(log.created_at)}</span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center gap-2 justify-end">
-                        {log.status === 'completed' && (
-                          <>
-                            {log.storage_path && (
-                              <Button
-                                variant="default"
-                                size="sm"
-                                onClick={() => handleDirectDownload(log)}
-                                disabled={isDownloadingId === log.id}
-                                className="bg-green-600 hover:bg-green-700"
-                                title="Download directly"
-                              >
-                                {isDownloadingId === log.id ? (
-                                  <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                                ) : (
-                                  <Download className="h-4 w-4" />
-                                )}
-                              </Button>
-                            )}
-                            {log.dropbox_url && (
-                              <>
-                                <Button
-                                  variant="default"
-                                  size="sm"
-                                  onClick={() => handleDropboxDownload(log)}
-                                  disabled={isDownloadingId === log.id}
-                                  className="bg-blue-600 hover:bg-blue-700"
-                                  title="Download from Dropbox"
-                                >
-                                  {isDownloadingId === log.id ? (
-                                    <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                                  ) : (
-                                    <Download className="h-4 w-4" />
-                                  )}
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => log.dropbox_url && handleDropboxOpen(log.dropbox_url)}
-                                  title="View on Dropbox"
-                                >
-                                  <ExternalLink className="h-4 w-4" />
-                                </Button>
-                              </>
-                            )}
-                          </>
+                      <div className="flex shrink-0 items-center gap-1">
+                        {log.status === 'completed' && (log.storage_path || log.dropbox_url) && (
+                          <Button
+                            variant="default"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => log.storage_path ? handleDirectDownload(log) : handleDropboxDownload(log)}
+                            disabled={isDownloadingId === log.id}
+                            title="Download backup"
+                            aria-label={`Download ${fileName}`}
+                          >
+                            {isDownloadingId === log.id ? (
+                              <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                            ) : <Download className="h-4 w-4" />}
+                          </Button>
                         )}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDelete(log.id)}
-                          disabled={isDeletingId === log.id}
-                          title="Delete log"
-                        >
+                        {log.dropbox_url && (
+                          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleDropboxOpen(log.dropbox_url)} title="View on Dropbox" aria-label={`View ${fileName} on Dropbox`}>
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleDelete(log.id)} disabled={isDeletingId === log.id} title="Delete log" aria-label={`Delete ${fileName} log`}>
                           {isDeletingId === log.id ? (
-                            <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                          ) : (
-                            <Trash2 className="h-4 w-4" />
-                          )}
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                          ) : <Trash2 className="h-4 w-4" />}
                         </Button>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table></div>
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 pl-6 text-xs text-muted-foreground">
+                      {getStatusBadge(deriveStatus(log))}
+                      <span>{log.record_count.toLocaleString()} records</span>
+                      <span>{formatFileSize(log.file_size)}</span>
+                      <span>{formatDate(log.created_at)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
               </div>
             </div>
           </div>
