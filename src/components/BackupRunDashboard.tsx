@@ -96,7 +96,9 @@ const BackupRunDashboard: React.FC<Props> = ({ logs, sources, extractSourceName,
             const log = map.get(name);
             const source = activeSources.find((item) => item.name === name);
             const eligible = source ? eligibleDays?.has(`${source.id}|${day}`) : undefined;
-            const baseStatus = log ? deriveStatus(log) : 'failed' as DerivedStatus;
+            const baseStatus = log
+              ? log.status === 'completed' && !log.file_name ? 'failed' as DerivedStatus : deriveStatus(log)
+              : 'failed' as DerivedStatus;
             const status: DerivedStatus = eligible === false && baseStatus !== 'completed'
               ? 'no_data'
               : eligible === true && baseStatus === 'no_data' ? 'failed' : baseStatus;

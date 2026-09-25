@@ -138,7 +138,9 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName, 
     const runLogs = sources.filter((source) => source.active).map((source) => {
       const log = bySource.get(source.name);
       const eligible = targetDay ? eligibleDays?.has(`${source.id}|${targetDay}`) : undefined;
-      const baseStatus = log ? deriveStatus(log, now) : 'failed' as DerivedStatus;
+      const baseStatus = log
+        ? log.status === 'completed' && !log.file_name ? 'failed' as DerivedStatus : deriveStatus(log, now)
+        : 'failed' as DerivedStatus;
       const status: DerivedStatus = eligible === false && baseStatus !== 'completed'
         ? 'no_data'
         : eligible === true && baseStatus === 'no_data' ? 'failed' : baseStatus;
