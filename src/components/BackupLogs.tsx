@@ -51,6 +51,9 @@ const extractSourceName = (fileName: string | null): string => {
   return match ? match[1].replace(/_/g, ' ') : 'Unknown';
 };
 
+const normalizeName = (value: string) =>
+  value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
 
 // Module-level cache so logs persist across remounts/tab switches/navigations
 let cachedLogs: BackupLog[] | null = null;
@@ -90,10 +93,6 @@ const BackupLogs: React.FC = () => {
   // Ticks while a run is active so elapsed/timeout state stays accurate on screen
   const [, setTick] = useState(0);
 
-  // Normalize names so "Popular - Solar" and "Popular___Solar" resolve to one source
-  const normalizeName = (value: string) =>
-    value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
-
   // Resolve a log's display source name: source link first, then normalized
   // file-name match against known sources, then the raw parsed file-name text.
   const resolveNameFromFile = useCallback(
@@ -101,8 +100,8 @@ const BackupLogs: React.FC = () => {
       const parsed = extractSourceName(fileName);
       if (parsed === 'Unknown') return parsed;
       const norm = normalizeName(parsed);
-      const match = sources.find(source => normalizeName(source.name) === norm);
-      return match?.name ?? parsed;
+      const matches = sources.filter(source => normalizeName(source.name) === norm);
+      return matches.length === 1 ? matches[0].name : parsed;
     },
     [sources],
   );
@@ -764,11 +763,7 @@ const BackupLogs: React.FC = () => {
                   <h3 className="min-w-0 break-words text-base font-semibold">{selectedLabel} backups</h3>
                   <span className="shrink-0 text-sm text-muted-foreground">{filteredLogs.length} file{filteredLogs.length !== 1 ? 's' : ''}</span>
                 </div>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
-              <span>{filteredLogs.length} backup log{filteredLogs.length !== 1 ? 's' : ''} found{selectedFolder !== 'all' ? ` for ${selectedLabel}` : ''}</span>
+              <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
               <div className="flex items-center gap-3">
                 {missingLinkCount > 0 && (
                   <span className="text-xs text-destructive">
@@ -783,11 +778,8 @@ const BackupLogs: React.FC = () => {
                   )}
                   Restore download links
                 </Button>
-                {!showAllSources && (
-                  <span className="text-xs">Showing active sources with data</span>
-                )}
               </div>
-            </div>
+              </div>
 
             {repairProgress && (
               <Alert className={repairProgress.done ? 'border-green-500/30 bg-green-500/5' : 'border-primary/30 bg-primary/5'}>
@@ -851,14 +843,15 @@ const BackupLogs: React.FC = () => {
                 <AlertTitle className="text-sm">
                   Missing backups for {missingDays.length} day{missingDays.length !== 1 ? 's' : ''}
                 </AlertTitle>
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={dismissMissingDays}
                   aria-label="Dismiss missing backups notice"
-                  className="absolute right-3 top-3 rounded-md p-1 text-current opacity-60 transition-opacity hover:opacity-100"
+                  className="absolute right-3 top-3 h-7 w-7 opacity-60 hover:opacity-100"
                 >
                   <X className="h-4 w-4" />
-                </button>
+                </Button>
                 <AlertDescription className="text-xs">
                   <div className="mt-2 space-y-1">
                     {missingDays.map(({ date, sources: missing }) => (
@@ -983,7 +976,7 @@ const BackupLogs: React.FC = () => {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => handleDropboxOpen(log.dropbox_url!)}
+                                  onClick={() => log.dropbox_url && handleDropboxOpen(log.dropbox_url)}
                                   title="View on Dropbox"
                                 >
                                   <ExternalLink className="h-4 w-4" />
@@ -1011,6 +1004,8 @@ const BackupLogs: React.FC = () => {
                 ))}
               </TableBody>
             </Table></div>
+              </div>
+            </div>
           </div>
         )}
       </CardContent>
