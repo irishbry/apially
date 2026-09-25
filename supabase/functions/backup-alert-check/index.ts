@@ -12,6 +12,17 @@ const STUCK_LOG_MINUTES = 10;
 // Don't re-alert about the same problem within this window
 const ALERT_COOLDOWN_HOURS = 6;
 
+const utcBoundaryForLaDay = (date: string) => {
+  // 06:00 UTC is before the Los Angeles DST switch on transition days.
+  const beforeLocalMidnight = new Date(`${date}T06:00:00Z`);
+  const zone = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles", timeZoneName: "shortOffset",
+  }).formatToParts(beforeLocalMidnight).find((part) => part.type === "timeZoneName")?.value ?? "GMT-8";
+  const match = zone.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/);
+  const offset = match ? (match[1] === "+" ? 1 : -1) * (Number(match[2]) * 60 + Number(match[3] ?? 0)) : -480;
+  return new Date(Date.parse(`${date}T00:00:00Z`) - offset * 60000).toISOString();
+};
+
 type Issue = {
   key: string;
   userId: string;
@@ -112,6 +123,31 @@ Deno.serve(async (req) => {
       const targetDate = l.backup_date || laDate(new Date(l.created_at));
       if (targetDate < minTargetDate) {
         continue;
+      }
+
+      // A source with no eligible records has nothing to back up. Distinguish
+      // that from an actual failed upload or a stuck run with data waiting.
+      if (l.status === "failed" && l.error_message?.startsWith("Source is paused")) {
+        continue;
+      }
+      const needsEligibility = l.source_id && (
+        l.status === "failed" ||
+        (l.status === "processing" && new Date(l.updated_at || l.created_at) < stuckLogCutoff)
+      );
+      if (needsEligibility) {
+        const nextDate = new Date(`${targetDate}T12:00:00Z`);
+        nextDate.setUTCDate(nextDate.getUTCDate() + 1);
+        const { data: eligible, error: eligibilityError } = await supabase
+          .from("data_entries")
+          .select("id")
+          .eq("user_id", l.user_id)
+          .eq("source_id", l.source_id)
+          .gte("created_at", utcBoundaryForLaDay(targetDate))
+          .lt("created_at", utcBoundaryForLaDay(nextDate.toISOString().slice(0, 10)))
+          .or("metadata->>paused.is.null,metadata->>paused.neq.true")
+          .limit(1);
+        if (eligibilityError) throw eligibilityError;
+        if (!eligible?.length) continue;
       }
 
       if (l.status === "failed") {

@@ -1,0 +1,1 @@
+ALTER FUNCTION public.get_recent_backup_eligibility(integer) SECURITY INVOKER;

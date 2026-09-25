@@ -30,27 +30,34 @@ export interface BackupSource {
 export const BackupLogsService = {
   async getBackupLogs(): Promise<BackupLog[]> {
     try {
-      const { data, error } = await supabase
-        .from('backup_logs')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching backup logs:', error);
-        throw error;
-      }
-
-      // Cast the data to match our interface types
-      return (data || []).map(log => ({
+      const rows: BackupLog[] = [];
+      for (let offset = 0; ; offset += 1000) {
+        const { data, error } = await supabase
+          .from('backup_logs')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .range(offset, offset + 999);
+        if (error) throw error;
+        rows.push(...(data || []).map(log => ({
         ...log,
         backup_type: log.backup_type as 'manual' | 'scheduled',
         format: log.format as 'csv' | 'json',
         status: log.status as 'completed' | 'failed' | 'processing'
-      }));
+        })));
+        if (!data || data.length < 1000) break;
+      }
+      return rows;
     } catch (error) {
       console.error('Error in getBackupLogs:', error);
       throw error;
     }
+  },
+
+  async getRecentBackupEligibility(): Promise<Set<string>> {
+    const { data, error } = await supabase.rpc('get_recent_backup_eligibility', { p_days: 14 });
+    if (error) throw error;
+    return new Set((data || []).map(row => `${row.source_id}|${row.backup_date}`));
   },
 
   async getBackupSources(): Promise<BackupSource[]> {

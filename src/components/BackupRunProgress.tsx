@@ -90,13 +90,14 @@ interface Props {
   logs: BackupLog[];
   sources: BackupSource[];
   extractSourceName: (fileName: string | null) => string;
+  eligibleDays: Set<string> | null;
 }
 
 /**
  * Shows the state of the most recent backup run per source, so a run that dies
  * mid-flight (edge function timeout) is visible instead of silently missing.
  */
-const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }) => {
+const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName, eligibleDays }) => {
   const [open, setOpen] = useState(true);
   const [retryingSourceId, setRetryingSourceId] = useState<string | null>(null);
   const { user } = useAuth();
@@ -133,15 +134,23 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }
       const source = sources.find((item) => item.id === log.source_id);
       bySource.set(source?.name ?? extractSourceName(log.file_name), log);
     });
+    const targetDay = backupTargetDate(inRun[0], inRun[0]?.created_at);
     const runLogs = sources.filter((source) => source.active).map((source) => {
       const log = bySource.get(source.name);
+      const eligible = targetDay ? eligibleDays?.has(`${source.id}|${targetDay}`) : undefined;
+      const baseStatus = log
+        ? log.status === 'completed' && !log.file_name ? 'failed' as DerivedStatus : deriveStatus(log, now)
+        : 'failed' as DerivedStatus;
+      const status: DerivedStatus = eligible === false && baseStatus !== 'completed'
+        ? 'no_data'
+        : eligible === true && baseStatus === 'no_data' ? 'failed' : baseStatus;
       return {
         sourceId: source.id,
         sourceActive: source.active,
         sourceName: source.name,
         log,
-        status: log ? deriveStatus(log, now) : 'failed' as DerivedStatus,
-        reason: log?.error_message || (!log
+        status,
+        reason: status === 'no_data' ? 'No eligible data for this date.' : log?.error_message || (!log
           ? 'No backup record was created. The run ended before this source started.'
           : null),
       };
@@ -163,7 +172,7 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }
       manualRunAt,
       runIsManual,
     };
-  }, [logs, sources, extractSourceName]);
+  }, [logs, sources, extractSourceName, eligibleDays]);
 
   if (runLogs.length === 0) return null;
 
@@ -305,7 +314,7 @@ const BackupRunProgress: React.FC<Props> = ({ logs, sources, extractSourceName }
                     {statusLabel[status]}
                   </Badge>
 
-                  {sourceActive && status !== 'processing' && (
+                   {sourceActive && status !== 'processing' && status !== 'no_data' && (
                     <Button
                       variant="outline"
                       size="sm"
