@@ -1168,32 +1168,21 @@ async function streamCsvBackupForSource(options: SourceBackupOptions): Promise<S
 
   log.event('source', { schemaDeclaredFields: declaredFields.size, format: 'csv' });
 
-  // Schema-defined sources already declare their CSV columns, avoiding a full
-  // duplicate scan before upload. Legacy sources without a schema retain the
-  // discovery pass so their historical CSV shape is unchanged.
-  if (declaredFields.size === 0) {
-    await log.time('scan', async () => {
-      for (let offset = 0; ; offset += BACKUP_PAGE_SIZE) {
-        const { data, error } = await sourceEntriesQuery(options, 'id, metadata', offset);
-        if (error) throw new Error(`CSV schema fetch failed: ${error.message}`);
-        const page = (data ?? []) as DataEntry[];
-        if (page.length === 0) break;
-        addCsvColumns(columns, page);
-        recordCount += page.length;
-        if (page.length < BACKUP_PAGE_SIZE) break;
-      }
-    }, () => ({ rows: recordCount, columns: columns.size }));
-  } else {
-    columns.add('source');
-    columns.add('created_at');
-  }
+  // Discover the real metadata keys across every page, even for schema-defined
+  // sources: declared casing may differ from what the sender actually posts.
+  await log.time('scan', async () => {
+    for (let offset = 0; ; offset += BACKUP_PAGE_SIZE) {
+      const { data, error } = await sourceEntriesQuery(options, 'id, metadata', offset);
+      if (error) throw new Error(`CSV schema fetch failed: ${error.message}`);
+      const page = (data ?? []) as DataEntry[];
+      if (page.length === 0) break;
+      addCsvColumns(columns, page);
+      recordCount += page.length;
+      if (page.length < BACKUP_PAGE_SIZE) break;
+    }
+  }, () => ({ rows: recordCount, columns: columns.size }));
 
-  const firstPageResult = declaredFields.size > 0
-    ? await log.time('fetch', () => sourceEntriesQuery(options, '*', 0), () => ({ offset: 0 }))
-    : null;
-  if (firstPageResult?.error) throw new Error(`CSV data fetch failed: ${firstPageResult.error.message}`);
-  const firstPage = (firstPageResult?.data ?? []) as DataEntry[];
-  if (declaredFields.size > 0 && firstPage.length === 0 || declaredFields.size === 0 && recordCount === 0) {
+  if (recordCount === 0) {
     log.event('source', { skipped: true, reason: 'no eligible records' });
     await updateBackupLog(options.backupLogId ?? null, {
       status: 'failed',
@@ -1214,14 +1203,10 @@ async function streamCsvBackupForSource(options: SourceBackupOptions): Promise<S
     await log.time('upload', () => upload.start(), () => ({ phaseName: 'session_start', fileName }));
     await upload.append(serializeCsvHeader(orderedColumns));
     for (let offset = 0; ; offset += BACKUP_PAGE_SIZE) {
-      const result = offset === 0 && firstPageResult
-        ? firstPageResult
-        : await log.time('fetch', () => sourceEntriesQuery(options, '*', offset), () => ({ offset }));
-      const { data, error } = result;
+      const { data, error } = await log.time('fetch', () => sourceEntriesQuery(options, '*', offset), () => ({ offset }));
       if (error) throw new Error(`CSV data fetch failed: ${error.message}`);
       const page = (data ?? []) as DataEntry[];
       if (page.length === 0) break;
-      if (declaredFields.size > 0) recordCount += page.length;
       pages += 1;
 
       const csvStart = Date.now();
@@ -1267,6 +1252,20 @@ async function streamCsvBackupForSource(options: SourceBackupOptions): Promise<S
         ? 'File uploaded to Dropbox, but the download link could not be created (check Dropbox sharing permissions). Use "Restore download links" to retry.'
         : null,
     });
+    // A retry replaces the same dated filename. Keep previous completed log
+    // rows until the replacement is downloadable, then remove stale entries
+    // so the Backups view shows only the newest working version.
+    if (options.backupType === 'scheduled' && storageResult.path && backupLogId) {
+      const { error: cleanupError } = await supabase.from('backup_logs')
+        .delete()
+        .eq('user_id', options.userId)
+        .eq('source_id', options.source.id)
+        .eq('backup_date', options.dateString)
+        .eq('file_name', fileName)
+        .eq('status', 'completed')
+        .neq('id', backupLogId);
+      if (cleanupError) console.error(`Could not remove superseded logs for ${fileName}:`, cleanupError);
+    }
     log.event('source', {
       result: 'completed',
       rows: recordCount,
