@@ -131,7 +131,7 @@ Deno.serve(async (req) => {
         continue;
       }
       const needsEligibility = l.source_id && (
-        (l.status === "failed" && l.error_message?.startsWith("No eligible data was received")) ||
+        l.status === "failed" ||
         (l.status === "processing" && new Date(l.updated_at || l.created_at) < stuckLogCutoff)
       );
       if (needsEligibility) {
