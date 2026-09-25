@@ -97,7 +97,9 @@ const BackupRunDashboard: React.FC<Props> = ({ logs, sources, extractSourceName,
             const source = activeSources.find((item) => item.name === name);
             const eligible = source ? eligibleDays?.has(`${source.id}|${day}`) : undefined;
             const baseStatus = log ? deriveStatus(log) : 'failed' as DerivedStatus;
-            const status: DerivedStatus = eligible === false && baseStatus !== 'completed' ? 'no_data' : baseStatus;
+            const status: DerivedStatus = eligible === false && baseStatus !== 'completed'
+              ? 'no_data'
+              : eligible === true && baseStatus === 'no_data' ? 'failed' : baseStatus;
             return { name, log, status, cause: status === 'no_data' ? 'No eligible data for this date.' : errorCause(status, log) };
           })
           .sort((a, b) => a.name.localeCompare(b.name));
