@@ -63,6 +63,7 @@ const BackupLogs: React.FC = () => {
   const [selectedSource, setSelectedSource] = useState<string>('all');
   const [dropboxApp, setDropboxApp] = useState<{ appKey: string | null; connected: boolean } | null>(null);
   const [recordCounts, setRecordCounts] = useState<Record<string, number>>({});
+  const [eligibleDays, setEligibleDays] = useState<Set<string> | null>(null);
   const [showAllSources, setShowAllSources] = useState(false);
   
   const [retryingDay, setRetryingDay] = useState<string | null>(null);
@@ -154,20 +155,18 @@ const BackupLogs: React.FC = () => {
     () => sources.filter(source =>
       source.active
       && !source.is_partner
-      && (selectedSource === 'all'
-        ? (recordCounts[source.id] || 0) > 0
-        : source.name === selectedSource)),
-    [sources, selectedSource, recordCounts],
+      && (selectedSource === 'all' || source.name === selectedSource)),
+    [sources, selectedSource],
   );
 
   // Days (last 14) where an expected source produced no completed backup file
   const missingDays = useMemo(() => {
-    if (expectedSources.length === 0) return [];
+    if (expectedSources.length === 0 || !eligibleDays) return [];
     const done = new Set<string>();
     logs.forEach(log => {
       if (log.status !== 'completed' || !log.file_name) return;
       const day = backupTargetDate(log);
-      if (day) done.add(`${resolveLogName(log)}|${day}`);
+      if (day) done.add(`${log.source_id ?? resolveLogName(log)}|${day}`);
     });
 
     const todayPst = getLosAngelesDate(new Date().toISOString());
@@ -175,11 +174,13 @@ const BackupLogs: React.FC = () => {
     const result: { date: string; sources: BackupSource[] }[] = [];
     for (let i = 1; i <= 14; i++) {
       const date = new Date(Date.UTC(y, m - 1, d - i)).toISOString().slice(0, 10);
-      const missing = expectedSources.filter(source => !done.has(`${source.name}|${date}`));
+      const missing = expectedSources.filter(source =>
+        eligibleDays.has(`${source.id}|${date}`) &&
+        !done.has(`${source.id}|${date}`) && !done.has(`${source.name}|${date}`));
       if (missing.length > 0) result.push({ date, sources: missing });
     }
     return result;
-  }, [logs, expectedSources, resolveLogName]);
+  }, [logs, expectedSources, eligibleDays, resolveLogName]);
 
   // Fingerprint of the current missing-days set — dismissal stays until the
   // situation changes (new missing day appears or a day gets fixed)
@@ -226,6 +227,7 @@ const BackupLogs: React.FC = () => {
         variant: failed && !ok ? 'destructive' : 'default',
       });
       await loadBackupLogs(true);
+      BackupLogsService.getRecentBackupEligibility().then(setEligibleDays).catch(console.error);
     } finally {
       setRetryingDay(null);
     }
@@ -246,6 +248,9 @@ const BackupLogs: React.FC = () => {
 
     BackupLogsService.getSourceRecordCounts().then(setRecordCounts).catch(error => {
       console.error('Error loading source record counts:', error);
+    });
+    BackupLogsService.getRecentBackupEligibility().then(setEligibleDays).catch(error => {
+      console.error('Error loading backup eligibility:', error);
     });
 
     // Show which Dropbox app is connected alongside the logs
@@ -757,7 +762,7 @@ const BackupLogs: React.FC = () => {
                 </button>
                 <AlertDescription className="text-xs">
                   <div className="mt-2 space-y-1">
-                    {missingDays.slice(0, 7).map(({ date, sources: missing }) => (
+                    {missingDays.map(({ date, sources: missing }) => (
                       <div key={date} className="flex flex-wrap items-center justify-between gap-2">
                         <span>
                           <span className="font-medium">{date}</span>
