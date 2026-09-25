@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import DropboxErrorHint from "@/components/DropboxErrorHint";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
@@ -31,7 +31,11 @@ import {
   Wrench,
   ChevronDown,
   ChevronUp,
-  X
+  X,
+  Folder,
+  FolderOpen,
+  Files,
+  Search
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { BackupLogsService, BackupLog, BackupSource } from "@/services/BackupLogsService";
@@ -47,6 +51,9 @@ const extractSourceName = (fileName: string | null): string => {
   return match ? match[1].replace(/_/g, ' ') : 'Unknown';
 };
 
+const normalizeName = (value: string) =>
+  value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
 
 // Module-level cache so logs persist across remounts/tab switches/navigations
 let cachedLogs: BackupLog[] | null = null;
@@ -60,7 +67,9 @@ const BackupLogs: React.FC = () => {
   const [isLoading, setIsLoading] = useState(cachedLogs === null);
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
   const [isDownloadingId, setIsDownloadingId] = useState<string | null>(null);
-  const [selectedSource, setSelectedSource] = useState<string>('all');
+  const [selectedFolder, setSelectedFolder] = useState<string>('all');
+  const [selectedSubsource, setSelectedSubsource] = useState<string | null>(null);
+  const [sourceSearch, setSourceSearch] = useState('');
   const [dropboxApp, setDropboxApp] = useState<{ appKey: string | null; connected: boolean } | null>(null);
   const [recordCounts, setRecordCounts] = useState<Record<string, number>>({});
   const [eligibleDays, setEligibleDays] = useState<Set<string> | null>(null);
@@ -84,10 +93,6 @@ const BackupLogs: React.FC = () => {
   // Ticks while a run is active so elapsed/timeout state stays accurate on screen
   const [, setTick] = useState(0);
 
-  // Normalize names so "Popular - Solar" and "Popular___Solar" resolve to one source
-  const normalizeName = (value: string) =>
-    value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
-
   // Resolve a log's display source name: source link first, then normalized
   // file-name match against known sources, then the raw parsed file-name text.
   const resolveNameFromFile = useCallback(
@@ -95,8 +100,8 @@ const BackupLogs: React.FC = () => {
       const parsed = extractSourceName(fileName);
       if (parsed === 'Unknown') return parsed;
       const norm = normalizeName(parsed);
-      const match = sources.find(source => normalizeName(source.name) === norm);
-      return match?.name ?? parsed;
+      const matches = sources.filter(source => normalizeName(source.name) === norm);
+      return matches.length === 1 ? matches[0].name : parsed;
     },
     [sources],
   );
@@ -109,54 +114,102 @@ const BackupLogs: React.FC = () => {
     [sources, resolveNameFromFile],
   );
 
-  // Build the list of source names shown in the tab bar.
-  // Default: only active sources that actually have data.
-  // Toggle: show every non-partner source plus any source referenced by logs.
-  const sourceNames = useMemo(() => {
-    const allNames = new Set<string>();
-    sources.forEach(source => allNames.add(source.name));
-    logs.forEach(log => {
-      allNames.add(resolveLogName(log));
-    });
-    allNames.delete('Unknown');
+  const resolveLogSourceId = useCallback((log: BackupLog): string | null => {
+    if (log.source_id && sources.some(source => source.id === log.source_id)) return log.source_id;
+    const parsed = extractSourceName(log.file_name);
+    if (parsed === 'Unknown') return null;
+    const matches = sources.filter(source => normalizeName(source.name) === normalizeName(parsed));
+    return matches.length === 1 ? matches[0].id : null;
+  }, [sources]);
 
-    if (showAllSources) return Array.from(allNames).sort();
+  const sourceBrowser = useMemo(() => {
+    const logSourceIds = new Set(logs.map(resolveLogSourceId).filter((id): id is string => Boolean(id)));
+    const directlyVisible = new Set(
+      sources
+        .filter(source => showAllSources || (source.active && ((recordCounts[source.id] || 0) > 0 || logSourceIds.has(source.id))))
+        .map(source => source.id),
+    );
 
-    const visible = new Set<string>();
+    // A grouping source remains visible whenever one of its children is visible.
     sources.forEach(source => {
-      if (!source.active) return;
-      const hasData = (recordCounts[source.id] || 0) > 0;
-      if (hasData) visible.add(source.name);
-    });
-    // Also keep any source that already has a completed backup log with records
-    logs.forEach(log => {
-      if (log.record_count > 0) {
-        const name = resolveLogName(log);
-        if (name && name !== 'Unknown') visible.add(name);
+      if (!directlyVisible.has(source.id)) return;
+      let parentId = source.parent_id;
+      const visited = new Set<string>();
+      while (parentId && !visited.has(parentId)) {
+        visited.add(parentId);
+        directlyVisible.add(parentId);
+        parentId = sources.find(parent => parent.id === parentId)?.parent_id ?? null;
       }
     });
-    return Array.from(visible).sort();
-  }, [logs, sources, recordCounts, showAllSources, resolveLogName]);
+
+    const visibleSources = sources.filter(source => directlyVisible.has(source.id));
+    const sourceIds = new Set(visibleSources.map(source => source.id));
+    const topLevel = visibleSources
+      .filter(source => !source.parent_id || !sourceIds.has(source.parent_id))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const childrenByParent = new Map<string, BackupSource[]>();
+    visibleSources.forEach(source => {
+      if (!source.parent_id || !sourceIds.has(source.parent_id)) return;
+      const children = childrenByParent.get(source.parent_id) ?? [];
+      children.push(source);
+      children.sort((a, b) => a.name.localeCompare(b.name));
+      childrenByParent.set(source.parent_id, children);
+    });
+    const hasUnmatched = logs.some(log => !resolveLogSourceId(log));
+    return { topLevel, childrenByParent, hasUnmatched };
+  }, [logs, sources, recordCounts, showAllSources, resolveLogSourceId]);
+
+  const selectedFolderSource = sources.find(source => source.id === selectedFolder);
+  const selectedChildren = selectedFolderSource
+    ? sourceBrowser.childrenByParent.get(selectedFolderSource.id) ?? []
+    : [];
+  const selectedSubsourceSource = sources.find(source => source.id === selectedSubsource);
+  const searchTerm = sourceSearch.trim().toLowerCase();
+  const matchingFolders = sourceBrowser.topLevel.filter(source =>
+    source.name.toLowerCase().includes(searchTerm)
+    || (sourceBrowser.childrenByParent.get(source.id) ?? []).some(child => child.name.toLowerCase().includes(searchTerm)));
+  const selectedLabel = selectedFolder === 'all'
+    ? 'All Sources'
+    : selectedFolder === 'unmatched'
+      ? 'Unmatched historical files'
+      : selectedSubsourceSource
+        ? `${selectedFolderSource?.name ?? 'Source'} / ${selectedSubsourceSource.name}`
+        : selectedFolderSource?.name ?? 'All Sources';
 
   const filteredLogs = useMemo(() => {
-    const bySource = selectedSource === 'all'
+    const folderChildren = selectedFolder === 'all' || selectedFolder === 'unmatched'
+      ? []
+      : sourceBrowser.childrenByParent.get(selectedFolder) ?? [];
+    const allowedIds = new Set(selectedSubsource
+      ? [selectedSubsource]
+      : [selectedFolder, ...folderChildren.map(source => source.id)]);
+    const bySource = selectedFolder === 'all'
       ? logs
-      : logs.filter(log => resolveLogName(log) === selectedSource);
+      : selectedFolder === 'unmatched'
+        ? logs.filter(log => !resolveLogSourceId(log))
+        : logs.filter(log => {
+          const sourceId = resolveLogSourceId(log);
+          return sourceId ? allowedIds.has(sourceId) : false;
+        });
     // Successful backups only — failures and timed-out (stale) runs are hidden
     // and summarized as one missing-day notice instead.
     return bySource.filter(log => {
       const status = deriveStatus(log);
       return (status === 'completed' && Boolean(log.file_name)) || status === 'processing';
     });
-  }, [logs, selectedSource, resolveLogName]);
+  }, [logs, selectedFolder, selectedSubsource, sourceBrowser.childrenByParent, resolveLogSourceId]);
 
   // Sources that should produce a file every day
   const expectedSources = useMemo(
     () => sources.filter(source =>
       source.active
       && !source.is_partner
-      && (selectedSource === 'all' || source.name === selectedSource)),
-    [sources, selectedSource],
+      && (selectedFolder === 'all'
+        || (selectedFolder !== 'unmatched' && (
+          source.id === (selectedSubsource ?? selectedFolder)
+          || (!selectedSubsource && source.parent_id === selectedFolder)
+        )))),
+    [sources, selectedFolder, selectedSubsource],
   );
 
   // Days (last 14) where an expected source produced no completed backup file
@@ -166,7 +219,7 @@ const BackupLogs: React.FC = () => {
     logs.forEach(log => {
       if (log.status !== 'completed' || !log.file_name) return;
       const day = backupTargetDate(log);
-      if (day) done.add(`${log.source_id ?? resolveLogName(log)}|${day}`);
+      if (day) done.add(`${resolveLogSourceId(log) ?? resolveLogName(log)}|${day}`);
     });
 
     const todayPst = getLosAngelesDate(new Date().toISOString());
@@ -180,7 +233,7 @@ const BackupLogs: React.FC = () => {
       if (missing.length > 0) result.push({ date, sources: missing });
     }
     return result;
-  }, [logs, expectedSources, eligibleDays, resolveLogName]);
+  }, [logs, expectedSources, eligibleDays, resolveLogName, resolveLogSourceId]);
 
   // Fingerprint of the current missing-days set — dismissal stays until the
   // situation changes (new missing day appears or a day gets fixed)
@@ -242,7 +295,7 @@ const BackupLogs: React.FC = () => {
     if (cachedLogs === null || isStale) {
       loadBackupLogs(cachedLogs !== null);
     }
-    BackupLogsService.getBackupSources().then(setSources).catch(error => {
+    BackupLogsService.getBackupSources(true).then(setSources).catch(error => {
       console.error('Error loading backup sources:', error);
     });
 
@@ -653,24 +706,64 @@ const BackupLogs: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="flex flex-col gap-3">
-              {sourceNames.length > 1 && (
-                <Tabs value={selectedSource} onValueChange={setSelectedSource}>
-                  <TabsList className="flex-wrap h-auto gap-1">
-                    <TabsTrigger value="all">All Sources</TabsTrigger>
-                    {sourceNames.map(name => (
-                      <TabsTrigger key={name} value={name}>
-                        {name}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
-                </Tabs>
-              )}
-            </div>
+            <div className="grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
+              <nav aria-label="Data sources" className="min-w-0 border-b pb-4 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-5">
+                <div className="mb-3 text-xs font-semibold uppercase text-muted-foreground">Data sources</div>
+                <div className="relative mb-3">
+                  <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input aria-label="Search sources" placeholder="Search sources" value={sourceSearch} onChange={event => setSourceSearch(event.target.value)} className="h-9 pl-9" />
+                </div>
+                <div className="max-h-72 space-y-1 overflow-y-auto lg:max-h-[460px]">
+                  <Button variant={selectedFolder === 'all' ? 'secondary' : 'ghost'} className="h-auto min-h-9 w-full justify-start gap-2 whitespace-normal text-left" onClick={() => { setSelectedFolder('all'); setSelectedSubsource(null); }}>
+                    <Files className="h-4 w-4 shrink-0" /> All Sources
+                  </Button>
+                  {matchingFolders.map(source => {
+                    const children = sourceBrowser.childrenByParent.get(source.id) ?? [];
+                    return (
+                      <Button key={source.id} variant={selectedFolder === source.id ? 'secondary' : 'ghost'} className="h-auto min-h-9 w-full justify-start gap-2 whitespace-normal text-left" onClick={() => { setSelectedFolder(source.id); setSelectedSubsource(null); }}>
+                        {selectedFolder === source.id ? <FolderOpen className="h-4 w-4 shrink-0 text-primary" /> : <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />}
+                        <span className="min-w-0 flex-1 break-words">{source.name}</span>
+                        {children.length > 0 && <span className="text-xs text-muted-foreground">{children.length}</span>}
+                      </Button>
+                    );
+                  })}
+                  {sourceBrowser.hasUnmatched && (!searchTerm || 'unmatched historical files'.includes(searchTerm)) && (
+                    <Button variant={selectedFolder === 'unmatched' ? 'secondary' : 'ghost'} className="h-auto min-h-9 w-full justify-start gap-2 whitespace-normal text-left" onClick={() => { setSelectedFolder('unmatched'); setSelectedSubsource(null); }}>
+                      <Folder className="h-4 w-4 shrink-0 text-muted-foreground" /> Unmatched historical files
+                    </Button>
+                  )}
+                </div>
+                <div className="mt-4 flex items-center gap-2 border-t pt-4">
+                  <Switch id="show-all-sources" checked={showAllSources} onCheckedChange={setShowAllSources} />
+                  <Label htmlFor="show-all-sources" className="cursor-pointer text-sm text-muted-foreground">Show all sources</Label>
+                </div>
+              </nav>
 
-            <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
-              <span>{filteredLogs.length} backup log{filteredLogs.length !== 1 ? 's' : ''} found{selectedSource !== 'all' ? ` for ${selectedSource}` : ''}</span>
-              <div className="flex items-center gap-3">
+              <div className="min-w-0 space-y-4">
+                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                  <Button variant="link" size="sm" className="h-auto p-0" onClick={() => { setSelectedFolder('all'); setSelectedSubsource(null); }}>All Sources</Button>
+                  {selectedFolder !== 'all' && <><span>/</span><Button variant="link" size="sm" className="h-auto p-0" onClick={() => setSelectedSubsource(null)}>{selectedFolderSource?.name ?? 'Unmatched historical files'}</Button></>}
+                  {selectedSubsourceSource && <><span>/</span><span className="font-medium text-foreground">{selectedSubsourceSource.name}</span></>}
+                </div>
+                {selectedFolderSource && selectedChildren.length > 0 && (
+                  <section aria-label={`${selectedFolderSource.name} subsources`}>
+                    <h3 className="mb-3 text-sm font-semibold">{selectedFolderSource.name} subsources</h3>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+                      {selectedChildren.map(child => (
+                        <Button key={child.id} variant={selectedSubsource === child.id ? 'secondary' : 'outline'} className="h-auto min-h-20 flex-col items-start justify-center gap-2 whitespace-normal p-3 text-left" onClick={() => setSelectedSubsource(child.id)}>
+                          <Folder className="h-5 w-5 text-primary" />
+                          <span className="w-full break-words text-sm">{child.name}</span>
+                        </Button>
+                      ))}
+                    </div>
+                    {selectedSubsource && <Button variant="link" size="sm" className="mt-2 px-0" onClick={() => setSelectedSubsource(null)}>View all {selectedFolderSource.name} files</Button>}
+                  </section>
+                )}
+                <div className="flex items-center justify-between gap-3 border-t pt-3">
+                  <h3 className="min-w-0 break-words text-base font-semibold">{selectedLabel} backups</h3>
+                  <span className="shrink-0 text-sm text-muted-foreground">{filteredLogs.length} file{filteredLogs.length !== 1 ? 's' : ''}</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                 {missingLinkCount > 0 && (
                   <span className="text-xs text-destructive">
                     {missingLinkCount} backup{missingLinkCount !== 1 ? 's' : ''} without a download link
@@ -684,11 +777,7 @@ const BackupLogs: React.FC = () => {
                   )}
                   Restore download links
                 </Button>
-                {!showAllSources && (
-                  <span className="text-xs">Showing active sources with data</span>
-                )}
-              </div>
-            </div>
+                </div>
 
             {repairProgress && (
               <Alert className={repairProgress.done ? 'border-green-500/30 bg-green-500/5' : 'border-primary/30 bg-primary/5'}>
@@ -752,14 +841,15 @@ const BackupLogs: React.FC = () => {
                 <AlertTitle className="text-sm">
                   Missing backups for {missingDays.length} day{missingDays.length !== 1 ? 's' : ''}
                 </AlertTitle>
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={dismissMissingDays}
                   aria-label="Dismiss missing backups notice"
-                  className="absolute right-3 top-3 rounded-md p-1 text-current opacity-60 transition-opacity hover:opacity-100"
+                  className="absolute right-3 top-3 h-7 w-7 opacity-60 hover:opacity-100"
                 >
                   <X className="h-4 w-4" />
-                </button>
+                </Button>
                 <AlertDescription className="text-xs">
                   <div className="mt-2 space-y-1">
                     {missingDays.map(({ date, sources: missing }) => (
@@ -791,7 +881,7 @@ const BackupLogs: React.FC = () => {
               </Alert>
             )}
 
-            <Table>
+            <div className="overflow-x-auto"><Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Status</TableHead>
@@ -884,7 +974,7 @@ const BackupLogs: React.FC = () => {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => handleDropboxOpen(log.dropbox_url!)}
+                                  onClick={() => log.dropbox_url && handleDropboxOpen(log.dropbox_url)}
                                   title="View on Dropbox"
                                 >
                                   <ExternalLink className="h-4 w-4" />
@@ -911,18 +1001,7 @@ const BackupLogs: React.FC = () => {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
-
-            <div className="flex flex-wrap items-center justify-end gap-4 pt-2 border-t">
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="show-all-sources"
-                  checked={showAllSources}
-                  onCheckedChange={setShowAllSources}
-                />
-                <Label htmlFor="show-all-sources" className="text-sm text-muted-foreground cursor-pointer">
-                  Show all sources
-                </Label>
+            </Table></div>
               </div>
             </div>
           </div>

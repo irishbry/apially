@@ -1,2 +1,3 @@
 Backup reporting panels live in the Reporting tab, separately from the Backup Logs files view, so file downloads remain easy to scan.
 Backup health checks use per-source, per-Los-Angeles-day eligible records rather than lifetime record counts, because days without data do not require files.
+Backup Logs folders are a presentation of sources.parent_id and backup_logs.source_id; never move files to create folder navigation, so historical downloads remain intact.
