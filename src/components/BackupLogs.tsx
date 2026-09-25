@@ -133,11 +133,18 @@ const BackupLogs: React.FC = () => {
 
     // A grouping source remains visible whenever one of its children is visible.
     sources.forEach(source => {
-      if (source.parent_id && directlyVisible.has(source.id)) directlyVisible.add(source.parent_id);
+      if (!directlyVisible.has(source.id)) return;
+      let parentId = source.parent_id;
+      const visited = new Set<string>();
+      while (parentId && !visited.has(parentId)) {
+        visited.add(parentId);
+        directlyVisible.add(parentId);
+        parentId = sources.find(parent => parent.id === parentId)?.parent_id ?? null;
+      }
     });
 
     const visibleSources = sources.filter(source => directlyVisible.has(source.id));
-    const sourceIds = new Set(sources.map(source => source.id));
+    const sourceIds = new Set(visibleSources.map(source => source.id));
     const topLevel = visibleSources
       .filter(source => !source.parent_id || !sourceIds.has(source.parent_id))
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -158,6 +165,10 @@ const BackupLogs: React.FC = () => {
     ? sourceBrowser.childrenByParent.get(selectedFolderSource.id) ?? []
     : [];
   const selectedSubsourceSource = sources.find(source => source.id === selectedSubsource);
+  const searchTerm = sourceSearch.trim().toLowerCase();
+  const matchingFolders = sourceBrowser.topLevel.filter(source =>
+    source.name.toLowerCase().includes(searchTerm)
+    || (sourceBrowser.childrenByParent.get(source.id) ?? []).some(child => child.name.toLowerCase().includes(searchTerm)));
   const selectedLabel = selectedFolder === 'all'
     ? 'All Sources'
     : selectedFolder === 'unmatched'
@@ -209,7 +220,7 @@ const BackupLogs: React.FC = () => {
     logs.forEach(log => {
       if (log.status !== 'completed' || !log.file_name) return;
       const day = backupTargetDate(log);
-      if (day) done.add(`${log.source_id ?? resolveLogName(log)}|${day}`);
+      if (day) done.add(`${resolveLogSourceId(log) ?? resolveLogName(log)}|${day}`);
     });
 
     const todayPst = getLosAngelesDate(new Date().toISOString());
@@ -223,7 +234,7 @@ const BackupLogs: React.FC = () => {
       if (missing.length > 0) result.push({ date, sources: missing });
     }
     return result;
-  }, [logs, expectedSources, eligibleDays, resolveLogName]);
+  }, [logs, expectedSources, eligibleDays, resolveLogName, resolveLogSourceId]);
 
   // Fingerprint of the current missing-days set — dismissal stays until the
   // situation changes (new missing day appears or a day gets fixed)
@@ -696,23 +707,68 @@ const BackupLogs: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="flex flex-col gap-3">
-              {sourceNames.length > 1 && (
-                <Tabs value={selectedSource} onValueChange={setSelectedSource}>
-                  <TabsList className="flex-wrap h-auto gap-1">
-                    <TabsTrigger value="all">All Sources</TabsTrigger>
-                    {sourceNames.map(name => (
-                      <TabsTrigger key={name} value={name}>
-                        {name}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
-                </Tabs>
-              )}
+            <div className="grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
+              <nav aria-label="Data sources" className="min-w-0 border-b pb-4 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-5">
+                <div className="mb-3 text-xs font-semibold uppercase text-muted-foreground">Data sources</div>
+                <div className="relative mb-3">
+                  <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input aria-label="Search sources" placeholder="Search sources" value={sourceSearch} onChange={event => setSourceSearch(event.target.value)} className="h-9 pl-9" />
+                </div>
+                <div className="max-h-72 space-y-1 overflow-y-auto lg:max-h-[460px]">
+                  <Button variant={selectedFolder === 'all' ? 'secondary' : 'ghost'} className="h-auto min-h-9 w-full justify-start gap-2 whitespace-normal text-left" onClick={() => { setSelectedFolder('all'); setSelectedSubsource(null); }}>
+                    <Files className="h-4 w-4 shrink-0" /> All Sources
+                  </Button>
+                  {matchingFolders.map(source => {
+                    const children = sourceBrowser.childrenByParent.get(source.id) ?? [];
+                    return (
+                      <Button key={source.id} variant={selectedFolder === source.id ? 'secondary' : 'ghost'} className="h-auto min-h-9 w-full justify-start gap-2 whitespace-normal text-left" onClick={() => { setSelectedFolder(source.id); setSelectedSubsource(null); }}>
+                        {selectedFolder === source.id ? <FolderOpen className="h-4 w-4 shrink-0 text-primary" /> : <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />}
+                        <span className="min-w-0 flex-1 break-words">{source.name}</span>
+                        {children.length > 0 && <span className="text-xs text-muted-foreground">{children.length}</span>}
+                      </Button>
+                    );
+                  })}
+                  {sourceBrowser.hasUnmatched && (!searchTerm || 'unmatched historical files'.includes(searchTerm)) && (
+                    <Button variant={selectedFolder === 'unmatched' ? 'secondary' : 'ghost'} className="h-auto min-h-9 w-full justify-start gap-2 whitespace-normal text-left" onClick={() => { setSelectedFolder('unmatched'); setSelectedSubsource(null); }}>
+                      <Folder className="h-4 w-4 shrink-0 text-muted-foreground" /> Unmatched historical files
+                    </Button>
+                  )}
+                </div>
+                <div className="mt-4 flex items-center gap-2 border-t pt-4">
+                  <Switch id="show-all-sources" checked={showAllSources} onCheckedChange={setShowAllSources} />
+                  <Label htmlFor="show-all-sources" className="cursor-pointer text-sm text-muted-foreground">Show all sources</Label>
+                </div>
+              </nav>
+
+              <div className="min-w-0 space-y-4">
+                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                  <Button variant="link" size="sm" className="h-auto p-0" onClick={() => { setSelectedFolder('all'); setSelectedSubsource(null); }}>All Sources</Button>
+                  {selectedFolder !== 'all' && <><span>/</span><Button variant="link" size="sm" className="h-auto p-0" onClick={() => setSelectedSubsource(null)}>{selectedFolderSource?.name ?? 'Unmatched historical files'}</Button></>}
+                  {selectedSubsourceSource && <><span>/</span><span className="font-medium text-foreground">{selectedSubsourceSource.name}</span></>}
+                </div>
+                {selectedFolderSource && selectedChildren.length > 0 && (
+                  <section aria-label={`${selectedFolderSource.name} subsources`}>
+                    <h3 className="mb-3 text-sm font-semibold">{selectedFolderSource.name} subsources</h3>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+                      {selectedChildren.map(child => (
+                        <Button key={child.id} variant={selectedSubsource === child.id ? 'secondary' : 'outline'} className="h-auto min-h-20 flex-col items-start justify-center gap-2 whitespace-normal p-3 text-left" onClick={() => setSelectedSubsource(child.id)}>
+                          <Folder className="h-5 w-5 text-primary" />
+                          <span className="w-full break-words text-sm">{child.name}</span>
+                        </Button>
+                      ))}
+                    </div>
+                    {selectedSubsource && <Button variant="link" size="sm" className="mt-2 px-0" onClick={() => setSelectedSubsource(null)}>View all {selectedFolderSource.name} files</Button>}
+                  </section>
+                )}
+                <div className="flex items-center justify-between gap-3 border-t pt-3">
+                  <h3 className="min-w-0 break-words text-base font-semibold">{selectedLabel} backups</h3>
+                  <span className="shrink-0 text-sm text-muted-foreground">{filteredLogs.length} file{filteredLogs.length !== 1 ? 's' : ''}</span>
+                </div>
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
-              <span>{filteredLogs.length} backup log{filteredLogs.length !== 1 ? 's' : ''} found{selectedSource !== 'all' ? ` for ${selectedSource}` : ''}</span>
+              <span>{filteredLogs.length} backup log{filteredLogs.length !== 1 ? 's' : ''} found{selectedFolder !== 'all' ? ` for ${selectedLabel}` : ''}</span>
               <div className="flex items-center gap-3">
                 {missingLinkCount > 0 && (
                   <span className="text-xs text-destructive">
@@ -834,7 +890,7 @@ const BackupLogs: React.FC = () => {
               </Alert>
             )}
 
-            <Table>
+            <div className="overflow-x-auto"><Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Status</TableHead>
@@ -954,20 +1010,7 @@ const BackupLogs: React.FC = () => {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
-
-            <div className="flex flex-wrap items-center justify-end gap-4 pt-2 border-t">
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="show-all-sources"
-                  checked={showAllSources}
-                  onCheckedChange={setShowAllSources}
-                />
-                <Label htmlFor="show-all-sources" className="text-sm text-muted-foreground cursor-pointer">
-                  Show all sources
-                </Label>
-              </div>
-            </div>
+            </Table></div>
           </div>
         )}
       </CardContent>
