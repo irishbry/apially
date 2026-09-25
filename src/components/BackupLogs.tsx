@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import DropboxErrorHint from "@/components/DropboxErrorHint";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
@@ -31,7 +31,11 @@ import {
   Wrench,
   ChevronDown,
   ChevronUp,
-  X
+  X,
+  Folder,
+  FolderOpen,
+  Files,
+  Search
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { BackupLogsService, BackupLog, BackupSource } from "@/services/BackupLogsService";
@@ -60,7 +64,9 @@ const BackupLogs: React.FC = () => {
   const [isLoading, setIsLoading] = useState(cachedLogs === null);
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
   const [isDownloadingId, setIsDownloadingId] = useState<string | null>(null);
-  const [selectedSource, setSelectedSource] = useState<string>('all');
+  const [selectedFolder, setSelectedFolder] = useState<string>('all');
+  const [selectedSubsource, setSelectedSubsource] = useState<string | null>(null);
+  const [sourceSearch, setSourceSearch] = useState('');
   const [dropboxApp, setDropboxApp] = useState<{ appKey: string | null; connected: boolean } | null>(null);
   const [recordCounts, setRecordCounts] = useState<Record<string, number>>({});
   const [eligibleDays, setEligibleDays] = useState<Set<string> | null>(null);
@@ -109,54 +115,91 @@ const BackupLogs: React.FC = () => {
     [sources, resolveNameFromFile],
   );
 
-  // Build the list of source names shown in the tab bar.
-  // Default: only active sources that actually have data.
-  // Toggle: show every non-partner source plus any source referenced by logs.
-  const sourceNames = useMemo(() => {
-    const allNames = new Set<string>();
-    sources.forEach(source => allNames.add(source.name));
-    logs.forEach(log => {
-      allNames.add(resolveLogName(log));
-    });
-    allNames.delete('Unknown');
+  const resolveLogSourceId = useCallback((log: BackupLog): string | null => {
+    if (log.source_id && sources.some(source => source.id === log.source_id)) return log.source_id;
+    const parsed = extractSourceName(log.file_name);
+    if (parsed === 'Unknown') return null;
+    const matches = sources.filter(source => normalizeName(source.name) === normalizeName(parsed));
+    return matches.length === 1 ? matches[0].id : null;
+  }, [sources]);
 
-    if (showAllSources) return Array.from(allNames).sort();
+  const sourceBrowser = useMemo(() => {
+    const logSourceIds = new Set(logs.map(resolveLogSourceId).filter((id): id is string => Boolean(id)));
+    const directlyVisible = new Set(
+      sources
+        .filter(source => showAllSources || (source.active && ((recordCounts[source.id] || 0) > 0 || logSourceIds.has(source.id))))
+        .map(source => source.id),
+    );
 
-    const visible = new Set<string>();
+    // A grouping source remains visible whenever one of its children is visible.
     sources.forEach(source => {
-      if (!source.active) return;
-      const hasData = (recordCounts[source.id] || 0) > 0;
-      if (hasData) visible.add(source.name);
+      if (source.parent_id && directlyVisible.has(source.id)) directlyVisible.add(source.parent_id);
     });
-    // Also keep any source that already has a completed backup log with records
-    logs.forEach(log => {
-      if (log.record_count > 0) {
-        const name = resolveLogName(log);
-        if (name && name !== 'Unknown') visible.add(name);
-      }
+
+    const visibleSources = sources.filter(source => directlyVisible.has(source.id));
+    const sourceIds = new Set(sources.map(source => source.id));
+    const topLevel = visibleSources
+      .filter(source => !source.parent_id || !sourceIds.has(source.parent_id))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const childrenByParent = new Map<string, BackupSource[]>();
+    visibleSources.forEach(source => {
+      if (!source.parent_id || !sourceIds.has(source.parent_id)) return;
+      const children = childrenByParent.get(source.parent_id) ?? [];
+      children.push(source);
+      children.sort((a, b) => a.name.localeCompare(b.name));
+      childrenByParent.set(source.parent_id, children);
     });
-    return Array.from(visible).sort();
-  }, [logs, sources, recordCounts, showAllSources, resolveLogName]);
+    const hasUnmatched = logs.some(log => !resolveLogSourceId(log));
+    return { topLevel, childrenByParent, hasUnmatched };
+  }, [logs, sources, recordCounts, showAllSources, resolveLogSourceId]);
+
+  const selectedFolderSource = sources.find(source => source.id === selectedFolder);
+  const selectedChildren = selectedFolderSource
+    ? sourceBrowser.childrenByParent.get(selectedFolderSource.id) ?? []
+    : [];
+  const selectedSubsourceSource = sources.find(source => source.id === selectedSubsource);
+  const selectedLabel = selectedFolder === 'all'
+    ? 'All Sources'
+    : selectedFolder === 'unmatched'
+      ? 'Unmatched historical files'
+      : selectedSubsourceSource
+        ? `${selectedFolderSource?.name ?? 'Source'} / ${selectedSubsourceSource.name}`
+        : selectedFolderSource?.name ?? 'All Sources';
 
   const filteredLogs = useMemo(() => {
-    const bySource = selectedSource === 'all'
+    const folderChildren = selectedFolder === 'all' || selectedFolder === 'unmatched'
+      ? []
+      : sourceBrowser.childrenByParent.get(selectedFolder) ?? [];
+    const allowedIds = new Set(selectedSubsource
+      ? [selectedSubsource]
+      : [selectedFolder, ...folderChildren.map(source => source.id)]);
+    const bySource = selectedFolder === 'all'
       ? logs
-      : logs.filter(log => resolveLogName(log) === selectedSource);
+      : selectedFolder === 'unmatched'
+        ? logs.filter(log => !resolveLogSourceId(log))
+        : logs.filter(log => {
+          const sourceId = resolveLogSourceId(log);
+          return sourceId ? allowedIds.has(sourceId) : false;
+        });
     // Successful backups only — failures and timed-out (stale) runs are hidden
     // and summarized as one missing-day notice instead.
     return bySource.filter(log => {
       const status = deriveStatus(log);
       return (status === 'completed' && Boolean(log.file_name)) || status === 'processing';
     });
-  }, [logs, selectedSource, resolveLogName]);
+  }, [logs, selectedFolder, selectedSubsource, sourceBrowser.childrenByParent, resolveLogSourceId]);
 
   // Sources that should produce a file every day
   const expectedSources = useMemo(
     () => sources.filter(source =>
       source.active
       && !source.is_partner
-      && (selectedSource === 'all' || source.name === selectedSource)),
-    [sources, selectedSource],
+      && (selectedFolder === 'all'
+        || (selectedFolder !== 'unmatched' && (
+          source.id === (selectedSubsource ?? selectedFolder)
+          || (!selectedSubsource && source.parent_id === selectedFolder)
+        )))),
+    [sources, selectedFolder, selectedSubsource],
   );
 
   // Days (last 14) where an expected source produced no completed backup file
