@@ -1,0 +1,1 @@
+Backup reporting panels live in the Reporting tab, separately from the Backup Logs files view, so file downloads remain easy to scan.
