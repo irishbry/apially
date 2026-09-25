@@ -762,6 +762,7 @@ const BackupLogs: React.FC = () => {
                 <div className="flex items-center justify-between gap-3 border-t pt-3">
                   <h3 className="min-w-0 break-words text-base font-semibold">{selectedLabel} backups</h3>
                   <span className="shrink-0 text-sm text-muted-foreground">{filteredLogs.length} file{filteredLogs.length !== 1 ? 's' : ''}</span>
+                </div>
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
               <div className="flex items-center gap-3">
                 {missingLinkCount > 0 && (
@@ -777,7 +778,6 @@ const BackupLogs: React.FC = () => {
                   )}
                   Restore download links
                 </Button>
-              </div>
               </div>
 
             {repairProgress && (
