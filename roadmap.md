@@ -2,3 +2,5 @@
 - [x] Classify no-data backup days separately from missing eligible files across Backups, Reporting, and alerts; load complete log history.
 - [x] Replace Backup Logs source tabs with source/subsource folders while retaining file actions and warnings.
 - [x] Simplify backup file rows: remove Type and Format, keep one visible download action without horizontal scrolling.
+- [x] Fix backup CSV field discovery for GlobUSA schema casing and cover it with regression tests.
+- [ ] Repair recoverable GlobUSA daily backups from August 25 onward; verify populated downloads and report expired days.

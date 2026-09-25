@@ -22,7 +22,12 @@ export function addCsvColumns(columns: Set<string>, entries: CsvDataEntry[]): vo
   for (const entry of entries) {
     if (!entry.metadata || typeof entry.metadata !== 'object') continue;
     for (const key of Object.keys(entry.metadata)) {
-      if (key !== 'clientIp' && key !== 'receivedAt' && key !== 'paused') columns.add(key);
+      if (key === 'clientIp' || key === 'receivedAt' || key === 'paused') continue;
+      // Schema declarations can use different casing from incoming JSON. Use
+      // the actual field name so the header points to populated values.
+      const declared = Array.from(columns).find(column => column.toLowerCase() === key.toLowerCase());
+      if (declared && declared !== key) columns.delete(declared);
+      columns.add(key);
     }
   }
 }
