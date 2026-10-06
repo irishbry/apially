@@ -24,8 +24,12 @@ import {
   Folder,
   FolderOpen,
   Files,
-  Search
+  Search,
+  Archive
 } from "lucide-react";
+import JSZip from 'jszip';
+import FileSaver from 'file-saver';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { BackupLogsService, BackupLog, BackupSource } from "@/services/BackupLogsService";
 import { useAuth } from "@/hooks/useAuth";
@@ -63,6 +67,8 @@ const BackupLogs: React.FC = () => {
   const [recordCounts, setRecordCounts] = useState<Record<string, number>>({});
   const [eligibleDays, setEligibleDays] = useState<Set<string> | null>(null);
   const [showAllSources, setShowAllSources] = useState(false);
+  const [zipMonth, setZipMonth] = useState<string>('');
+  const [zipProgress, setZipProgress] = useState<{ done: number; total: number } | null>(null);
   
   const [retryingDay, setRetryingDay] = useState<string | null>(null);
   const [isRepairing, setIsRepairing] = useState(false);
@@ -187,6 +193,76 @@ const BackupLogs: React.FC = () => {
       return (status === 'completed' && Boolean(log.file_name)) || status === 'processing';
     });
   }, [logs, selectedFolder, selectedSubsource, sourceBrowser.childrenByParent, resolveLogSourceId]);
+
+  const monthLogs = useMemo(() => {
+    const map = new Map<string, BackupLog[]>();
+    filteredLogs.forEach(log => {
+      if (deriveStatus(log) !== 'completed' || !log.file_name || (!log.storage_path && !log.dropbox_url)) return;
+      const day = backupTargetDate(log);
+      if (!day) return;
+      const key = day.slice(0, 7);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(log);
+    });
+    return map;
+  }, [filteredLogs]);
+  const monthOptions = useMemo(() => Array.from(monthLogs.keys()).sort().reverse(), [monthLogs]);
+  const activeZipMonth = monthOptions.includes(zipMonth) ? zipMonth : monthOptions[0] ?? '';
+  const monthLabel = (key: string) => {
+    const [y, m] = key.split('-').map(Number);
+    return new Date(y, m - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  };
+
+  const handleMonthZip = async () => {
+    const files = monthLogs.get(activeZipMonth) ?? [];
+    if (files.length === 0) return;
+    setZipProgress({ done: 0, total: files.length });
+    const zip = new JSZip();
+    const used = new Set<string>();
+    const failed: string[] = [];
+    let done = 0;
+    const queue = [...files];
+    const worker = async () => {
+      while (queue.length) {
+        const log = queue.shift()!;
+        try {
+          let url: string | null = null;
+          if (log.storage_path) url = await BackupLogsService.getDownloadUrl(log.storage_path);
+          if (!url && log.dropbox_url) url = log.dropbox_url.replace('?dl=0', '?dl=1');
+          if (!url) throw new Error('no url');
+          const res = await fetch(url);
+          if (!res.ok) throw new Error(String(res.status));
+          const blob = await res.blob();
+          let name = log.file_name || `${log.id}.csv`;
+          const sub = sources.find(s => s.id === resolveLogSourceId(log));
+          if (!selectedSubsource && sub && sub.id !== selectedFolder && selectedFolder !== 'all') name = `${sub.name}/${name}`;
+          while (used.has(name)) name = name.replace(/(\.[^.]+)?$/, '_dup$1');
+          used.add(name);
+          zip.file(name, blob);
+        } catch {
+          failed.push(log.file_name || log.id);
+        }
+        done += 1;
+        setZipProgress({ done, total: files.length });
+      }
+    };
+    try {
+      await Promise.all(Array.from({ length: 4 }, worker));
+      if (used.size === 0) throw new Error('none');
+      const content = await zip.generateAsync({ type: 'blob' });
+      const safe = selectedLabel.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim();
+      FileSaver.saveAs(content, `${safe} - ${monthLabel(activeZipMonth)}.zip`);
+      toast({
+        title: 'Zip ready',
+        description: failed.length ? `${used.size} files zipped; ${failed.length} could not be downloaded.` : `${used.size} files zipped.`,
+        variant: failed.length ? 'destructive' : undefined,
+      });
+    } catch {
+      toast({ title: 'Error', description: 'Could not create the zip file', variant: 'destructive' });
+    } finally {
+      setZipProgress(null);
+    }
+  };
 
   // Sources that should produce a file every day
   const expectedSources = useMemo(
@@ -737,6 +813,20 @@ const BackupLogs: React.FC = () => {
                   <h3 className="min-w-0 break-words text-base font-semibold">{selectedLabel} backups</h3>
                   <span className="shrink-0 text-sm text-muted-foreground">{filteredLogs.length} file{filteredLogs.length !== 1 ? 's' : ''}</span>
                 </div>
+                {monthOptions.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Select value={activeZipMonth} onValueChange={setZipMonth} disabled={!!zipProgress}>
+                      <SelectTrigger className="h-8 w-44 text-sm" aria-label="Month to download"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {monthOptions.map(m => <SelectItem key={m} value={m}>{monthLabel(m)} ({monthLogs.get(m)?.length})</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={handleMonthZip} disabled={!!zipProgress}>
+                      <Archive className="h-4 w-4" />
+                      {zipProgress ? `Zipping ${zipProgress.done}/${zipProgress.total}…` : 'Download month as zip'}
+                    </Button>
+                  </div>
+                )}
                 <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                 {missingLinkCount > 0 && (
                   <span className="text-xs text-destructive">
